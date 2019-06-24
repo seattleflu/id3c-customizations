@@ -1,3 +1,4 @@
 %syntax-version=1.0.0
 %project=seattleflu/id3c-customizations
 
+warehouse/target/data [seattleflu/schema:warehouse/target/organism] 2019-06-21T23:54:01Z Thomas Sibley <tsibley@fredhutch.org> # Add priority targets with organism annotations
