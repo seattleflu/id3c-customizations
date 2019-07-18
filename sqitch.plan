@@ -2,3 +2,4 @@
 %project=seattleflu/id3c-customizations
 
 warehouse/target/data [seattleflu/schema:warehouse/target/organism] 2019-06-21T23:54:01Z Thomas Sibley <tsibley@fredhutch.org> # Add priority targets with organism annotations
+shipping/reportable_condition [warehouse/target/data seattleflu/schema:warehouse/presence_absence seattleflu/schema:warehouse/organism seattleflu/schema:warehouse/sample seattleflu/schema:warehouse/site] 2019-07-18T00:00:28Z Kairsten Fay <kfay@fredhutch.org> # Create table for reportable conditions
