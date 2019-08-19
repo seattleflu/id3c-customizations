@@ -1,0 +1,100 @@
+import pandas
+import re
+from functools import partial
+from collections import namedtuple
+from pathlib import Path
+from os import environ
+
+
+ID3C = Path(environ.get("ID3C", "../../id3c"))
+id3c = ID3C / "bin/id3c"
+
+
+# We use only 2016-vintage geometries.
+vintages = [
+    2016,
+]
+
+
+# Static states data
+with open("data/omitted-states.txt", encoding = "UTF-8") as file:
+    omitted_states = list(
+        filter(lambda line: line and not line.startswith("#"),
+            map(str.rstrip,
+                file)))
+
+states = (
+    pandas
+    .read_csv("data/states.txt", sep = "|", dtype = object)
+    .rename(columns = {
+        "STATE": "fips_code",
+        "STUSAB": "usps_code",
+        "STATE_NAME": "name",
+        "STATENS": "gnisid",
+    })
+    .set_index("fips_code", drop = False)
+    .drop(omitted_states)
+)
+
+def hierarchy_state(name):
+    replace_spaces     = partial(re.sub, r"\s+", "_")
+    remove_punctuation = partial(re.sub, r"[^A-Za-z0-9_]", "")
+    return remove_punctuation(replace_spaces(name.lower()))
+
+def fips_to_name(code):
+    return states.at[code, 'name']
+
+
+# Download 2016 Census tracts + tract cartographic boundaries for all states.
+rule download:
+    message: f"Downloaded Census tracts + cartographic boundaries for all states"
+    input:
+        expand("data/tract/tl_{vintage}_{state.fips_code}_tract.zip",      vintage = vintages, state = states.itertuples()),
+        expand("data/tract/cb_{vintage}_{state.fips_code}_tract_500k.zip", vintage = vintages, state = states.itertuples())
+
+rule download_state_tracts:
+    message: "Downloading {wildcards.vintage} Census tracts for {wildcards.state_fips_code}"
+    output:
+        "data/tract/tl_{vintage}_{state_fips_code}_tract.zip"
+    shell:
+        """
+        wget -P data/tract/ \
+             -N https://www2.census.gov/geo/tiger/TIGER{wildcards.vintage:q}/TRACT/tl_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_tract.zip
+        """
+
+rule download_state_tracts_boundaries:
+    message: "Downloading {wildcards.vintage} Census tract cartographic boundaries for {wildcards.state_fips_code}"
+    output:
+        "data/tract/cb_{vintage}_{state_fips_code}_tract_500k.zip"
+    shell:
+        """
+        wget -P data/tract/ \
+             -N https://www2.census.gov/geo/tiger/GENZ{wildcards.vintage:q}/shp/cb_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_tract_500k.zip
+        """
+
+
+# Import locations
+rule import:
+    message: "Importing Census tracts into ID3C"
+    input:
+        expand("log/import/{vintage}_{state.fips_code}_tract", vintage = vintages, state = states.itertuples())
+
+rule import_state:
+    message: "Importing {wildcards.vintage} Census tracts into ID3C for {wildcards.state_fips_code}"
+    input:
+        original   = ancient("data/tract/tl_{vintage}_{state_fips_code}_tract.zip"),
+        simplified = ancient("data/tract/cb_{vintage}_{state_fips_code}_tract_500k.zip"),
+    output:
+        touch("log/import/{vintage}_{state_fips_code}_tract")
+    run:
+        state_name = hierarchy_state(fips_to_name(wildcards.state_fips_code))
+        shell("""
+            {id3c:q} location import \
+                {input.original:q} \
+                --scale tract \
+                --identifier-from GEOID \
+                --hierarchy 'country=>united_states,state=>'{state_name:q} \
+                --point-from INTPTLON INTPTLAT \
+                --simplified-polygons {input.simplified:q} \
+                --if-exists update
+        """)
