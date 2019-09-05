@@ -74,4 +74,23 @@ create or replace view shipping.metadata_for_augur_build_v1 as
 comment on view shipping.metadata_for_augur_build_v1 is
 		'View of metadata necessary for SFS augur build';
 
+
+create or replace view shipping.genomic_sequences_for_augur_build_v1 as
+
+    select distinct on (sample.identifier, organism.lineage, segment)
+           sample.identifier as sample,
+           organism.lineage as organism,
+           genomic_sequence.segment,
+           round(((length(replace(seq, 'N', '')) * 1.0 / length(seq))), 4) as coverage,
+           genomic_sequence.seq
+      from warehouse.sample
+      join warehouse.consensus_genome using (sample_id)
+      join warehouse.genomic_sequence using (consensus_genome_id)
+      join warehouse.organism using (organism_id)
+
+      order by sample.identifier, organism.lineage, segment, coverage desc;
+
+comment on view shipping.genomic_sequences_for_augur_build_v1 is
+    'View of genomic sequences for SFS augur build';
+
 commit;
