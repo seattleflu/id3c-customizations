@@ -13,8 +13,7 @@ begin;
 -- there needs to be a lag between view development and consumers being
 -- updated, copy the view definition into v2 and make changes there.
 
-drop view shipping.reportable_condition_v1;
-create view shipping.reportable_condition_v1 as
+create or replace view shipping.reportable_condition_v1 as
 
     with reportable as (
         select array_agg(lineage) as lineages
@@ -28,7 +27,9 @@ create view shipping.reportable_condition_v1 as
         sample.identifier as sample,
         barcode,
         site.identifier as site,
-        presence_absence.details->>'reporting_log' as reporting_log
+        presence_absence.details->>'reporting_log' as reporting_log,
+        sample.details->'_provenance'->>'workbook' as workbook,
+        sample.details->'_provenance'->>'sheet' as sheet
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
@@ -93,5 +94,7 @@ create or replace view shipping.genomic_sequences_for_augur_build_v1 as
 
 comment on view shipping.genomic_sequences_for_augur_build_v1 is
     'View of genomic sequences for SFS augur build';
+
+drop view shipping.flu_assembly_jobs_v1;
 
 commit;
