@@ -7,3 +7,4 @@ roles/reportable-condition-notifier/create 2019-07-18T15:59:57Z Kairsten Fay <kf
 roles/reportable-condition-notifier/grants [roles/reportable-condition-notifier/create shipping/views] 2019-07-18T16:02:40Z Kairsten Fay <kfay@fredhutch.org> # Grants to reportable-condition-notifier
 @2019-08-27 2019-08-27T19:24:16Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 27 August 2019
 warehouse/target/data [warehouse/target/data@2019-08-27] 2019-09-10T20:53:47Z Thomas Sibley <tsibley@fredhutch.org> # Add our oddly-named pan Flu C target
+@2019-09-10 2019-09-10T21:19:00Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 10 Sept 2019
