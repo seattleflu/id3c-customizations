@@ -32,7 +32,6 @@ with target_lineage (identifier, lineage) as (
         ('Flu_A_H3',    'Influenza.A.H3N2'),
         ('Flu_A_pan',   'Influenza.A'),
         ('Flu_B_pan',   'Influenza.B'),
-        ('AP324NU',     'Influenza.C'),
         ('Measles',     'Measles'),
         ('Mumps',       'Mumps'),
         ('RSVA',        'RSV.A'),
