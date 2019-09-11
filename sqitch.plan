@@ -8,3 +8,6 @@ roles/reportable-condition-notifier/grants [roles/reportable-condition-notifier/
 @2019-08-27 2019-08-27T19:24:16Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 27 August 2019
 warehouse/target/data [warehouse/target/data@2019-08-27] 2019-09-10T20:53:47Z Thomas Sibley <tsibley@fredhutch.org> # Add our oddly-named pan Flu C target
 @2019-09-10 2019-09-10T21:19:00Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 10 Sept 2019
+
+warehouse/views [seattleflu/schema:warehouse/location] 2019-08-26T18:18:53Z Thomas Sibley <tsibley@fredhutch.org> # Reworkable views specific to SFS
+@2019-09-11 2019-09-04T23:17:19Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 11 Sept 2019
