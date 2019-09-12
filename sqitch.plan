@@ -11,3 +11,8 @@ warehouse/target/data [warehouse/target/data@2019-08-27] 2019-09-10T20:53:47Z Th
 
 warehouse/views [seattleflu/schema:warehouse/location] 2019-08-26T18:18:53Z Thomas Sibley <tsibley@fredhutch.org> # Reworkable views specific to SFS
 @2019-09-11 2019-09-04T23:17:19Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 11 Sept 2019
+
+shipping/views [shipping/views@2019-08-27] 2019-09-05T00:01:04Z Jover Lee <joverlee@fredhutch.org> # Add metadata and genomic sequence view for SFS augur build
+roles/augur-build-exporter/create 2019-09-04T21:45:50Z Jover Lee <joverlee@fredhutch.org> # Role for exporting metadata and genomic sequences to SFS augur build
+roles/augur-build-exporter/grants 2019-09-04T21:54:12Z Jover Lee <joverlee@fredhutch.org> # Grants to augur-build-exporter
+@2019-09-12 2019-09-12T16:08:30Z Jover Lee <joverlee@fredhutch.org> # schema as of 12 Sept 2019

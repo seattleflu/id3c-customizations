@@ -43,7 +43,4 @@ create or replace view shipping.reportable_condition_v1 as
 
     order by encountered desc;
 
-drop view shipping.metadata_for_augur_build_v1;
-drop view shipping.genomic_sequences_for_augur_build_v1;
-
 commit;
