@@ -25,9 +25,6 @@ Files stored in the `data/` directory are:
   downloaded unmodified from
   <http://www2.census.gov/geo/docs/reference/state.txt>.
 
-* `omitted-states.txt` lists the _names_ of states we want to omit from
-  downloads of census tracts, with reasons provided in comments.
-
 * `tract/tl_2016_${state_fips_code}_tract.zip` contain the 2016-vintage Census
   tract Shapefiles, as described at
   <https://www.census.gov/geo/maps-data/data/tiger-line.html>.
