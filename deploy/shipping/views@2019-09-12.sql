@@ -13,8 +13,7 @@ begin;
 -- there needs to be a lag between view development and consumers being
 -- updated, copy the view definition into v2 and make changes there.
 
-drop view shipping.reportable_condition_v1;
-create view shipping.reportable_condition_v1 as
+create or replace view shipping.reportable_condition_v1 as
 
     with reportable as (
         select array_agg(lineage) as lineages

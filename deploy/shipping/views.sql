@@ -27,7 +27,9 @@ create or replace view shipping.reportable_condition_v1 as
         sample.identifier as sample,
         barcode,
         site.identifier as site,
-        presence_absence.details->>'reporting_log' as reporting_log
+        presence_absence.details->>'reporting_log' as reporting_log,
+        sample.details->'_provenance'->>'workbook' as workbook,
+        sample.details->'_provenance'->>'sheet' as sheet
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
