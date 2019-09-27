@@ -33,6 +33,12 @@ states_with_tracts = states.drop([
     "74", # U.S. Minor Outlying Islands — No tract shapefiles available‽
 ])
 
+states_with_pumas = states.drop([
+    "60", # American Samoa
+    "69", # Northern Mariana Islands
+    "74", # U.S. Minor Outlying Islands
+])
+
 def hierarchy_state(name):
     replace_spaces     = partial(re.sub, r"\s+", "_")
     remove_punctuation = partial(re.sub, r"[^A-Za-z0-9_]", "")
@@ -42,13 +48,17 @@ def fips_to_name(code):
     return states.at[code, 'name']
 
 
-# Download 2016 Census tracts + tract cartographic boundaries for all states.
+# Download all geographies
 rule download:
-    message: f"Downloaded Census tracts + cartographic boundaries for all states"
+    message: f"Downloaded Census geographies and cartographic boundaries for all states"
     input:
         expand("data/tract/tl_{vintage}_{state.fips_code}_tract.zip",      vintage = vintages, state = states_with_tracts.itertuples()),
-        expand("data/tract/cb_{vintage}_{state.fips_code}_tract_500k.zip", vintage = vintages, state = states_with_tracts.itertuples())
+        expand("data/tract/cb_{vintage}_{state.fips_code}_tract_500k.zip", vintage = vintages, state = states_with_tracts.itertuples()),
+        expand("data/puma/tl_{vintage}_{state.fips_code}_puma10.zip",      vintage = vintages, state = states_with_pumas.itertuples()),
+        expand("data/puma/cb_{vintage}_{state.fips_code}_puma10_500k.zip", vintage = vintages, state = states_with_pumas.itertuples()),
 
+
+# Download 2016 Census tracts + tract cartographic boundaries
 rule download_state_tracts:
     message: "Downloading {wildcards.vintage} Census tracts for {wildcards.state_fips_code}"
     output:
@@ -67,6 +77,28 @@ rule download_state_tracts_boundaries:
         """
         wget -P data/tract/ \
              -N https://www2.census.gov/geo/tiger/GENZ{wildcards.vintage:q}/shp/cb_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_tract_500k.zip
+        """
+
+
+# Download 2016-vintage PUMAs + cartographic boundaries
+rule download_state_pumas:
+    message: "Downloading {wildcards.vintage} Census PUMAs for {wildcards.state_fips_code}"
+    output:
+        "data/puma/tl_{vintage}_{state_fips_code}_puma10.zip"
+    shell:
+        """
+        wget -P data/puma/ \
+             -N https://www2.census.gov/geo/tiger/TIGER{wildcards.vintage:q}/PUMA/tl_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_puma10.zip
+        """
+
+rule download_state_pumas_boundaries:
+    message: "Downloading {wildcards.vintage} Census PUMA cartographic boundaries for {wildcards.state_fips_code}"
+    output:
+        "data/puma/cb_{vintage}_{state_fips_code}_puma10_500k.zip"
+    shell:
+        """
+        wget -P data/puma/ \
+             -N https://www2.census.gov/geo/tiger/GENZ{wildcards.vintage:q}/shp/cb_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_puma10_500k.zip
         """
 
 
