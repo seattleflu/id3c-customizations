@@ -25,6 +25,12 @@ Files stored in the `data/` directory are:
   downloaded unmodified from
   <http://www2.census.gov/geo/docs/reference/state.txt>.
 
+* `2010_Census_Tract_to_2010_PUMA.txt` contains a mapping of Census tracts to
+  PUMAs (which use tracts as their geographical building block), letting us
+  establish tracts under PUMAs in our location catalog hierarchy.  This file
+  was downloaded unmodified from
+  <https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt>.
+
 * `tract/tl_2016_${state_fips_code}_tract.zip` contain the 2016-vintage Census
   tract Shapefiles, as described at
   <https://www.census.gov/geo/maps-data/data/tiger-line.html>.
