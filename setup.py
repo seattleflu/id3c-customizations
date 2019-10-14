@@ -54,6 +54,8 @@ setup(
 
     install_requires = [
         "id3c >=2019.1",
+        "click >=7.0",
+        "requests",
     ],
 
     extras_require = {
