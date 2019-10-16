@@ -1,0 +1,13 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+seattleflu-id3c-customizations = {editable = true,path = "."}
+id3c = {editable = true,path = "./../id3c"}
+
+[requires]
+python_version = "3.6"
