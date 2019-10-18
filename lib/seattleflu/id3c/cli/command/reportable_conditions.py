@@ -98,7 +98,11 @@ def notify(*, action: str):
                         "Inferring site from manifest data.")
 
                 url = SLACK_WEBHOOK_REPORTING_GENERAL \
-                    if record.site not in childrens_sites and record.sheet != 'SCH' \
+                    if (record.site not in childrens_sites and
+                        record.sheet != 'SCH' and
+                        record.sample_origin != 'sch_retro' and
+                        record.swab_site != 'sch_ed' and
+                        record.swab_site != 'community_clinic') \
                     else SLACK_WEBHOOK_REPORTING_CHILDRENS
 
                 response = send_slack_post_request(record, url)
@@ -174,6 +178,13 @@ def send_slack_post_request(record: Any, url: str) -> requests.Response:
             "workbook": record.workbook,
             "sheet": record.sheet,
         }
+
+        if record.sample_origin:
+            data["manifest"]["sample_origin"] = record.sample_origin
+
+        if record.swab_site:
+            data["manifest"]["swab_site"] = record.swab_site
+
 
     payload = {
         "text": f":rotating_light: {record.lineage} detected",
