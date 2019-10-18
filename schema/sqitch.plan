@@ -22,3 +22,4 @@ shipping/views [shipping/views@2019-09-27] 2019-09-27T17:11:20Z Thomas Sibley <t
 @2019-09-27b 2019-09-27T17:14:15Z Thomas Sibley <tsibley@fredhutch.org> # second batch of changes for 27 Sept 2019
 warehouse/target/data [warehouse/target/data@2019-09-27b] 2019-09-30T22:08:52Z Kairsten Fay <kfay@fredhutch.org> # Link more targets to organisms
 @2019-09-30 2019-09-30T23:59:55Z Kairsten Fay <kfay@fredhutch.org> # Link more targets to organisms
+shipping/views [shipping/views@2019-09-30] 2019-10-18T16:23:26Z Jover Lee <joverlee@fredhutch.org> # Update reportable-conditions to include sample_origin and swab_site
