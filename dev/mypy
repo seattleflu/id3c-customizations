@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
+cd "$(dirname $0)/.."
+
+if [[ -n ${PIPENV_ACTIVE:-} ]]; then
+    exec mypy -p seattleflu.id3c
+else
+    exec pipenv run mypy -p seattleflu.id3c
+fi
