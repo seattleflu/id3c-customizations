@@ -480,14 +480,12 @@ def determine_gender(sex_response: str) -> Optional[str]:
     """
     Determine the gender based on a give *sex_response*
     """
-    if sex_response == '':
-        return None
-
     gender_map = {
         'Male': 'male',
         'Female': 'female',
         'Indeterminate/other': 'other',
-        'Prefer not to say': None
+        'Prefer not to say': None,
+        '': None,
     }
 
     if sex_response not in gender_map:
@@ -585,13 +583,11 @@ def determine_vaccine_status(vaccine_response: str) -> Optional[str]:
     """
     Determine the vaccine status based on provided *vaccine_response*
     """
-    if vaccine_response == '':
-        return None
-
     vaccine_map = {
         'Yes': 'completed',
         'No': 'not-done',
-        'Do not know': None
+        'Do not know': None,
+        '': None
     }
 
     if vaccine_response not in vaccine_map:
