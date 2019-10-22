@@ -96,18 +96,20 @@ def redcap_det_swab_n_send(*, log_output: bool, db: DatabaseSession):
             specimen        = create_resource_specimen(redcap_record, patient)
             immunization    = create_resource_immunization(redcap_record, patient)
 
+            other_resources = [
+                patient,
+                encounter,
+                questionnaire,
+                specimen,
+                immunization,
+            ]
+
             bundle = {
                 "resourceType": "Bundle",
                 "id": str(uuid4()),
                 "type": "collection",
                 "timestamp": datetime.now().astimezone().isoformat(),
-                "entry": [
-                    resource(patient),
-                    resource(encounter),
-                    resource(questionnaire),
-                    resource(specimen),
-                    resource(immunization)
-                ]
+                "entry": [ resource(r) for r in other_resources if r is not None ]
             }
 
             for location in location_resources:
@@ -245,11 +247,15 @@ def generate_patient_hash(redcap_record: dict) -> dict:
     return generate_hash(str(sorted(personal_information.items())))
 
 
-def create_resource_immunization(redcap_record: dict, patient: dict) -> dict:
+def create_resource_immunization(redcap_record: dict, patient: dict) -> Optional[dict]:
     """ Returns a FHIR Immunization resource. """
+    vaccine_status = vaccine(redcap_record)
+    if not vaccine_status:
+        return None
+
     immunization = {
         "resourceType": "Immunization",
-        "status": vaccine(redcap_record),
+        "status": vaccine_status,
         "vaccineCode": {
             "coding": [
                 {
