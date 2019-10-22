@@ -596,7 +596,7 @@ def symptom(symptom_name: str) -> Optional[str]:
         'Feeling more tired than usual':        'fatigue',
         'Muscle or body aches':                 'muscleOrBodyAches',
         'Diarrhea':                             'diarrhea',
-        'Ear pain/discharge':                   'earPainOrDischarge',
+        'Ear pain or discharge':                'earPainOrDischarge',
         'Rash':                                 'rash',
         'Increased trouble with breathing':     'increasedTroubleBreathing',
         'None of the above':                    None,
