@@ -97,13 +97,13 @@ def notify(*, action: str):
                     LOG.info(f"No site found for presence_absence_id «{record.id}». " +
                         "Inferring site from manifest data.")
 
-                url = SLACK_WEBHOOK_REPORTING_GENERAL \
-                    if (record.site not in childrens_sites and
-                        record.sheet != 'SCH' and
-                        record.sample_origin != 'sch_retro' and
-                        record.swab_site != 'sch_ed' and
-                        record.swab_site != 'community_clinic') \
-                    else SLACK_WEBHOOK_REPORTING_CHILDRENS
+                url = SLACK_WEBHOOK_REPORTING_CHILDRENS \
+                    if (record.site in childrens_sites or
+                        record.sheet == 'SCH' or
+                        record.sample_origin == 'sch_retro' or
+                        record.swab_site == 'sch_ed' or
+                        record.swab_site == 'community_clinic') \
+                    else SLACK_WEBHOOK_REPORTING_GENERAL
 
                 response = send_slack_post_request(record, url)
 
