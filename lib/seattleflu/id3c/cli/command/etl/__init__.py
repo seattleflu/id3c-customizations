@@ -124,5 +124,6 @@ class UnknownRaceError(ValueError):
 from . import (
     clinical,
     longitudinal,
-    redcap_det_kiosk
+    redcap_det_kiosk,
+    redcap_det_shelters
 )
