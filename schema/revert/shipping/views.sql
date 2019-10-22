@@ -13,7 +13,8 @@ begin;
 -- there needs to be a lag between view development and consumers being
 -- updated, copy the view definition into v2 and make changes there.
 
-create or replace view shipping.reportable_condition_v1 as
+drop view shipping.reportable_condition_v1;
+create view shipping.reportable_condition_v1 as
 
     with reportable as (
         select array_agg(lineage) as lineages
@@ -95,6 +96,38 @@ create or replace view shipping.genomic_sequences_for_augur_build_v1 as
 comment on view shipping.genomic_sequences_for_augur_build_v1 is
     'View of genomic sequences for SFS augur build';
 
-drop view shipping.flu_assembly_jobs_v1;
+
+create or replace view shipping.flu_assembly_jobs_v1 as
+
+    select sample.identifier as sfs_uuid,
+           sample.details ->> 'nwgc_id' as nwgc_id,
+           sequence_read_set.urls,
+           target.identifier as target,
+           o1.lineage as target_linked_organism,
+           coalesce(o2.lineage, o1.lineage) as assembly_job_organism,
+           sequence_read_set.details
+
+      from warehouse.sequence_read_set
+      join warehouse.sample using (sample_id)
+      join warehouse.presence_absence using (sample_id)
+      join warehouse.target using (target_id)
+      join warehouse.organism o1 using (organism_id)
+      -- Reason for o2 join: For pan-subtype targets like Flu_A_pan,
+      -- we want to spread out to the more specific lineages for assembly jobs.
+      -- Since this view is Flu specific, we are hard-coding it to spread just one level down.
+      left join warehouse.organism o2 on (o2.lineage ~ concat(o1.lineage::text, '.*{1}')::lquery)
+
+    where o1.lineage ~ 'Influenza.*'
+    and present
+    -- The sequence read set details currently holds the state of assembly jobs for each lineage.
+    -- So if null, then definitely no jobs have been completed.
+    -- If not null, then check if the assembly job organism matches any key in the sequence read set details.
+    and (sequence_read_set.details is null
+         or not sequence_read_set.details ? coalesce(o2.lineage, o1.lineage)::text)
+
+    order by sample.details ->> 'nwgc_id';
+
+comment on view shipping.flu_assembly_jobs_v1 is
+    'View of flu jobs that still need to be run through the assembly pipeline';
 
 commit;
