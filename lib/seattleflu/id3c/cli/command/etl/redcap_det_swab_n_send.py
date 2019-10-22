@@ -126,18 +126,18 @@ def resource(resource: dict) -> dict:
     return { "resource": resource, "fullUrl": f"urn:uuid:{uuid4()}" }
 
 
-def redcap_instruments_are_complete(redcap_record: dict, required_instruments: list) -> bool:
+def redcap_instruments_are_complete(record: dict, required_instruments: list) -> bool:
     """
     Returns True if all the required REDCap instruments in this project are
     complete, else False.
     """
-    return all([ is_complete(instrument, redcap_record) for instrument in required_instruments ])
+    return all([ is_complete(instrument, record) for instrument in required_instruments ])
 
 
-def locations(redcap_record: dict) -> list:
+def locations(record: dict) -> list:
     """ Creates a list of Location resources from a REDCap record. """
-    def uw_affiliation(redcap_record: dict) -> List[Dict[Any, Any]]:
-        uw_affiliation = redcap_record['uw_affiliation']
+    def uw_affiliation(record: dict) -> List[Dict[Any, Any]]:
+        uw_affiliation = record['uw_affiliation']
 
         uw_locations = []
         if uw_affiliation in ['1', '2']:
@@ -150,7 +150,7 @@ def locations(redcap_record: dict) -> list:
 
         return uw_locations
 
-    def housing(redcap_record: dict) -> dict:
+    def housing(record: dict) -> dict:
         lodging_options = [
             'Shelter',
             'Assisted living facility',
@@ -158,19 +158,19 @@ def locations(redcap_record: dict) -> list:
             'No consistent primary residence'
         ]
 
-        if redcap_record['housing_type'] in lodging_options:
+        if record['housing_type'] in lodging_options:
             housing_type = 'lodging'
         else:
             housing_type = 'residence'
 
         # TODO census tract
-        if redcap_record['home_country'] == 'US':
+        if record['home_country'] == 'US':
             address = {
-                'street1': redcap_record['home_street'],
-                'city': redcap_record['homecity_other'],
-                'state': redcap_record['home_state_55ec63'],
-                'country': redcap_record['home_country'],
-                'zipcode': redcap_record['home_zipcode_2'],
+                'street1': record['home_street'],
+                'city': record['homecity_other'],
+                'state': record['home_state_55ec63'],
+                'country': record['home_country'],
+                'zipcode': record['home_zipcode_2'],
             }
 
         return create_resource_location(
@@ -180,11 +180,11 @@ def locations(redcap_record: dict) -> list:
         resource(create_resource_location(f"{INTERNAL_SYSTEM}/site", 'self-test', "site"))
     ]
 
-    housing_location = housing(redcap_record)
+    housing_location = housing(record)
     if housing_location:
         locations.append(resource(housing_location))
 
-    uw_location = uw_affiliation(redcap_record)
+    uw_location = uw_affiliation(record)
     for location in uw_location:
         if location:
             locations.append(resource(location))
@@ -223,33 +223,33 @@ def create_resource_location(system: str, value: str, type: str, parent: str=Non
     return location
 
 
-def create_resource_patient(redcap_record: dict) -> dict:
+def create_resource_patient(record: dict) -> dict:
     """ Returns a FHIR Patient resource. """
     return {
         "resourceType": "Patient",
         "identifier": [{
             "system": f"{INTERNAL_SYSTEM}/individual",
-            "value": generate_patient_hash(redcap_record),
+            "value": generate_patient_hash(record),
         }],
-        "gender": sex(redcap_record)
+        "gender": sex(record)
     }
 
 
-def generate_patient_hash(redcap_record: dict) -> dict:
+def generate_patient_hash(record: dict) -> dict:
     """ Returns a hash generated from patient information. """
     personal_information = {
-        "name": canonicalize_name(f"{redcap_record['first_name_1']}{redcap_record['last_name_1']}"),
-        "gender": sex(redcap_record),  # TODO redundant?
-        "birthday": convert_to_iso(redcap_record['birthday'], '%Y-%m-%d'),
-        "zipcode": redcap_record['home_zipcode_2']  # TODO redundant?
+        "name": canonicalize_name(f"{record['first_name_1']}{record['last_name_1']}"),
+        "gender": sex(record),  # TODO redundant?
+        "birthday": convert_to_iso(record['birthday'], '%Y-%m-%d'),
+        "zipcode": record['home_zipcode_2']  # TODO redundant?
     }
 
     return generate_hash(str(sorted(personal_information.items())))
 
 
-def create_resource_immunization(redcap_record: dict, patient: dict) -> Optional[dict]:
+def create_resource_immunization(record: dict, patient: dict) -> Optional[dict]:
     """ Returns a FHIR Immunization resource. """
-    vaccine_status = vaccine(redcap_record)
+    vaccine_status = vaccine(record)
     if not vaccine_status:
         return None
 
@@ -271,7 +271,7 @@ def create_resource_immunization(redcap_record: dict, patient: dict) -> Optional
         }
     }
 
-    date = vaccine_date(redcap_record)
+    date = vaccine_date(record)
 
     if date:
         immunization["occurrenceDateTime"] = date
@@ -284,20 +284,20 @@ def create_resource_immunization(redcap_record: dict, patient: dict) -> Optional
 
 
 
-def create_resource_encounter(redcap_record: dict, project_id: str, patient: dict, locations: list) -> dict:
+def create_resource_encounter(record: dict, project_id: str, patient: dict, locations: list) -> dict:
     """ Returns a FHIR Encounter resource. """
 
     def grab_symptom_keys(key: str) -> Optional[Match[str]]:
-        if redcap_record[key] != '':
+        if record[key] != '':
             return re.match('symptoms(_child)?___[0-9]{1,3}$', key)
         else:
             return None
 
     def build_conditions_list(symptom_key: str) -> dict:
-        return create_resource_condition(redcap_record, redcap_record[symptom_key], patient)
+        return create_resource_condition(record, record[symptom_key], patient)
 
     def build_diagnosis_list(symptom_key: str) -> dict:
-        return { "condition": { "reference": f"#{symptom(redcap_record[symptom_key])}" } }
+        return { "condition": { "reference": f"#{symptom(record[symptom_key])}" } }
 
     def build_locations_list(location: dict) -> dict:
         return {
@@ -307,13 +307,13 @@ def create_resource_encounter(redcap_record: dict, project_id: str, patient: dic
             }
         }
 
-    symptom_keys = list(filter(grab_symptom_keys, redcap_record))
+    symptom_keys = list(filter(grab_symptom_keys, record))
 
     encounter = {
         "resourceType": "Encounter",
         "identifier": [{
             "system": f"{INTERNAL_SYSTEM}/encounter",
-            "value": f"{REDCAP_URL}/{project_id}/{redcap_record['record_id']}",
+            "value": f"{REDCAP_URL}/{project_id}/{record['record_id']}",
         }],
         "class": {
             "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
@@ -321,7 +321,7 @@ def create_resource_encounter(redcap_record: dict, project_id: str, patient: dic
         },
         "status": "finished",
         "period": {
-            "start": convert_to_iso(redcap_record['enrollment_date_time'], "%Y-%m-%d %H:%M")
+            "start": convert_to_iso(record['enrollment_date_time'], "%Y-%m-%d %H:%M")
         },
         "subject": {
             "type": "Patient",
@@ -348,10 +348,10 @@ def convert_to_iso(time: str, current_format: str) -> str:
     return datetime.strptime(time, current_format).astimezone().isoformat()  # TODO uses locale time zone
 
 
-def create_resource_condition(redcap_record: dict, symptom_name: str, patient: dict) -> dict:
+def create_resource_condition(record: dict, symptom_name: str, patient: dict) -> dict:
     """ Returns a FHIR Condition resource. """
-    def symptom_duration(redcap_record: dict) -> str:
-        return convert_to_iso(redcap_record['symptom_duration'], "%Y-%m-%d")
+    def symptom_duration(record: dict) -> str:
+        return convert_to_iso(record['symptom_duration'], "%Y-%m-%d")
 
     def severity(symptom_name: Optional[str]) -> Optional[str]:
         if symptom_name:
@@ -374,7 +374,7 @@ def create_resource_condition(redcap_record: dict, symptom_name: str, patient: d
                 }
             ]
         },
-        "onsetDateTime": symptom_duration(redcap_record),
+        "onsetDateTime": symptom_duration(record),
         "subject": {
             "type": "Patient",
             "identifier": patient['identifier'][0],
@@ -383,24 +383,24 @@ def create_resource_condition(redcap_record: dict, symptom_name: str, patient: d
 
     symptom_severity = severity(mapped_symptom_name)
     if symptom_severity:
-        condition['severity'] = { "text": redcap_record[symptom_severity] }  # TODO lowercase?
+        condition['severity'] = { "text": record[symptom_severity] }  # TODO lowercase?
 
     return condition
 
 
-def create_resource_specimen(redcap_record: dict, patient: dict) -> dict:
+def create_resource_specimen(record: dict, patient: dict) -> dict:
     """ """
     # TODO: turn on barcode logic in production and replace the following line:
-    barcode = redcap_record['utm_tube_barcode']
+    barcode = record['utm_tube_barcode']
 
-    # barcode = redcap_record['utm_tube_barcode_2']
-    # reentered_barcode = redcap_record['reenter_barcode']
+    # barcode = record['utm_tube_barcode_2']
+    # reentered_barcode = record['reenter_barcode']
 
-    # if redcap_record['barcode_confirm'] == "No":
-    #     barcode = redcap_record['corrected_barcode']
+    # if record['barcode_confirm'] == "No":
+    #     barcode = record['corrected_barcode']
     # elif barcode != reentered_barcode:
     #     raise Error # TODO
-    # elif barcode != redcap_record['return_utm_barcode']:
+    # elif barcode != record['return_utm_barcode']:
     #     raise Error # TODO
 
     # TODO in production, throw error if no barcode (or skip)
@@ -418,12 +418,12 @@ def create_resource_specimen(redcap_record: dict, patient: dict) -> dict:
     }
 
     # TODO I believe in production all samples should have a sample process date
-    received_time = redcap_record['samp_process_date']
+    received_time = record['samp_process_date']
     if received_time:
         specimen["receivedTime"] = convert_to_iso(received_time, "%Y-%m-%d %H:%M")
 
     # TODO same as above comment
-    collected_time = redcap_record['collection_date']
+    collected_time = record['collection_date']
     if collected_time:
         specimen["collection"] = {
             "collectedDateTime": convert_to_iso(collected_time, "%Y-%m-%d %H:%M")
@@ -431,27 +431,27 @@ def create_resource_specimen(redcap_record: dict, patient: dict) -> dict:
 
     return specimen
 
-def create_resource_questionnaire_response(redcap_record: dict, patient: dict,
+def create_resource_questionnaire_response(record: dict, patient: dict,
     encounter: dict) -> dict:
     """ Returns a FHIR Specimen resource. """
 
-    def create_custom_race_key(redcap_record: dict) -> List:
+    def create_custom_race_key(record: dict) -> List:
         """
         Handles the 'race' edge case by combining "select all that apply"-type
         responses into one list.
         """
-        race_keys = list(filter(grab_race_keys, redcap_record))
-        race_names = list(map(lambda x: redcap_record[x], race_keys))
+        race_keys = list(filter(grab_race_keys, record))
+        race_names = list(map(lambda x: record[x], race_keys))
         return race(race_names)
 
     def grab_race_keys(key: str) -> Optional[Match[str]]:
-        if redcap_record[key] != '':
+        if record[key] != '':
             return re.match('race___[0-9]{1,3}$', key)
         else:
             return None
 
     def build_questionnaire_items(question: str) -> Optional[dict]:
-        return questionnaire_item(redcap_record, question, category)
+        return questionnaire_item(record, question, category)
 
     coding_questions = [
         'race',
@@ -492,7 +492,7 @@ def create_resource_questionnaire_response(redcap_record: dict, patient: dict,
         'valueString': string_questions,
     }
 
-    redcap_record['race'] = create_custom_race_key(redcap_record)
+    record['race'] = create_custom_race_key(record)
 
     items: List[dict] = []
     for category in question_categories:
@@ -521,9 +521,9 @@ def create_resource_questionnaire_response(redcap_record: dict, patient: dict,
     return questionnaire_response
 
 
-def questionnaire_item(redcap_record: dict, question_id: str, response_type: str) -> Optional[dict]:
+def questionnaire_item(record: dict, question_id: str, response_type: str) -> Optional[dict]:
     """ Creates a QuestionnaireResponse internal item from a REDCap record. """
-    response = redcap_record[question_id]
+    response = record[question_id]
 
     def cast_to_coding(string: str):
         """ Currently the only QuestionnaireItem we code is race. """
@@ -607,9 +607,9 @@ def symptom(symptom_name: str) -> Optional[str]:
 
     return symptom_map[symptom_name]
 
-def sex(redcap_record: dict) -> str:
+def sex(record: dict) -> str:
     """
-    Returns a *redcap_record* sex value mapped to a FHIR gender value.
+    Returns a *record* sex value mapped to a FHIR gender value.
     This function uses a map instead of converting to lowercase to guard against
     potential new or unexpected values for 'sex' in REDCap.
     """
@@ -621,13 +621,13 @@ def sex(redcap_record: dict) -> str:
     }
 
     try:
-        return sex_map[redcap_record['sex']]
+        return sex_map[record['sex']]
 
     except:
-        raise KeyError(f"Unknown sex \"{redcap_record['sex']}\"")
+        raise KeyError(f"Unknown sex \"{record['sex']}\"")
 
 
-def vaccine(redcap_record: dict) -> Optional[str]:
+def vaccine(record: dict) -> Optional[str]:
     """ Maps a vaccine response to a standardized FHIR value. """
     vaccine_map = {
         'Yes': 'completed',
@@ -637,15 +637,15 @@ def vaccine(redcap_record: dict) -> Optional[str]:
     }
 
     try:
-        return vaccine_map[redcap_record['vaccine']]
+        return vaccine_map[record['vaccine']]
     except:
-        raise KeyError(f"Unknown vaccine response \"{redcap_record['vaccine']}\"")
+        raise KeyError(f"Unknown vaccine response \"{record['vaccine']}\"")
 
 
-def vaccine_date(redcap_record: dict) -> Optional[str]:
+def vaccine_date(record: dict) -> Optional[str]:
     """ Converts a vaccination date to ISO format. """
-    year = redcap_record['vaccine_year_fc54b4']
-    month = redcap_record['vaccine_month_dfe1c1']
+    year = record['vaccine_year_fc54b4']
+    month = record['vaccine_month_dfe1c1']
 
     try:
         return convert_to_iso(f'{month} {year}', '%B %Y')
