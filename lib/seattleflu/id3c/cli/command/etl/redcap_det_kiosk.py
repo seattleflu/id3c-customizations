@@ -1,37 +1,24 @@
 """
 Process REDCap DETs that are specific to the Kiosk Enrollment Project.
 """
-import click
 import logging
 import re
-import requests
 from uuid import uuid4
 from datetime import datetime
 from typing import Any, List, Optional
 from copy import deepcopy
-from id3c.db.session import DatabaseSession
-from id3c.db.datatypes import Json
-from id3c.cli.command import with_database_session
 from id3c.cli.command.clinical import generate_hash
-from id3c.cli.command.etl import race, UnknownSiteError
-from id3c.cli.command.etl.redcap_det import (
-    redcap_det,
-    mark_skipped,
-    mark_loaded,
-    get_redcap_record,
-    insert_fhir_bundle,
-    is_complete
-)
+from id3c.cli.command.etl import race, redcap_det, UnknownSiteError
 
 LOG = logging.getLogger(__name__)
 
 SFS = 'https://seattleflu.org'
 
-REDCAP_URL = 'redcap.iths.org'
+REDCAP_URL = 'https://redcap.iths.org/'
 
-PROJECT_ID = "16691"
+PROJECT_ID = 16691
 
-INSTRUMENTS_COMPLETE = [
+REQUIRED_INSTRUMENTS = [
     'screening',
     'main_consent_form',
     'enrollment_questionnaire'
@@ -44,117 +31,81 @@ INSTRUMENTS_COMPLETE = [
 # change to the ETL routine necessitates re-processing all REDCap DET records,
 # this revision number should be incremented.
 REVISION = 1
-ETL_NAME = 'redcap-det kiosk'
-ETL_ID = {
-    'revision': REVISION,
-    'etl': ETL_NAME
-}
 
 
-@redcap_det.command("kiosk", help = __doc__)
-@with_database_session
+@redcap_det.command_for_project(
+    "kiosk",
+    redcap_url = REDCAP_URL,
+    project_id = PROJECT_ID,
+    required_instruments = REQUIRED_INSTRUMENTS,
+    revision = REVISION,
+    help = __doc__)
 
+def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
+    patient_resource_entry, patient_reference = create_patient(redcap_record)
 
-def redcap_det_kisok(*, db: DatabaseSession):
-    LOG.debug(f"Starting the REDCap DET ETL routine for kiosks, revision {REVISION}")
+    immunization_resource_entry = create_immunization(redcap_record, patient_reference)
 
-    redcap_det = db.cursor("REDCap DET")
-    redcap_det.execute("""
-        select redcap_det_id as id, document
-          from receiving.redcap_det
-         where not processing_log @> %s
-          and document->>'project_id' = %s
-         order by id
-           for update
-        """, (Json([{ "revision": REVISION }]), PROJECT_ID))
+    specimen_reference = create_specimen(redcap_record)
 
+    # Create diagnostic report resource if the participant agrees
+    # to do the rapid flu test on site
+    diagnostic_report_resource_entry = None
+    if redcap_record['poc_yesno'] == 'Yes':
+        diagnostic_report_resource_entry = create_diagnostic_report(
+            redcap_record,
+            patient_reference,
+            specimen_reference
+        )
 
-    for det in redcap_det:
-        with db.savepoint(f"redcap_det {det.id}"):
-            LOG.info(f"Processing REDCap DET {det.id}")
+    encounter_locations = determine_encounter_locations(redcap_record)
+    location_resource_entries, location_references = create_locations(encounter_locations)
 
-            instrument = det.document['instrument']
-            # Only pull REDCap record if the instrument is marked complete
-            if not is_complete(instrument, det.document):
-                LOG.debug(f"Skipping incomplete or unverified REDCap DET {det.id}")
-                mark_skipped(db, det.id, ETL_ID)
-                continue
+    symptom_resources, symptom_references = create_symptoms(
+        redcap_record,
+        patient_reference
+    )
 
-            redcap_record = get_redcap_record(det.document['record'])
+    encounter_id = '/'.join([REDCAP_URL, str(PROJECT_ID), redcap_record['record_id']])
+    encounter_resource_entry, encounter_reference = create_encounter(
+        encounter_id,
+        redcap_record,
+        patient_reference,
+        location_references,
+        symptom_resources,
+        symptom_references
+    )
 
-            # Only process REDCap record if all required instruments are marked complete
-            if any(not is_complete(instrument, redcap_record) for instrument in INSTRUMENTS_COMPLETE):
-                LOG.debug(f"One of the required instruments «{INSTRUMENTS_COMPLETE}» has not been completed. " + \
-                          f"Skipping REDCap DET {det.id}")
-                mark_skipped(db, det.id, ETL_ID)
-                continue
+    questionnaire_response_resource_entry = create_questionnaire_response_entry(
+        redcap_record,
+        patient_reference,
+        encounter_reference
+    )
 
-            patient_resource_entry, patient_reference = create_patient(redcap_record)
+    specimen_observation_resource_entry = create_specimen_observation_entry(
+        specimen_reference,
+        patient_reference,
+        encounter_reference
+    )
 
-            immunization_resource_entry = create_immunization(redcap_record, patient_reference)
+    all_resource_entries = [
+        patient_resource_entry,
+        immunization_resource_entry,
+        *location_resource_entries,
+        encounter_resource_entry,
+        questionnaire_response_resource_entry,
+        specimen_observation_resource_entry
+    ]
 
-            specimen_reference = create_specimen(redcap_record)
+    if diagnostic_report_resource_entry:
+        all_resource_entries.append(diagnostic_report_resource_entry)
 
-            # Create diagnostic report resource if the participant agrees
-            # to do the rapid flu test on site
-            diagnostic_report_resource_entry = None
-            if redcap_record['poc_yesno'] == 'Yes':
-                diagnostic_report_resource_entry = create_diagnostic_report(
-                    redcap_record,
-                    patient_reference,
-                    specimen_reference
-                )
+    bundle = create_bundle_resource(
+        bundle_id = str(uuid4()),
+        timestamp = datetime.now().astimezone().isoformat(),
+        entries = all_resource_entries)
 
-            encounter_locations = determine_encounter_locations(redcap_record)
-            location_resource_entries, location_references = create_locations(encounter_locations)
-
-            symptom_resources, symptom_references = create_symptoms(
-                redcap_record,
-                patient_reference
-            )
-
-            encounter_id = '/'.join([REDCAP_URL, PROJECT_ID, redcap_record['record_id']])
-            encounter_resource_entry, encounter_reference = create_encounter(
-                encounter_id,
-                redcap_record,
-                patient_reference,
-                location_references,
-                symptom_resources,
-                symptom_references
-            )
-
-            questionnaire_response_resource_entry = create_questionnaire_response_entry(
-                redcap_record,
-                patient_reference,
-                encounter_reference
-            )
-
-            specimen_observation_resource_entry = create_specimen_observation_entry(
-                specimen_reference,
-                patient_reference,
-                encounter_reference
-            )
-
-            all_resource_entries = [
-                patient_resource_entry,
-                immunization_resource_entry,
-                *location_resource_entries,
-                encounter_resource_entry,
-                questionnaire_response_resource_entry,
-                specimen_observation_resource_entry
-            ]
-
-            if diagnostic_report_resource_entry:
-                all_resource_entries.append(diagnostic_report_resource_entry)
-
-            bundle = create_bundle_resource(
-                bundle_id = str(uuid4()),
-                timestamp = datetime.now().astimezone().isoformat(),
-                entries = all_resource_entries)
-
-            insert_fhir_bundle(db, bundle)
-
-            mark_loaded(db, det.id, ETL_ID)
+    return bundle
 
 
 # CREATE FHIR RESOURCES
