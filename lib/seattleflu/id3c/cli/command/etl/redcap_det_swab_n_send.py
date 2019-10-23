@@ -13,124 +13,75 @@ import logging
 from uuid import uuid4
 from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union
 from datetime import datetime
-from id3c.db.session import DatabaseSession
-from id3c.db.datatypes import Json
-from id3c.cli.command import with_database_session
-from id3c.cli.command.etl import race
-
-from id3c.cli.command.etl.redcap_det import (
-    is_complete,
-    redcap_det,
-    insert_fhir_bundle,
-    mark_skipped,
-    mark_processed,
-    get_redcap_record
-)
+from id3c.cli.command.etl import race, redcap_det
 
 
 LOG = logging.getLogger(__name__)
 
 
 REVISION = 1
-ETL_NAME = 'redcap-det swab-n-send'
-etl_id = { 'revision': REVISION, "etl_name": ETL_NAME }
 
-REDCAP_URL = 'redcap.iths.org'
+REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
 UW_CENSUS_TRACT = '53033005302'
 
-@redcap_det.command("swab-n-send", help = __doc__)
+PROJECT_ID = 17561  # TODO use '17421' in production
+REQUIRED_INSTRUMENTS = [
+    # 'consent',   # TODO use in production
+    'enrollment_questionnaire',
+    'back_end_mail_scans',
+    # 'illness_questionnaire_nasal_swab_collection',  # TODO use in production
+    'post_collection_data_entry_qc'
+]
+
+@redcap_det.command_for_project(
+    "swab-n-send",
+    redcap_url = REDCAP_URL,
+    project_id = PROJECT_ID,
+    required_instruments = REQUIRED_INSTRUMENTS,
+    revision = REVISION,
+    help = __doc__)
 
 @click.option("--log-output/--no-output",
     help        = "Write the output FHIR documents to stdout. You will likely want to redirect this to a file",
     default     = False)
 
-@with_database_session
-def redcap_det_swab_n_send(*, log_output: bool, db: DatabaseSession):
-    LOG.debug(f"Starting the REDCap DET ETL routine for Single Swab n Send, revision {REVISION}")
+def redcap_det_swab_n_send(*, det: dict, redcap_record: dict, log_output: bool) -> Optional[dict]:
+    location_resources = locations(redcap_record)
 
-    PROJECT_ID = '17561'  # TODO use '17421' in production
-    TOKEN_NAME = 'REDCAP_SINGLE_SWAB_AND_SEND_TOKEN'  # TODO use 'REDCAP_SWAB_N_SEND_TOKEN' in production
-    INSTRUMENTS_REQUIRED_TO_BE_COMPLETE = [
-        # 'consent',   # TODO use in production
-        'enrollment_questionnaire',
-        'back_end_mail_scans',
-        # 'illness_questionnaire_nasal_swab_collection',  # TODO use in production
-        'post_collection_data_entry_qc'
+    patient         = create_resource_patient(redcap_record)
+    encounter       = create_resource_encounter(redcap_record, PROJECT_ID, patient, location_resources)
+    questionnaire   = create_resource_questionnaire_response(redcap_record, patient, encounter)
+    specimen        = create_resource_specimen(redcap_record, patient)
+    immunization    = create_resource_immunization(redcap_record, patient)
+
+    other_resources = [
+        patient,
+        encounter,
+        questionnaire,
+        specimen,
+        immunization,
     ]
 
-    # Fetch and iterate over REDCap DET records that aren't processed
-    #
-    # Rows we fetch are locked for update so that two instances of this
-    # command don't try to process the same longitudinal records.
-    LOG.debug("Fetching unprocessed REDCap DET Single Swab n Send records")
+    bundle = {
+        "resourceType": "Bundle",
+        "id": str(uuid4()),
+        "type": "collection",
+        "timestamp": datetime.now().astimezone().isoformat(),
+        "entry": [
+            *[ resource(r) for r in other_resources if r is not None ],
+            *location_resources,
+        ]
+    }
 
-    redcap_det = db.cursor("REDCap DET")
-    redcap_det.execute("""
-        select redcap_det_id as id, document
-          from receiving.redcap_det
-         where not processing_log @> %s
-          and document->>'project_id' = %s
-         order by id
-           for update
-        """, (Json([{ "etl": ETL_NAME, "revision": REVISION }]), PROJECT_ID))
+    if log_output:
+        print(json.dumps(bundle, indent=2))
 
-    for det in redcap_det:
-        with db.savepoint(f"redcap_det {det.id}"):
-            LOG.info(f"Processing REDCap DET {det.id}")
-
-            redcap_record = get_redcap_record(det.document['record'])
-
-            # TODO turn on for production
-            # if not redcap_instruments_are_complete(redcap_record, INSTRUMENTS_REQUIRED_TO_BE_COMPLETE):
-            #     LOG.info(f"Skipping incomplete or unverified REDCap DET {det.id}")
-            #     mark_skipped(db, det.id, etl_id)
-            #     continue
-
-            location_resources = locations(redcap_record)
-
-            patient         = create_resource_patient(redcap_record)
-            encounter       = create_resource_encounter(redcap_record, PROJECT_ID, patient, location_resources)
-            questionnaire   = create_resource_questionnaire_response(redcap_record, patient, encounter)
-            specimen        = create_resource_specimen(redcap_record, patient)
-            immunization    = create_resource_immunization(redcap_record, patient)
-
-            other_resources = [
-                patient,
-                encounter,
-                questionnaire,
-                specimen,
-                immunization,
-            ]
-
-            bundle = {
-                "resourceType": "Bundle",
-                "id": str(uuid4()),
-                "type": "collection",
-                "timestamp": datetime.now().astimezone().isoformat(),
-                "entry": [
-                    *[ resource(r) for r in other_resources if r is not None ],
-                    *location_resources,
-                ]
-            }
-
-        if log_output:
-            print(json.dumps(bundle, indent=2))
-
-        insert_fhir_bundle(db, bundle)
-        mark_processed(db, det.id)
+    return bundle
 
 
 def resource(resource: dict) -> dict:
     return { "resource": resource, "fullUrl": f"urn:uuid:{uuid4()}" }
-
-
-def redcap_instruments_are_complete(record: dict, required_instruments: list) -> bool:
-    """
-    Returns True if all the required REDCap instruments in this project are
-    complete, else False.
-    """
-    return all([ is_complete(instrument, record) for instrument in required_instruments ])
 
 
 def locations(record: dict) -> list:
@@ -283,7 +234,7 @@ def create_resource_immunization(record: dict, patient: dict) -> Optional[dict]:
 
 
 
-def create_resource_encounter(record: dict, project_id: str, patient: dict, locations: list) -> dict:
+def create_resource_encounter(record: dict, project_id: int, patient: dict, locations: list) -> dict:
     """ Returns a FHIR Encounter resource. """
 
     def grab_symptom_keys(key: str) -> Optional[Match[str]]:
