@@ -515,10 +515,10 @@ def create_resource_questionnaire_response(record: dict, patient: dict,
         "item": items,
     }
 
-    if not items:
-        del questionnaire_response['item'] # TODO I get a typing error if I add items after declaring questionnaire_response
+    if items:
+        return questionnaire_response
 
-    return questionnaire_response
+    return None
 
 
 def questionnaire_item(record: dict, question_id: str, response_type: str) -> Optional[dict]:
