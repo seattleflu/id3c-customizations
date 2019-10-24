@@ -1084,7 +1084,7 @@ def create_symptoms(redcap_record: dict, patient_reference: dict) -> tuple:
     return symptom_resources, symptom_references
 
 
-def determine_symptoms_codes(redcap_record: dict) -> Optional[list]:
+def determine_symptoms_codes(redcap_record: dict) -> dict:
     """
     Given a *redcap_record*, determine the symptoms of the encounter
     """
