@@ -541,7 +541,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
             return string
         return None
 
-    def cast_to_integer(string: str) -> int:
+    def cast_to_integer(string: str) -> Optional[int]:
         try:
             return int(string)
         except ValueError:
@@ -554,7 +554,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
             return False
         return None
 
-    def build_response_answers(response: Union[str, List]) -> Optional[List]:
+    def build_response_answers(response: Union[str, List]) -> List:
         answers = []
         if not isinstance(response, list):
             response = [response]
