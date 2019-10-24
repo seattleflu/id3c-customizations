@@ -10,14 +10,13 @@ import click
 import json
 import hashlib
 import logging
-import requests
 from uuid import uuid4
-from typing import Any, Callable, Collection, Dict, List, Mapping, Match, Optional, Union
-from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union
+from datetime import datetime
 from id3c.db.session import DatabaseSession
 from id3c.db.datatypes import Json
 from id3c.cli.command import with_database_session
-from id3c.cli.command.etl import etl, race
+from id3c.cli.command.etl import race
 
 from id3c.cli.command.etl.redcap_det import (
     is_complete,
