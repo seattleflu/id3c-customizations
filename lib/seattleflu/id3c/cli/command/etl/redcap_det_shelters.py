@@ -1,18 +1,14 @@
 """
 Process REDCap DETs that are specific to the Shelters Project
 """
-import click
 import logging
-import os
-import re
 from uuid import uuid4
-from typing import Any, Optional, List
+from typing import Any, List
 from datetime import datetime
 from copy import deepcopy
 from id3c.db.session import DatabaseSession
 from id3c.db.datatypes import Json
 from id3c.cli.command import with_database_session
-from id3c.cli.command.clinical import generate_hash
 from id3c.cli.command.etl import UnknownSiteError
 
 from id3c.cli.command.etl.redcap_det import (

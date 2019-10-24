@@ -6,7 +6,7 @@ import logging
 import re
 import requests
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, List, Optional
 from copy import deepcopy
 from id3c.db.session import DatabaseSession
