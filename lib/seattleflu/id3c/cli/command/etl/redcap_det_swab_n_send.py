@@ -12,7 +12,7 @@ import hashlib
 import logging
 import requests
 from uuid import uuid4
-from typing import Any, Collection, Dict, List, Match, Optional, Union
+from typing import Any, Callable, Collection, Dict, List, Mapping, Match, Optional, Union
 from datetime import datetime, timezone
 from id3c.db.session import DatabaseSession
 from id3c.db.datatypes import Json
@@ -567,7 +567,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
 
         return answers
 
-    casting_functions = {
+    casting_functions: Mapping[str, Callable[[str], Any]] = {
         'valueCoding': cast_to_coding,
         'valueInteger': cast_to_integer,
         'valueBoolean': cast_to_boolean,
