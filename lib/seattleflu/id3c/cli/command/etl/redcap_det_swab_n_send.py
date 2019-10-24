@@ -109,11 +109,11 @@ def redcap_det_swab_n_send(*, log_output: bool, db: DatabaseSession):
                 "id": str(uuid4()),
                 "type": "collection",
                 "timestamp": datetime.now().astimezone().isoformat(),
-                "entry": [ resource(r) for r in other_resources if r is not None ]
+                "entry": [
+                    *[ resource(r) for r in other_resources if r is not None ],
+                    *location_resources,
+                ]
             }
-
-            for location in location_resources:
-                bundle['entry'].append(location)
 
         if log_output:
             print(json.dumps(bundle, indent=2))
