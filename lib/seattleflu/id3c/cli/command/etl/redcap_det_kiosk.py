@@ -690,7 +690,11 @@ def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict
     create observation resources for each result following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/observation.html)
     """
-    observation_resource = {
+    # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
+    # 3.8.  Until then, there's no reasonable way to type this data structure
+    # better than Any.
+    #   -trs, 24 Oct 2019
+    observation_resource: Any = {
         'resourceType': 'Observation',
         'id': '',
         'status': 'final',
