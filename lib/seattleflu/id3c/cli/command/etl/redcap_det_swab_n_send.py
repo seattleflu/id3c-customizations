@@ -363,7 +363,11 @@ def create_resource_condition(record: dict, symptom_name: str, patient: dict) ->
 
     mapped_symptom_name = symptom(symptom_name)
 
-    condition = {
+    # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
+    # 3.8.  Until then, there's no reasonable way to type this data structure
+    # better than Any.
+    #   -trs, 24 Oct 2019
+    condition: Any = {
         "resourceType": "Condition",
         "id": mapped_symptom_name,
         "code": {
