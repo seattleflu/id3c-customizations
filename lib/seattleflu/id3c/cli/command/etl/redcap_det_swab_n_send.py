@@ -42,11 +42,7 @@ REQUIRED_INSTRUMENTS = [
     revision = REVISION,
     help = __doc__)
 
-@click.option("--log-output/--no-output",
-    help        = "Write the output FHIR documents to stdout. You will likely want to redirect this to a file",
-    default     = False)
-
-def redcap_det_swab_n_send(*, det: dict, redcap_record: dict, log_output: bool) -> Optional[dict]:
+def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
     location_resources = locations(redcap_record)
 
     patient         = create_resource_patient(redcap_record)
@@ -73,9 +69,6 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict, log_output: bool) 
             *location_resources,
         ]
     }
-
-    if log_output:
-        print(json.dumps(bundle, indent=2))
 
     return bundle
 
