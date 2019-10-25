@@ -45,11 +45,11 @@ REQUIRED_INSTRUMENTS = [
 def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
     location_resources = locations(redcap_record)
 
-    patient         = create_resource_patient(redcap_record)
-    encounter       = create_resource_encounter(redcap_record, PROJECT_ID, patient, location_resources)
-    questionnaire   = create_resource_questionnaire_response(redcap_record, patient, encounter)
-    specimen        = create_resource_specimen(redcap_record, patient)
-    immunization    = create_resource_immunization(redcap_record, patient)
+    patient         = resource(create_resource_patient(redcap_record))
+    encounter       = resource(create_resource_encounter(redcap_record, PROJECT_ID, patient, location_resources))
+    questionnaire   = resource(create_resource_questionnaire_response(redcap_record, patient, encounter))
+    specimen        = resource(create_resource_specimen(redcap_record, patient))
+    immunization    = resource(create_resource_immunization(redcap_record, patient))
 
     other_resources = [
         patient,
@@ -65,7 +65,7 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
         "type": "collection",
         "timestamp": datetime.now().astimezone().isoformat(),
         "entry": [
-            *[ resource(r) for r in other_resources if r is not None ],
+            *[ r for r in other_resources if r is not None ],
             *location_resources,
         ]
     }
@@ -216,7 +216,8 @@ def create_resource_immunization(record: dict, patient: dict) -> Optional[dict]:
         },
         "patient": {
             "type": "Patient",
-            "identifier": patient['identifier'][0],
+            "reference": patient['fullUrl'],
+            "identifier": patient['resource']['identifier'][0],
         }
     }
 
@@ -274,7 +275,8 @@ def create_resource_encounter(record: dict, project_id: int, patient: dict, loca
         },
         "subject": {
             "type": "Patient",
-            "identifier": patient['identifier'][0],
+            "reference": patient['fullUrl'],
+            "identifier": patient['resource']['identifier'][0],
         },
         "location": list(map(build_locations_list, locations)),
     }
@@ -330,7 +332,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient: dict) ->
         "onsetDateTime": symptom_duration(record),
         "subject": {
             "type": "Patient",
-            "identifier": patient['identifier'][0],
+            "identifier": patient['resource']['identifier'][0],
         }
     }
 
@@ -366,7 +368,8 @@ def create_resource_specimen(record: dict, patient: dict) -> dict:
         }],
         "subject": {
             "type": "Patient",
-            "identifier": patient['identifier'][0],
+            "reference": patient['fullUrl'],
+            "identifier": patient['resource']['identifier'][0],
         }
     }
 
@@ -459,11 +462,13 @@ def create_resource_questionnaire_response(record: dict, patient: dict,
         "status": "completed",
         "subject": {
             "type": "Patient",
-            "identifier": patient['identifier'][0],
+            "reference": patient['fullUrl'],
+            "identifier": patient['resource']['identifier'][0],
         },
         "encounter": {
             "type": "Encounter",
-            "identifier": encounter['identifier'][0],
+            "reference": encounter['fullUrl'],
+            "identifier": encounter['resource']['identifier'][0],
         },
         "item": items,
     }
