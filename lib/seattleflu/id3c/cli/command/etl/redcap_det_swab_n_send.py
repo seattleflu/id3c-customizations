@@ -73,8 +73,14 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
     return bundle
 
 
-def resource(resource: dict) -> dict:
-    return { "resource": resource, "fullUrl": f"urn:uuid:{uuid4()}" }
+def resource(resource: dict) -> Optional[dict]:
+    """
+    Provides a `fullUrl` to a non-empty FHIR Resource. This is made possible by
+    wrapping the FHIR Resource within a `resource` key.
+    """
+    if resource:
+        return { "resource": resource, "fullUrl": f"urn:uuid:{uuid4()}" }
+    return None
 
 
 def locations(record: dict) -> list:
