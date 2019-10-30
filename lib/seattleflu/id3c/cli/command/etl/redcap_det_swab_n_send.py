@@ -217,7 +217,6 @@ def create_resource_immunization(record: dict, patient: dict) -> Optional[dict]:
         "patient": {
             "type": "Patient",
             "reference": patient['fullUrl'],
-            "identifier": patient['resource']['identifier'][0],
         }
     }
 
@@ -276,7 +275,6 @@ def create_resource_encounter(record: dict, project_id: int, patient: dict, loca
         "subject": {
             "type": "Patient",
             "reference": patient['fullUrl'],
-            "identifier": patient['resource']['identifier'][0],
         },
         "location": list(map(build_locations_list, locations)),
     }
@@ -369,7 +367,6 @@ def create_resource_specimen(record: dict, patient: dict) -> dict:
         "subject": {
             "type": "Patient",
             "reference": patient['fullUrl'],
-            "identifier": patient['resource']['identifier'][0],
         }
     }
 
@@ -463,12 +460,10 @@ def create_resource_questionnaire_response(record: dict, patient: dict,
         "subject": {
             "type": "Patient",
             "reference": patient['fullUrl'],
-            "identifier": patient['resource']['identifier'][0],
         },
         "encounter": {
             "type": "Encounter",
             "reference": encounter['fullUrl'],
-            "identifier": encounter['resource']['identifier'][0],
         },
         "item": items,
     }
