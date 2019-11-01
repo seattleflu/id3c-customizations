@@ -436,14 +436,18 @@ def create_locations(encounter_locations: dict) -> tuple:
     location_resource_entries = []
     location_references = []
     for location in encounter_locations:
-        # Only create location resources for locations not related
-        # to site of encounter since the site can just be a location
-        # reference
-        if location != 'site':
+        part_of = None
+        if location == 'site':
+            location_fullUrl = generate_full_url_uuid()
+            location_identifier = create_identifier(
+                system = f"{SFS}/site",
+                value = encounter_locations["site"]
+            )
+
+        else:
             location_fullUrl = encounter_locations[location]['fullUrl']
-            location_identifier = encounter_locations[location]['value']
+            location_id = encounter_locations[location]['value']
             scale = 'tract' if location.endswith('-tract') else 'address'
-            part_of = None
 
             if scale == 'address':
                 address_tract = f'{location}-tract'
@@ -459,32 +463,23 @@ def create_locations(encounter_locations: dict) -> tuple:
 
             location_identifier = create_identifier(
                 system = f'{SFS}/location/{scale}',
-                value = location_identifier
-            )
-            location_resource = create_location_resource(
-                location_type = [determine_location_type_code(location)],
-                location_identifier = [location_identifier],
-                location_partOf = part_of
+                value = location_id
             )
 
-            location_resource_entries.append(create_resource_entry(
-                resource = location_resource,
-                full_url = location_fullUrl
-            ))
+        location_resource = create_location_resource(
+            location_type = [determine_location_type_code(location)],
+            location_identifier = [location_identifier],
+            location_partOf = part_of
+        )
+        location_resource_entries.append(create_resource_entry(
+            resource = location_resource,
+            full_url = location_fullUrl
+        ))
+        location_reference = create_reference(
+            reference_type = 'Location',
+            reference = location_fullUrl
+        )
 
-            location_reference = create_reference(
-                reference_type = 'Location',
-                reference = location_fullUrl
-            )
-
-        else:
-            location_reference = create_reference(
-                reference_type = 'Location',
-                identifier = {
-                    'system': f'{SFS}/site',
-                    'value': encounter_locations['site']
-                }
-            )
         location_references.append({'location': location_reference})
 
     return location_resource_entries, location_references
