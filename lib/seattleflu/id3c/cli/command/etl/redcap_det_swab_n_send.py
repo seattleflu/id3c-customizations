@@ -14,6 +14,7 @@ from uuid import uuid4
 from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union
 from datetime import datetime
 from id3c.cli.command.etl import race, redcap_det
+from .fhir import *
 
 
 LOG = logging.getLogger(__name__)
@@ -43,63 +44,46 @@ REQUIRED_INSTRUMENTS = [
     help = __doc__)
 
 def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
-    location_resources = locations(redcap_record)
+    location_resource_entries = locations(redcap_record)
+    patient_entry,patient_reference = create_patient(redcap_record)
+    encounter_entry,encounter_reference = create_encounter(redcap_record, patient_reference, location_resource_entries)
+    questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
+    specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
+    immunization_entry = create_immunization(redcap_record, patient_reference)
 
-    patient         = resource(create_resource_patient(redcap_record))
-    encounter       = resource(create_resource_encounter(redcap_record, PROJECT_ID, patient, location_resources))
-    questionnaire   = resource(create_resource_questionnaire_response(redcap_record, patient, encounter))
-    specimen        = resource(create_resource_specimen(redcap_record, patient))
-    immunization    = resource(create_resource_immunization(redcap_record, patient))
-
-    other_resources = [
-        patient,
-        encounter,
-        questionnaire,
-        specimen,
-        immunization,
+    resource_entries = [
+        patient_entry,
+        encounter_entry,
+        questionnaire_entry,
+        specimen_entry,
+        immunization_entry,
+        *location_resource_entries
     ]
 
-    bundle = {
-        "resourceType": "Bundle",
-        "id": str(uuid4()),
-        "type": "collection",
-        "timestamp": datetime.now().astimezone().isoformat(),
-        "entry": [
-            *[ r for r in other_resources if r is not None ],
-            *location_resources,
-        ]
-    }
-
-    return bundle
-
-
-def resource(resource: dict) -> Optional[dict]:
-    """
-    Provides a `fullUrl` to a non-empty FHIR Resource. This is made possible by
-    wrapping the FHIR Resource within a `resource` key.
-    """
-    if resource:
-        return { "resource": resource, "fullUrl": f"urn:uuid:{uuid4()}" }
-    return None
+    return create_bundle_resource(
+        bundle_id = str(uuid4()),
+        timestamp = datetime.now().astimezone().isoformat(),
+        entries = resource_entries
+    )
 
 
 def locations(record: dict) -> list:
-    """ Creates a list of Location resources from a REDCap record. """
+    """ Creates a list of Location resource entries from a REDCap record. """
     def uw_affiliation(record: dict) -> List[Dict[Any, Any]]:
         uw_affiliation = record['uw_affiliation']
 
         uw_locations = []
         if uw_affiliation in ['1', '2']:
             uw_locations.append(
-                create_resource_location(f"{INTERNAL_SYSTEM}/location", UW_CENSUS_TRACT, "school"))
+                create_location(f"{INTERNAL_SYSTEM}/location", UW_CENSUS_TRACT, "school"))
 
         if uw_affiliation in ['2', '3', '4']:
             uw_locations.append(
-                create_resource_location(f"{INTERNAL_SYSTEM}/location", UW_CENSUS_TRACT, "work"))
+                create_location(f"{INTERNAL_SYSTEM}/location", UW_CENSUS_TRACT, "work"))
 
         return uw_locations
 
-    def housing(record: dict) -> dict:
+    def housing(record: dict) -> tuple:
         lodging_options = [
             'Shelter',
             'Assisted living facility',
@@ -122,27 +106,43 @@ def locations(record: dict) -> list:
                 'zipcode': record['home_zipcode_2'],
             }
 
-        return create_resource_location(
-            f"{INTERNAL_SYSTEM}/location", '#TODO CENSUS TRACT', housing_type)
+        tract_location = create_location(
+            f"{INTERNAL_SYSTEM}/locations/tract", '#TODO CENSUS TRACT', housing_type
+        )
+
+        tract_full_url = generate_full_url_uuid()
+        tract_entry = create_resource_entry(tract_location, tract_full_url)
+
+        address_location = create_location(
+            f"{INTERNAL_SYSTEM}/locations/address",
+            '#TODO ADDRESS HASH',
+            housing_type,
+            tract_full_url
+        )
+
+        address_entry = create_resource_entry(address_location, generate_full_url_uuid())
+
+        return tract_entry, address_entry
 
     locations = [
-        resource(create_resource_location(f"{INTERNAL_SYSTEM}/site", 'self-test', "site"))
+        create_resource_entry(
+            create_location(f"{INTERNAL_SYSTEM}/site", 'self-test', "site"),
+            generate_full_url_uuid()
+        ),
+        *housing(record)
     ]
-
-    housing_location = housing(record)
-    if housing_location:
-        locations.append(resource(housing_location))
 
     uw_location = uw_affiliation(record)
     for location in uw_location:
         if location:
-            locations.append(resource(location))
+            locations.append(create_resource_entry(location, generate_full_url_uuid()))
 
     return locations
 
 
-def create_resource_location(system: str, value: str, type: str, parent: str=None) -> dict:
+def create_location(system: str, value: str, location_type: str, parent: str=None) -> dict:
     """ Returns a FHIR Location resource. """
+    location_type_system = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
     location_type_map = {
         "residence": "PTRES",
         "school": "SCHOOL",
@@ -151,37 +151,36 @@ def create_resource_location(system: str, value: str, type: str, parent: str=Non
         "lodging": "PTLDG",
     }
 
-    location = {
-        "resourceType": "Location",
-        "mode": "instance",
-        "identifier": [{
-            "system": system,
-            "value": value
-        }],
-        "type": [{
-            "coding": [{
-                "system": "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
-                "code": location_type_map[type]
-            }]
-        }]
-    }
-
+    location_type = create_codeable_concept(location_type_system,
+                                            location_type_map[location_type])
+    location_identifier = create_identifier(system, value)
+    part_of = None
     if parent:
-        location["partOf"] = { "reference": parent }  # TODO we're not really using this key right now
+        part_of = create_reference(reference_type="Location", reference=parent)
 
-    return location
+    return create_location_resource([location_type], [location_identifier], part_of)
 
 
-def create_resource_patient(record: dict) -> dict:
-    """ Returns a FHIR Patient resource. """
-    return {
-        "resourceType": "Patient",
-        "identifier": [{
-            "system": f"{INTERNAL_SYSTEM}/individual",
-            "value": generate_patient_hash(record),
-        }],
-        "gender": sex(record)
-    }
+def create_patient(record: dict) -> tuple:
+    """ Returns a FHIR Patient resource entry and a FHIR Patient reference. """
+    gender = sex(record)
+    patient_id = generate_patient_hash(record)
+    patient_identifier = create_identifier(
+        system = f"{INTERNAL_SYSTEM}/individual",
+        value = patient_id
+    )
+
+    full_url = generate_full_url_uuid()
+    patient_resource = create_patient_resource([patient_identifier], gender)
+    patient_entry = create_resource_entry(
+        resource = patient_resource,
+        full_url = full_url
+    )
+    patient_reference = create_reference(
+        reference_type = 'Patient',
+        reference = full_url
+    )
+    return patient_entry, patient_reference
 
 
 def generate_patient_hash(record: dict) -> dict:
@@ -196,45 +195,40 @@ def generate_patient_hash(record: dict) -> dict:
     return generate_hash(str(sorted(personal_information.items())))
 
 
-def create_resource_immunization(record: dict, patient: dict) -> Optional[dict]:
-    """ Returns a FHIR Immunization resource. """
+def create_immunization(record: dict, patient_reference: dict) -> Optional[dict]:
+    """ Returns a FHIR Immunization resource entry. """
     vaccine_status = vaccine(record)
     if not vaccine_status:
         return None
 
-    immunization = {
-        "resourceType": "Immunization",
-        "status": vaccine_status,
-        "vaccineCode": {
-            "coding": [
-                {
-                    "system": "http://snomed.info/sct",
-                    "code": "46233009",
-                    "display": "Influenza virus vaccine"
-                }
-            ]
-        },
-        "patient": {
-            "type": "Patient",
-            "reference": patient['fullUrl'],
-        }
-    }
-
     date = vaccine_date(record)
 
     if date:
-        immunization["occurrenceDateTime"] = date
+        occurrence = { "occurrenceDateTime": date }
     else:
-        immunization["occurrenceString"] = "No Vaccine"
+        occurrence = { "occurrenceString": "No Vaccine" }
     # TODO it seems we have to have occurrenceDate or occurrenceString which seems weird considering
     # 'not-done' is an acceptable status
 
-    return immunization
+    vaccine_code = create_codeable_concept(
+        system = "http://snomed.info/sct",
+        code = "46233009",
+        display = "Influenza virus vaccine"
+    )
+
+    immunization_resource = create_immunization_resource(
+        vaccine_code = vaccine_code,
+        patient_reference = patient_reference,
+        status = vaccine_status,
+        occurrence = occurrence
+    )
+
+    return create_resource_entry(immunization_resource, generate_full_url_uuid())
 
 
 
-def create_resource_encounter(record: dict, project_id: int, patient: dict, locations: list) -> dict:
-    """ Returns a FHIR Encounter resource. """
+def create_encounter(record: dict, patient_reference: dict, locations: list) -> tuple:
+    """ Returns a FHIR Encounter resource entry and reference """
 
     def grab_symptom_keys(key: str) -> Optional[Match[str]]:
         if record[key] != '':
@@ -243,51 +237,54 @@ def create_resource_encounter(record: dict, project_id: int, patient: dict, loca
             return None
 
     def build_conditions_list(symptom_key: str) -> dict:
-        return create_resource_condition(record, record[symptom_key], patient)
+        return create_resource_condition(record, record[symptom_key], patient_reference)
 
     def build_diagnosis_list(symptom_key: str) -> dict:
         return { "condition": { "reference": f"#{symptom(record[symptom_key])}" } }
 
     def build_locations_list(location: dict) -> dict:
         return {
-            "location": {
-                "type": "Location",
-                "reference": location['fullUrl']
-            }
+            "location": create_reference(
+                reference_type = "Location",
+                reference = location["fullUrl"]
+            )
         }
 
     symptom_keys = list(filter(grab_symptom_keys, record))
-
-    encounter = {
-        "resourceType": "Encounter",
-        "identifier": [{
-            "system": f"{INTERNAL_SYSTEM}/encounter",
-            "value": f"{REDCAP_URL}/{project_id}/{record['record_id']}",
-        }],
-        "class": {
-            "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-            "code": "HH"
-        },
-        "status": "finished",
-        "period": {
-            "start": convert_to_iso(record['enrollment_date_time'], "%Y-%m-%d %H:%M")
-        },
-        "subject": {
-            "type": "Patient",
-            "reference": patient['fullUrl'],
-        },
-        "location": list(map(build_locations_list, locations)),
-    }
-
     contained = list(map(build_conditions_list, symptom_keys))
-    if contained:
-        encounter['contained'] = contained
-
     diagnosis = list(map(build_diagnosis_list, symptom_keys))
-    if diagnosis:
-        encounter['diagnosis'] = diagnosis
+    encounter_identifier = create_identifier(
+        system = f"{INTERNAL_SYSTEM}/encounter",
+        value = f"{REDCAP_URL}/{PROJECT_ID}/{record['record_id']}"
+    )
+    encounter_class_coding = create_coding(
+        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        code = "HH"
+    )
+    start_time = convert_to_iso(record['enrollment_date_time'], "%Y-%m-%d %H:%M")
+    locations = list(map(build_locations_list, locations))
 
-    return encounter
+    encounter_resource = create_encounter_resource(
+        encounter_identifier = [encounter_identifier],
+        encounter_class = encounter_class_coding,
+        start_timestamp = start_time,
+        patient_reference = patient_reference,
+        location_references = locations,
+        diagnosis = diagnosis,
+        contained = contained
+    )
+
+    full_url = generate_full_url_uuid()
+    encounter_resource_entry = create_resource_entry(
+        resource = encounter_resource,
+        full_url = full_url
+    )
+    encounter_reference = create_reference(
+        reference_type = "Encounter",
+        reference = full_url
+    )
+
+    return encounter_resource_entry, encounter_reference
 
 
 def convert_to_iso(time: str, current_format: str) -> str:
@@ -297,7 +294,7 @@ def convert_to_iso(time: str, current_format: str) -> str:
     return datetime.strptime(time, current_format).astimezone().isoformat()  # TODO uses locale time zone
 
 
-def create_resource_condition(record: dict, symptom_name: str, patient: dict) -> dict:
+def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> dict:
     """ Returns a FHIR Condition resource. """
     def symptom_duration(record: dict) -> str:
         return convert_to_iso(record['symptom_duration'], "%Y-%m-%d")
@@ -328,10 +325,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient: dict) ->
             ]
         },
         "onsetDateTime": symptom_duration(record),
-        "subject": {
-            "type": "Patient",
-            "identifier": patient['resource']['identifier'][0],
-        }
+        "subject": patient_reference
     }
 
     symptom_severity = severity(mapped_symptom_name)
@@ -341,8 +335,8 @@ def create_resource_condition(record: dict, symptom_name: str, patient: dict) ->
     return condition
 
 
-def create_resource_specimen(record: dict, patient: dict) -> dict:
-    """ """
+def create_specimen(record: dict, patient_reference: dict) -> tuple:
+    """ Returns a FHIR Specimen resource entry and reference """
     # TODO: turn on barcode logic in production and replace the following line:
     barcode = record['utm_tube_barcode']
 
@@ -358,35 +352,39 @@ def create_resource_specimen(record: dict, patient: dict) -> dict:
 
     # TODO in production, throw error if no barcode (or skip)
 
-    specimen = {
-        "resourceType": "Specimen",
-        "identifier": [{
-            "system": f"{INTERNAL_SYSTEM}/sample",
-            "value": barcode,
-        }],
-        "subject": {
-            "type": "Patient",
-            "reference": patient['fullUrl'],
-        }
-    }
+    specimen_identifier = create_identifier(
+        system = f"{INTERNAL_SYSTEM}/sample",
+        value = barcode
+    )
 
+    received_time = None
+    collected_time = None
     # TODO I believe in production all samples should have a sample process date
-    received_time = record['samp_process_date']
-    if received_time:
-        specimen["receivedTime"] = convert_to_iso(received_time, "%Y-%m-%d %H:%M")
+    if record['samp_process_date']:
+        received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M")
 
     # TODO same as above comment
-    collected_time = record['collection_date']
-    if collected_time:
-        specimen["collection"] = {
-            "collectedDateTime": convert_to_iso(collected_time, "%Y-%m-%d %H:%M")
-        }
+    if record['collection_date']:
+        collected_time = convert_to_iso(ecord['collection_date'], "%Y-%m-%d %H:%M")
 
-    return specimen
+    specimen_resource = create_specimen_resource(
+        [specimen_identifier], patient_reference, received_time, collected_time
+    )
 
-def create_resource_questionnaire_response(record: dict, patient: dict,
-    encounter: dict) -> dict:
-    """ Returns a FHIR Specimen resource. """
+    full_url = generate_full_url_uuid()
+
+    specimen_entry = create_resource_entry(specimen_resource, full_url)
+    specimen_reference = create_reference(
+        reference = full_url,
+        reference_type = "Specimen"
+    )
+
+    return specimen_entry, specimen_reference
+
+
+def create_questionnaire_response(record: dict, patient_reference: dict,
+    encounter_reference: dict) -> Optional[dict]:
+    """ Returns a FHIR Questionnaire Response resource entry. """
 
     def create_custom_race_key(record: dict) -> List:
         """
@@ -454,22 +452,12 @@ def create_resource_questionnaire_response(record: dict, patient: dict,
             if item:
                 items.append(item)
 
-    questionnaire_response = {
-        "resourceType": "QuestionnaireResponse",
-        "status": "completed",
-        "subject": {
-            "type": "Patient",
-            "reference": patient['fullUrl'],
-        },
-        "encounter": {
-            "type": "Encounter",
-            "reference": encounter['fullUrl'],
-        },
-        "item": items,
-    }
-
     if items:
-        return questionnaire_response
+        questionnaire_reseponse_resource = create_questionnaire_response_resource(
+            patient_reference, encounter_reference, items
+        )
+        full_url = generate_full_url_uuid()
+        return create_resource_entry(questionnaire_reseponse_resource, full_url)
 
     return None
 
@@ -480,10 +468,10 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
 
     def cast_to_coding(string: str):
         """ Currently the only QuestionnaireItem we code is race. """
-        return {
-            "system": f"{INTERNAL_SYSTEM}/race",
-            "code": string,
-        }
+        return create_coding(
+            system = f"{INTERNAL_SYSTEM}/race",
+            code = string,
+        )
 
     def cast_to_string(string: str) -> Optional[str]:
         if string != '':
@@ -525,10 +513,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
 
     answers = build_response_answers(response)
     if answers:
-        return {
-            "linkId": question_id,
-            "answer": answers,
-        }
+        return create_questionnaire_response_item(question_id, answers)
 
     return None
 
