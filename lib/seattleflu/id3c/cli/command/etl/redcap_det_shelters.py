@@ -62,7 +62,7 @@ def redcap_det_shelters(*, det: dict, redcap_record: dict):
 
     immunization_resource_entry = create_immunization(redcap_record, patient_reference)
 
-    specimen_reference = create_specimen(redcap_record)
+    specimen_resource_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
     # Create diagnostic report resource if the participant agrees
     # to do the rapid flu test on site
@@ -110,6 +110,7 @@ def redcap_det_shelters(*, det: dict, redcap_record: dict):
         *location_resource_entries,
         encounter_resource_entry,
         questionnaire_response_resource_entry,
+        specimen_resource_entry,
         specimen_observation_entry
     ]
 
@@ -125,16 +126,24 @@ def redcap_det_shelters(*, det: dict, redcap_record: dict):
     return bundle
 
 
-def create_specimen(redcap_record: dict) -> dict:
+def create_specimen(redcap_record: dict, patient_reference: dict) -> dict:
     """
     Create FHIR specimen reference from given *redcap_record*
     """
     sfs_sample_barcode = get_sfs_barcode(redcap_record)
+    specimen_identifier = create_identifier(SFS, sfs_sample_barcode)
 
-    return (create_reference(
-        reference_type = 'Specimen',
-        identifier = create_identifier(SFS, sfs_sample_barcode)
-    ))
+    specimen_resource = create_specimen_resource(
+        [specimen_identifier], patient_reference
+    )
+    full_url = generate_full_url_uuid()
+    specimen_entry = create_resource_entry(specimen_resource, full_url)
+    specimen_reference = create_reference(
+        reference_type = "Specimen",
+        reference = full_url
+    )
+
+    return specimen_entry, specimen_reference
 
 
 def get_sfs_barcode(redcap_record: dict) -> str:
