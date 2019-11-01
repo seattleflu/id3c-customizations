@@ -124,15 +124,15 @@ def create_patient(redcap_record: dict) -> tuple:
     )
 
     patient_resource = create_patient_resource([patient_identifier], gender)
-
+    full_url = generate_full_url_uuid()
     patient_resource_entry = create_resource_entry(
         resource = patient_resource,
-        full_url = generate_full_url_uuid()
+        full_url = full_url
     )
 
     patient_reference = create_reference(
         reference_type = 'Patient',
-        identifier = patient_identifier
+        reference = full_url
     )
 
     return patient_resource_entry, patient_reference
@@ -853,15 +853,15 @@ def create_encounter(encounter_id: str,
         diagnosis = symptom_references,
         contained = symptom_resources
     )
-
+    full_url = generate_full_url_uuid()
     encounter_resource_entry = create_resource_entry(
         resource = encounter_resource,
-        full_url = generate_full_url_uuid()
+        full_url = full_url
     )
 
     encounter_reference = create_reference(
         reference_type = 'Encounter',
-        identifier = encounter_identifier
+        reference = full_url
     )
 
     return encounter_resource_entry, encounter_reference
