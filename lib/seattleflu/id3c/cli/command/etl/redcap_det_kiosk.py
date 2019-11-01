@@ -9,6 +9,7 @@ from typing import Any, List, Optional
 from copy import deepcopy
 from id3c.cli.command.clinical import generate_hash
 from id3c.cli.command.etl import race, redcap_det, UnknownSiteError
+from .redcap_map import *
 from .fhir import *
 
 LOG = logging.getLogger(__name__)
@@ -43,7 +44,8 @@ REVISION = 1
     help = __doc__)
 
 def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
-    patient_resource_entry, patient_reference = create_patient(redcap_record)
+    # XXX TODO: INCLUDE SPANISH RESPONSES
+    patient_entry, patient_reference = create_patient(redcap_record)
 
     immunization_resource_entry = create_immunization(redcap_record, patient_reference)
 
@@ -90,7 +92,7 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
     )
 
     all_resource_entries = [
-        patient_resource_entry,
+        patient_entry,
         immunization_resource_entry,
         *location_resource_entries,
         encounter_resource_entry,
@@ -111,62 +113,20 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
 
 
 # FUNCTIONS SPECIFIC TO SFS KIOSK ENROLLMENT PROJECT
-def create_patient(redcap_record: dict) -> tuple:
-    """
-    Create FHIR patient resource and reference from *redcap_record*
-    """
-    gender = determine_gender(redcap_record['sex'])
-
-    patient_id = generate_patient_id(redcap_record, gender)
-
-    patient_identifier = create_identifier(
-        system = f'{SFS}/individual',
-        value = patient_id
-    )
-
+def create_patient(record: dict) -> tuple:
+    """ Returns a FHIR Patietn resource entry and reference. """
+    gender = map_sex(record["sex"])
+    patient_id = generate_patient_hash(record, gender)
+    patient_identifier = create_identifier(f"{SFS}/individual",patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
-    full_url = generate_full_url_uuid()
-    patient_resource_entry = create_resource_entry(
-        resource = patient_resource,
-        full_url = full_url
-    )
 
-    patient_reference = create_reference(
-        reference_type = 'Patient',
-        reference = full_url
-    )
-
-    return patient_resource_entry, patient_reference
+    return create_entry_and_reference(patient_resource, "Patient")
 
 
-def determine_gender(sex_response: str) -> Optional[str]:
-    """
-    Determine the gender based on a give *sex_response*
-    """
-    gender_map = {
-        'Male': 'male',
-        'Female': 'female',
-        'Indeterminate/other': 'other',
-        'Prefer not to say': None,
-        '': None,
-    }
-
-    if sex_response not in gender_map:
-        raise UnknownSexError(f'Unknown sex response «{sex_response}»')
-
-    return gender_map[sex_response]
-
-
-def generate_patient_id(redcap_record: dict, gender: str) -> str:
+def generate_patient_hash(redcap_record: dict, gender: str) -> str:
     """
     Create a hashed patient id for a given *redcap_record*
     """
-    patient = {
-        'gender': gender
-    }
-
-    full_name = None
-
     if redcap_record['participant_first_name'] != '':
         full_name = ' '.join([
             redcap_record['participant_first_name'],
@@ -175,8 +135,10 @@ def generate_patient_id(redcap_record: dict, gender: str) -> str:
     else:
         full_name = redcap_record['part_name_sp']
 
-    if full_name:
-        patient['name'] = canonicalize_name(full_name)
+    patient = {
+        'gender': gender,
+        'name': canonicalize_name(full_name)
+    }
 
     if redcap_record['birthday']:
         patient['birthday'] = datetime \
@@ -194,12 +156,7 @@ def generate_patient_id(redcap_record: dict, gender: str) -> str:
         address = determine_dorm_address(redcap_record['uw_dorm'])
         patient['zipcode'] = address['zipcode']
 
-    return generate_hash(''.join(sorted(patient.values())))
-
-
-def canonicalize_name(full_name: str) -> str:
-    """ """
-    return re.sub(r'\s*[\d\W]+\s*', ' ', full_name).upper()
+    return generate_hash(str(sorted(patient.values())))
 
 
 def create_immunization(redcap_record: dict, patient_reference: dict) -> dict:
@@ -991,12 +948,7 @@ def find_selected_options(option_prefix: str, redcap_record:dict) -> list:
     return selected
 
 
-class UnknownSexError(ValueError):
-    """
-    Raised by :function: `determine_gender` if a provided *sex_response*
-    is not among a set of expected values
-    """
-    pass
+
 
 
 class UnknownInsuranceError(ValueError):
