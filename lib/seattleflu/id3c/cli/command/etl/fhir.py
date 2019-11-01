@@ -1,8 +1,10 @@
 """
 REDCap DET ETL shared functions to create FHIR documents
 """
+import re
 from typing import Optional, List
 from uuid import uuid4
+from datetime import datetime
 
 # CREATE FHIR RESOURCES
 def create_reference(reference_type: Optional[str] = None,
@@ -330,3 +332,15 @@ def generate_full_url_uuid() -> str:
     return f"urn:uuid:{uuid4()}"
 
 
+def convert_to_iso(time: str, current_format: str) -> str:
+    """
+    Converts a *time* to ISO format from the *current_format* specified in
+    C-standard format codes.
+    """
+    # TODO uses locale time zone
+    return datetime.strptime(time, current_format).astimezone().isoformat()
+
+
+def canonicalize_name(full_name: str) -> str:
+    """ """
+    return re.sub(r'\s*[\d\W]+\s*', ' ', full_name).upper()
