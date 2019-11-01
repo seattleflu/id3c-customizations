@@ -14,6 +14,8 @@ from uuid import uuid4
 from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union
 from datetime import datetime
 from id3c.cli.command.etl import race, redcap_det
+from id3c.cli.command.clinical import generate_hash
+from .redcap_map import *
 from .fhir import *
 
 
@@ -167,32 +169,20 @@ def create_location(system: str, value: str, location_type: str, parent: str=Non
 
 
 def create_patient(record: dict) -> tuple:
-    """ Returns a FHIR Patient resource entry and a FHIR Patient reference. """
-    gender = sex(record)
-    patient_id = generate_patient_hash(record)
-    patient_identifier = create_identifier(
-        system = f"{INTERNAL_SYSTEM}/individual",
-        value = patient_id
-    )
-
-    full_url = generate_full_url_uuid()
+    """ Returns a FHIR Patient resource entry and reference. """
+    gender = map_sex(record["sex"])
+    patient_id = generate_patient_hash(record, gender)
+    patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual",patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
-    patient_entry = create_resource_entry(
-        resource = patient_resource,
-        full_url = full_url
-    )
-    patient_reference = create_reference(
-        reference_type = 'Patient',
-        reference = full_url
-    )
-    return patient_entry, patient_reference
+
+    return create_entry_and_reference(patient_resource, "Patient")
 
 
-def generate_patient_hash(record: dict) -> dict:
+def generate_patient_hash(record: dict, gender: str) -> dict:
     """ Returns a hash generated from patient information. """
     personal_information = {
         "name": canonicalize_name(f"{record['first_name_1']}{record['last_name_1']}"),
-        "gender": sex(record),  # TODO redundant?
+        "gender": gender,
         "birthday": convert_to_iso(record['birthday'], '%Y-%m-%d'),
         "zipcode": record['home_zipcode_2']  # TODO redundant?
     }
@@ -290,13 +280,6 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     )
 
     return encounter_resource_entry, encounter_reference
-
-
-def convert_to_iso(time: str, current_format: str) -> str:
-    """
-    Converts a *time* to ISO format from the *current_format* specified in C-standard format codes.
-    """
-    return datetime.strptime(time, current_format).astimezone().isoformat()  # TODO uses locale time zone
 
 
 def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> dict:
@@ -550,25 +533,6 @@ def symptom(symptom_name: str) -> Optional[str]:
 
     return symptom_map[symptom_name]
 
-def sex(record: dict) -> str:
-    """
-    Returns a *record* sex value mapped to a FHIR gender value.
-    This function uses a map instead of converting to lowercase to guard against
-    potential new or unexpected values for 'sex' in REDCap.
-    """
-    sex_map = {
-        'Male': 'male',
-        'Female': 'female',
-        'Indeterminate/other': 'other',
-        '': 'unknown'
-    }
-
-    try:
-        return sex_map[record['sex']]
-
-    except:
-        raise KeyError(f"Unknown sex \"{record['sex']}\"")
-
 
 def vaccine(record: dict) -> Optional[str]:
     """ Maps a vaccine response to a standardized FHIR value. """
@@ -599,19 +563,3 @@ def vaccine_date(record: dict) -> Optional[str]:
 def residence_census_tract():
     # TODO
     pass
-
-
-def canonicalize_name(name: str) -> str:  # TODO should live in shared module
-  return re.sub(r'[\s\d\W]', '', name).upper()
-
-def generate_hash(identifier: str):  # TODO import? currently lives in `clinical`
-    """
-    Generate hash for *identifier* that is linked to identifiable records.
-    Must provide a "PARTICIPANT_DEIDENTIFIER_SECRET" as an OS environment
-    variable.
-    """
-    secret = os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"]
-    new_hash = hashlib.sha256()
-    new_hash.update(identifier.encode("utf-8"))
-    new_hash.update(secret.encode("utf-8"))
-    return new_hash.hexdigest()

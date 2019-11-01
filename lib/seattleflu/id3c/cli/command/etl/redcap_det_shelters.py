@@ -7,12 +7,10 @@ from typing import Any, List
 from datetime import datetime
 from copy import deepcopy
 from id3c.cli.command.etl import redcap_det, UnknownSiteError
+from id3c.cli.command.clinical import generate_hash
+from .redcap_map import *
 from .fhir import *
 from .redcap_det_kiosk import (
-    SFS,
-    REDCAP_URL,
-    canonicalize_name,
-    determine_gender,
     determine_shelter_address,
     determine_dorm_address,
     determine_home_address,
@@ -20,7 +18,6 @@ from .redcap_det_kiosk import (
     determine_location_type_code,
     determine_vaccine_status,
     determine_vaccine_date,
-    create_patient,
     create_locations,
     create_immunization,
     create_symptoms,
@@ -32,6 +29,8 @@ from .redcap_det_kiosk import (
 
 LOG = logging.getLogger(__name__)
 
+REDCAP_URL = 'https://redcap.iths.org/'
+SFS = 'https://seattleflu.org'
 PROJECT_ID = 17542
 
 REQUIRED_INSTRUMENTS = [
@@ -58,7 +57,7 @@ REVISION = 1
     help = __doc__)
 
 def redcap_det_shelters(*, det: dict, redcap_record: dict):
-    patient_resource_entry, patient_reference = create_patient(redcap_record)
+    patient_entry, patient_reference = create_patient(redcap_record)
 
     immunization_resource_entry = create_immunization(redcap_record, patient_reference)
 
@@ -105,7 +104,7 @@ def redcap_det_shelters(*, det: dict, redcap_record: dict):
     )
 
     all_resource_entries = [
-        patient_resource_entry,
+        patient_entry,
         immunization_resource_entry,
         *location_resource_entries,
         encounter_resource_entry,
@@ -124,6 +123,46 @@ def redcap_det_shelters(*, det: dict, redcap_record: dict):
     )
 
     return bundle
+
+# FUNCTIONS SPECIFIC TO SFS SHELTERS PROJECT
+def create_patient(record: dict) -> tuple:
+    """ Returns a FHIR Patietn resource entry and reference. """
+    gender = map_sex(record["sex"])
+    patient_id = generate_patient_hash(record, gender)
+    patient_identifier = create_identifier(f"{SFS}/individual",patient_id)
+    patient_resource = create_patient_resource([patient_identifier], gender)
+
+    return create_entry_and_reference(patient_resource, "Patient")
+
+
+def generate_patient_hash(redcap_record: dict, gender: str) -> str:
+    """
+    Create a hashed patient id for a given *redcap_record*
+    """
+    full_name = ' '.join([
+        redcap_record['participant_first_name'],
+        redcap_record['participant_last_name']
+    ])
+
+    patient = {
+        'gender': gender,
+        'name': canonicalize_name(full_name)
+    }
+
+    if redcap_record['birthday']:
+        patient['birthday'] = convert_to_iso(redcap_record['birthday'], '%Y-%m-%d')
+
+    if redcap_record.get('home_zipcode'):
+        patient['zipcode'] = redcap_record['home_zipcode']
+    elif redcap_record.get('shelter_name') and redcap_record['shelter_name'] != 'Other/none of the above':
+        address = determine_shelter_address(redcap_record['shelter_name'])
+        patient['zipcode'] = address['zipcode']
+    elif redcap_record.get('uw_dorm') and redcap_record['uw_dorm'] != 'Other':
+        address = determine_dorm_address(redcap_record['uw_dorm'])
+        patient['zipcode'] = address['zipcode']
+
+    return generate_hash(str(sorted(patient.values())))
+
 
 
 def create_specimen(redcap_record: dict, patient_reference: dict) -> dict:
