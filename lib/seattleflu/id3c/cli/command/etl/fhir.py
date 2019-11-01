@@ -286,6 +286,22 @@ def create_resource_entry(resource: dict, full_url: str) -> dict:
     })
 
 
+def create_entry_and_reference(resource: dict,
+                               reference_type: Optional[str] = None) -> tuple:
+    """
+    Create a bundle entry and a reference that refers to the fullUrl of the
+    bundle entry.
+    """
+    full_url = generate_full_url_uuid()
+    entry = create_resource_entry(resource, full_url)
+    reference = create_reference(
+        reference_type = reference_type,
+        reference      = full_url
+    )
+
+    return entry, reference
+
+
 # CREATE FHIR DATA TYPES
 def create_coding(system: str, code: str, display: Optional[str] = None) -> dict:
     """
