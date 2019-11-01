@@ -50,6 +50,10 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
     questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
     immunization_entry = create_immunization(redcap_record, patient_reference)
+    specimen_observation_entry = create_resource_entry(
+        resource = create_specimen_observation(specimen_reference,patient_reference,encounter_reference),
+        full_url = generate_full_url_uuid()
+    )
 
     resource_entries = [
         patient_entry,
@@ -57,7 +61,8 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
         questionnaire_entry,
         specimen_entry,
         immunization_entry,
-        *location_resource_entries
+        *location_resource_entries,
+        specimen_observation_entry
     ]
 
     return create_bundle_resource(
