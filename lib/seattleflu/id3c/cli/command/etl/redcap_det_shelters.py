@@ -7,22 +7,10 @@ from typing import Any, List
 from datetime import datetime
 from copy import deepcopy
 from id3c.cli.command.etl import redcap_det, UnknownSiteError
-
+from .fhir import *
 from .redcap_det_kiosk import (
     SFS,
     REDCAP_URL,
-    create_patient,
-    create_immunization,
-    create_diagnostic_report_resource,
-    create_locations,
-    create_reference,
-    create_identifier,
-    create_codeable_concept,
-    create_resource_entry,
-    create_questionnaire_response_entry,
-    create_specimen_observation_entry,
-    create_bundle_resource,
-    generate_full_url_uuid,
     canonicalize_name,
     determine_gender,
     determine_shelter_address,
@@ -32,8 +20,13 @@ from .redcap_det_kiosk import (
     determine_location_type_code,
     determine_vaccine_status,
     determine_vaccine_date,
+    create_patient,
+    create_locations,
+    create_immunization,
     create_symptoms,
     create_encounter,
+    create_questionnaire_response_entry,
+    create_specimen_observation_entry,
     find_selected_options,
 )
 
