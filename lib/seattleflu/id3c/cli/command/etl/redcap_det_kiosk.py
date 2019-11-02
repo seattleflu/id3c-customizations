@@ -164,7 +164,7 @@ def create_immunization(redcap_record: dict, patient_reference: dict) -> dict:
     Create FHIR immunization resource from *redcap_record* and link to a
     specific *patient_reference*
     """
-    immunization_status = determine_vaccine_status(redcap_record['vaccine'])
+    immunization_status = map_vaccine(redcap_record['vaccine'])
 
     immunization_date = determine_vaccine_date(
         vaccine_year = redcap_record['vaccine_year'],
@@ -197,23 +197,6 @@ def create_immunization(redcap_record: dict, patient_reference: dict) -> dict:
         resource = immunization_resource,
         full_url = generate_full_url_uuid()
     ))
-
-
-def determine_vaccine_status(vaccine_response: str) -> Optional[str]:
-    """
-    Determine the vaccine status based on provided *vaccine_response*
-    """
-    vaccine_map = {
-        'Yes': 'completed',
-        'No': 'not-done',
-        'Do not know': None,
-        '': None
-    }
-
-    if vaccine_response not in vaccine_map:
-        raise UnknownVaccineResponse(f"Unknown vaccine response «{vaccine_response}»")
-
-    return vaccine_map[vaccine_response]
 
 
 def determine_vaccine_date(vaccine_year: str, vaccine_month: str) -> Optional[str]:
@@ -955,14 +938,6 @@ class UnknownInsuranceError(ValueError):
     """
     Raised by :function: `determine_insurance_type` if a provided
     *insurance_response* is not among a set of expected values
-    """
-    pass
-
-
-class UnknownVaccineResponse(ValueError):
-    """
-    Raised by :function: `determine_vaccine_status` if a provided
-    *vaccine_response* is not among a set of expected values
     """
     pass
 
