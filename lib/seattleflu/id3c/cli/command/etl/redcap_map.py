@@ -23,9 +23,35 @@ def map_sex(sex_response: str) -> Optional[str]:
     return sex_map[sex_response]
 
 
+def map_vaccine(vaccine_response: str) -> Optional[str]:
+    """
+    Maps a vaccine response to FHIR immunization status codes
+    (https://www.hl7.org/fhir/valueset-immunization-status.html)
+    """
+    vaccine_map = {
+        'Yes': 'completed',
+        'No': 'not-done',
+        'Do not know': None,
+        '': None,
+    }
+
+    if vaccine_response not in vaccine_map:
+        raise UnknownVaccineResponseError(f"Unknown vaccine response «{vaccine_response}»")
+
+    return vaccine_map[vaccine_response]
+
+
 class UnknownSexError(ValueError):
     """
     Raised by :function: `map_sex` if a provided *sex_response*
     is not among a set of expected values
+    """
+    pass
+
+
+class UnknownVaccineResponse(ValueError):
+    """
+    Raised by :function: `map_vaccine` if a provided
+    *vaccine_response* is not among a set of expected values
     """
     pass

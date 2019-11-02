@@ -192,7 +192,7 @@ def generate_patient_hash(record: dict, gender: str) -> dict:
 
 def create_immunization(record: dict, patient_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Immunization resource entry. """
-    vaccine_status = vaccine(record)
+    vaccine_status = map_vaccine(record["vaccine"])
     if not vaccine_status:
         return None
 
@@ -532,21 +532,6 @@ def symptom(symptom_name: str) -> Optional[str]:
         raise KeyError(f"Unknown symptom name \"{symptom_name}\"")
 
     return symptom_map[symptom_name]
-
-
-def vaccine(record: dict) -> Optional[str]:
-    """ Maps a vaccine response to a standardized FHIR value. """
-    vaccine_map = {
-        'Yes': 'completed',
-        'No': 'not-done',
-        'Do not know': None,
-        '': None,
-    }
-
-    try:
-        return vaccine_map[record['vaccine']]
-    except:
-        raise KeyError(f"Unknown vaccine response \"{record['vaccine']}\"")
 
 
 def vaccine_date(record: dict) -> Optional[str]:
