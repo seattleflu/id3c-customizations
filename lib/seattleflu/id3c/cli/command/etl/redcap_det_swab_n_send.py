@@ -235,7 +235,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         return create_resource_condition(record, record[symptom_key], patient_reference)
 
     def build_diagnosis_list(symptom_key: str) -> dict:
-        return { "condition": { "reference": f"#{symptom(record[symptom_key])}" } }
+        return { "condition": { "reference": f"#{map_symptom(record[symptom_key])}" } }
 
     def build_locations_list(location: dict) -> dict:
         return {
@@ -295,7 +295,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
 
         return None
 
-    mapped_symptom_name = symptom(symptom_name)
+    mapped_symptom_name = map_symptom(symptom_name)
 
     # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
     # 3.8.  Until then, there's no reasonable way to type this data structure
@@ -318,7 +318,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
 
     symptom_severity = severity(mapped_symptom_name)
     if symptom_severity:
-        condition['severity'] = { "text": record[symptom_severity] }  # TODO lowercase?
+        condition['severity'] = create_condition_severity_code(record[symptom_severity]) # TODO lowercase?
 
     return condition
 
@@ -504,34 +504,6 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         return create_questionnaire_response_item(question_id, answers)
 
     return None
-
-def symptom(symptom_name: str) -> Optional[str]:
-    """
-    Returns a symptom name mapped from the REDCap data dictionary to the Audere
-    (ID3C) equivalent name.
-    """
-    symptom_map = {
-        'Feeling feverish':                     'feelingFeverish',
-        'Headache':                             'headaches',
-        'Cough':                                'cough',
-        'Chills or shivering':                  'chillsOrShivering',
-        'Sweats':                               'sweats',
-        'Sore throat or itchy/scratchy throat': 'soreThroat',
-        'Nausea or vomiting':                   'nauseaOrVomiting',
-        'Runny or stuffy nose':                 'runnyOrStuffyNose',
-        'Feeling more tired than usual':        'fatigue',
-        'Muscle or body aches':                 'muscleOrBodyAches',
-        'Diarrhea':                             'diarrhea',
-        'Ear pain or discharge':                'earPainOrDischarge',
-        'Rash':                                 'rash',
-        'Increased trouble with breathing':     'increasedTroubleBreathing',
-        'None of the above':                    None,
-    }
-
-    if symptom_name not in symptom_map:
-        raise KeyError(f"Unknown symptom name \"{symptom_name}\"")
-
-    return symptom_map[symptom_name]
 
 
 def vaccine_date(record: dict) -> Optional[str]:

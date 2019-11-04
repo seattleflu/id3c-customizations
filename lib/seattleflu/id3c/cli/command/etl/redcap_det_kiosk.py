@@ -687,33 +687,11 @@ def create_symptoms(redcap_record: dict, patient_reference: dict) -> tuple:
     return symptom_resources, symptom_references
 
 
-def determine_symptoms_codes(redcap_record: dict) -> dict:
+def determine_symptoms_codes(redcap_record: dict) -> Optional[dict]:
     """
     Given a *redcap_record*, determine the symptoms of the encounter
     """
     symptom_responses = find_selected_options('symptoms___', redcap_record)
-
-    if 'None of the above' in symptom_responses:
-        return None
-
-    symptom_map = {
-        'Feeling feverish':                     'feelingFeverish',
-        'Headache':                             'headaches',
-        'Headaches':                             'headaches',
-        'Cough':                                'cough',
-        'Chills or shivering':                  'chillsOrShivering',
-        'Sweats':                               'sweats',
-        'Sore throat or itchy/scratchy throat': 'soreThroat',
-        'Nausea or vomiting':                   'nauseaOrVomiting',
-        'Runny or stuffy nose':                 'runnyOrStuffyNose',
-        'Runny / stuffy nose':                 'runnyOrStuffyNose',
-        'Feeling more tired than usual':        'fatigue',
-        'Muscle or body aches':                 'muscleOrBodyAches',
-        'Diarrhea':                             'diarrhea',
-        'Ear pain or ear discharge':                   'earPainOrDischarge',
-        'Rash':                                 'rash',
-        'Increased trouble with breathing':     'increasedTroubleBreathing'
-    }
 
     severity_map = {
         'Feeling feverish': 'fever_severity',
@@ -735,10 +713,10 @@ def determine_symptoms_codes(redcap_record: dict) -> dict:
     symptom_codes = {}
 
     for response in symptom_responses:
-        symptom = symptom_map.get(response)
+        symptom = map_symptom(response)
 
         if not symptom:
-            raise UnknownSymptomResponseError(f"Unknown symptom response «{response}»")
+            return None
 
         symptom_code = create_codeable_concept(
             system = f'{SFS}/symptom',
@@ -931,9 +909,6 @@ def find_selected_options(option_prefix: str, redcap_record:dict) -> list:
     return selected
 
 
-
-
-
 class UnknownInsuranceError(ValueError):
     """
     Raised by :function: `determine_insurance_type` if a provided
@@ -949,13 +924,6 @@ class UnknownCepheidResultError(ValueError):
     """
     pass
 
-
-class UnknownSymptomResponseError(ValueError):
-    """
-    Raised by :function: `determine_symptoms` if a provided
-    result response is not among a set of expected values
-    """
-    pass
 
 class UnknownShelterError(ValueError):
     """
