@@ -49,7 +49,7 @@ class UnknownSexError(ValueError):
     pass
 
 
-class UnknownVaccineResponse(ValueError):
+class UnknownVaccineResponseError(ValueError):
     """
     Raised by :function: `map_vaccine` if a provided
     *vaccine_response* is not among a set of expected values
