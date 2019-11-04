@@ -16,7 +16,6 @@ from .redcap_det_kiosk import (
     determine_home_address,
     determine_census_tract,
     determine_location_type_code,
-    determine_vaccine_status,
     determine_vaccine_date,
     create_locations,
     create_immunization,
