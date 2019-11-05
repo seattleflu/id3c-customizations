@@ -23,14 +23,14 @@ def map_sex(sex_response: str) -> Optional[str]:
     return sex_map[sex_response]
 
 
-def map_vaccine(vaccine_response: str) -> Optional[str]:
+def map_vaccine(vaccine_response: str) -> Optional[bool]:
     """
     Maps a vaccine response to FHIR immunization status codes
     (https://www.hl7.org/fhir/valueset-immunization-status.html)
     """
     vaccine_map = {
-        'Yes': 'completed',
-        'No': 'not-done',
+        'Yes': True,
+        'No': False,
         'Do not know': None,
         '': None,
     }

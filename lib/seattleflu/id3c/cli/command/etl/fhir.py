@@ -43,23 +43,6 @@ def create_patient_resource(patient_identifier: List[dict], gender: str) -> dict
     })
 
 
-def create_immunization_resource(vaccine_code: dict,
-                                 patient_reference: dict,
-                                 status: str,
-                                 occurrence: dict) -> dict:
-    """
-    Create immunization resource following the FHIR format
-    (https://www.hl7.org/fhir/immunization.html)
-    """
-    return ({
-        "resourceType": "Immunization",
-        "vaccineCode": vaccine_code,
-        "patient": patient_reference,
-        "status": status,
-        **occurrence
-    })
-
-
 def create_diagnostic_report_resource(datetime: str,
                                       diagnostic_code: dict,
                                       patient_reference: dict,

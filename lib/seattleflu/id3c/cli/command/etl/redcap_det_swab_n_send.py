@@ -51,7 +51,6 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
     encounter_entry,encounter_reference = create_encounter(redcap_record, patient_reference, location_resource_entries)
     questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
-    immunization_entry = create_immunization(redcap_record, patient_reference)
     specimen_observation_entry = create_resource_entry(
         resource = create_specimen_observation(specimen_reference,patient_reference,encounter_reference),
         full_url = generate_full_url_uuid()
@@ -62,7 +61,6 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
         encounter_entry,
         questionnaire_entry,
         specimen_entry,
-        immunization_entry,
         *location_resource_entries,
         specimen_observation_entry
     ]
@@ -188,38 +186,6 @@ def generate_patient_hash(record: dict, gender: str) -> dict:
     }
 
     return generate_hash(str(sorted(personal_information.items())))
-
-
-def create_immunization(record: dict, patient_reference: dict) -> Optional[dict]:
-    """ Returns a FHIR Immunization resource entry. """
-    vaccine_status = map_vaccine(record["vaccine"])
-    if not vaccine_status:
-        return None
-
-    date = vaccine_date(record)
-
-    if date:
-        occurrence = { "occurrenceDateTime": date }
-    else:
-        occurrence = { "occurrenceString": "No Vaccine" }
-    # TODO it seems we have to have occurrenceDate or occurrenceString which seems weird considering
-    # 'not-done' is an acceptable status
-
-    vaccine_code = create_codeable_concept(
-        system = "http://snomed.info/sct",
-        code = "46233009",
-        display = "Influenza virus vaccine"
-    )
-
-    immunization_resource = create_immunization_resource(
-        vaccine_code = vaccine_code,
-        patient_reference = patient_reference,
-        status = vaccine_status,
-        occurrence = occurrence
-    )
-
-    return create_resource_entry(immunization_resource, generate_full_url_uuid())
-
 
 
 def create_encounter(record: dict, patient_reference: dict, locations: list) -> tuple:
@@ -440,6 +406,16 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
             if item:
                 items.append(item)
 
+    # Vaccine is an edge case because it can have two answers of different value types
+    vaccine_status = map_vaccine(record["vaccine"])
+    if vaccine_status is not None:
+        answers = [{ 'valueBoolean': vaccine_status }]
+        date = vaccine_date(record)
+        if vaccine_status and date:
+            answers.append({ 'valueDate': date })
+        vaccine_item = create_questionnaire_response_item('vaccine', answers)
+        items.append(vaccine_item)
+
     if items:
         questionnaire_reseponse_resource = create_questionnaire_response_resource(
             patient_reference, encounter_reference, items
@@ -507,14 +483,17 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
 
 
 def vaccine_date(record: dict) -> Optional[str]:
-    """ Converts a vaccination date to ISO format. """
+    """ Converts a vaccination date to 'YYYY' or 'YYYY-MM' format. """
     year = record['vaccine_year_fc54b4']
     month = record['vaccine_month_dfe1c1']
 
-    try:
-        return convert_to_iso(f'{month} {year}', '%B %Y')
-    except ValueError:
+    if year == '' or year == 'Do not know':
         return None
+
+    if month == 'Do not know':
+        return datetime.strptime(year, '%Y').strftime('%Y')
+
+    return datetime.strptime(f'{month} {year}', '%B %Y').strftime('%Y-%m')
 
 
 def residence_census_tract():

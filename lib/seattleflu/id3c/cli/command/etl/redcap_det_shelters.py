@@ -18,7 +18,6 @@ from .redcap_det_kiosk import (
     determine_location_type_code,
     determine_vaccine_date,
     create_locations,
-    create_immunization,
     create_symptoms,
     create_encounter,
     create_questionnaire_response_entry,
@@ -57,8 +56,6 @@ REVISION = 1
 
 def redcap_det_shelters(*, det: dict, redcap_record: dict):
     patient_entry, patient_reference = create_patient(redcap_record)
-
-    immunization_resource_entry = create_immunization(redcap_record, patient_reference)
 
     specimen_resource_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
@@ -104,7 +101,6 @@ def redcap_det_shelters(*, det: dict, redcap_record: dict):
 
     all_resource_entries = [
         patient_entry,
-        immunization_resource_entry,
         *location_resource_entries,
         encounter_resource_entry,
         questionnaire_response_resource_entry,

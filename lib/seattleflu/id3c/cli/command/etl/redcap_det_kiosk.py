@@ -47,8 +47,6 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     patient_entry, patient_reference = create_patient(redcap_record)
 
-    immunization_resource_entry = create_immunization(redcap_record, patient_reference)
-
     specimen_resource_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
     # Create diagnostic report resource if the participant agrees
@@ -93,7 +91,6 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
 
     all_resource_entries = [
         patient_entry,
-        immunization_resource_entry,
         *location_resource_entries,
         encounter_resource_entry,
         questionnaire_response_resource_entry,
@@ -157,46 +154,6 @@ def generate_patient_hash(redcap_record: dict, gender: str) -> str:
         patient['zipcode'] = address['zipcode']
 
     return generate_hash(str(sorted(patient.values())))
-
-
-def create_immunization(redcap_record: dict, patient_reference: dict) -> dict:
-    """
-    Create FHIR immunization resource from *redcap_record* and link to a
-    specific *patient_reference*
-    """
-    immunization_status = map_vaccine(redcap_record['vaccine'])
-
-    immunization_date = determine_vaccine_date(
-        vaccine_year = redcap_record['vaccine_year'],
-        vaccine_month = redcap_record['vaccine_month']
-    )
-
-    if immunization_date:
-        immunization_occurrence = {
-            'occurrenceDateTime': immunization_date
-        }
-    else:
-        immunization_occurrence = {
-            'occurrenceString': 'Unknown'
-        }
-
-    vaccine_code = create_codeable_concept(
-        system = 'http://snomed.info/sct',
-        code = '46233009',
-        display = 'Influenza virus vaccine'
-    )
-
-    immunization_resource = create_immunization_resource(
-        vaccine_code = vaccine_code,
-        patient_reference = patient_reference,
-        status = immunization_status,
-        occurrence = immunization_occurrence
-    )
-
-    return (create_resource_entry(
-        resource = immunization_resource,
-        full_url = generate_full_url_uuid()
-    ))
 
 
 def determine_vaccine_date(vaccine_year: str, vaccine_month: str) -> Optional[str]:
@@ -818,6 +775,18 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
 
     items['travel_countries'] = [{ 'valueBoolean': redcap_record['travel_countries'] == 'Yes'}]
     items['travel_states'] = [{'valueBoolean': redcap_record['travel_states'] == 'Yes'}]
+
+    # Only include vaccine status if known
+    vaccine_status = map_vaccine(redcap_record['vaccine'])
+    # Only include vaccine status if known
+    if vaccine_status is not None:
+        items['vaccine'] = [{ 'valueBoolean': vaccine_status }]
+        immunization_date = determine_vaccine_date(
+            vaccine_year = redcap_record['vaccine_year'],
+            vaccine_month = redcap_record['vaccine_month']
+        )
+        if vaccine_status and immunization_date:
+            items['vaccine'].append({ 'valueDate': immunization_date })
 
     response_items = []
     for item in items:
