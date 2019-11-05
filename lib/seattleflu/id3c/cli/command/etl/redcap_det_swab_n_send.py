@@ -283,7 +283,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
     }
 
     symptom_severity = severity(mapped_symptom_name)
-    if symptom_severity:
+    if symptom_severity and record[symptom_severity]:
         condition['severity'] = create_condition_severity_code(record[symptom_severity]) # TODO lowercase?
 
     return condition
