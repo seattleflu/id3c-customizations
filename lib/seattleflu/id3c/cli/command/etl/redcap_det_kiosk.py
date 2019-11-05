@@ -45,6 +45,9 @@ REVISION = 1
 
 def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
+    if redcap_record['language_questions'] == 'Spanish':
+        return None
+
     patient_entry, patient_reference = create_patient(redcap_record)
 
     specimen_resource_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
