@@ -28,3 +28,4 @@ shipping/views [shipping/views@2019-09-30] 2019-10-18T16:23:26Z Jover Lee <jover
 shipping/views [shipping/views@2019-10-18] 2019-10-29T23:58:26Z Jover Lee <joverlee@fredhutch.org> # Add return of results view
 roles/return-results-exporter/create [shipping/views] 2019-11-06T18:12:21Z Jover Lee <joverlee@fredhutch.org> # Role for exporting return results
 roles/return-results-exporter/grants [shipping/views] 2019-11-06T18:14:00Z Jover Lee <joverlee@fredhutch.org> # Grants to return-results-exporter
+@2019-10-30 2019-11-06T18:16:04Z Jover Lee <joverlee@fredhutch.org> # Schema as of 30 Oct 2019
