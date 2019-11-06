@@ -68,7 +68,7 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
-        entries = resource_entries
+        entries = list(filter(None, resource_entries))
     )
 
 
