@@ -319,7 +319,7 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
 
     # TODO same as above comment
     if record['collection_date']:
-        collected_time = convert_to_iso(ecord['collection_date'], "%Y-%m-%d %H:%M")
+        collected_time = convert_to_iso(record['collection_date'], "%Y-%m-%d %H:%M")
 
     specimen_resource = create_specimen_resource(
         [specimen_identifier], patient_reference, received_time, collected_time
