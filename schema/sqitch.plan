@@ -24,4 +24,7 @@ warehouse/target/data [warehouse/target/data@2019-09-27b] 2019-09-30T22:08:52Z K
 @2019-09-30 2019-09-30T23:59:55Z Kairsten Fay <kfay@fredhutch.org> # Link more targets to organisms
 shipping/views [shipping/views@2019-09-30] 2019-10-18T16:23:26Z Jover Lee <joverlee@fredhutch.org> # Update reportable-conditions to include sample_origin and swab_site
 @2019-10-18 2019-10-18T16:32:08Z Jover Lee <joverlee@fredhutch.org> # Changes for 18 October 2019
+
 shipping/views [shipping/views@2019-10-18] 2019-10-29T23:58:26Z Jover Lee <joverlee@fredhutch.org> # Add return of results view
+roles/return-results-exporter/create [shipping/views] 2019-11-06T18:12:21Z Jover Lee <joverlee@fredhutch.org> # Role for exporting return results
+roles/return-results-exporter/grants [shipping/views] 2019-11-06T18:14:00Z Jover Lee <joverlee@fredhutch.org> # Grants to return-results-exporter
