@@ -30,11 +30,11 @@ UW_CENSUS_TRACT = '53033005302'
 
 PROJECT_ID = 17561  # TODO use '17421' in production
 REQUIRED_INSTRUMENTS = [
-    # 'consent',   # TODO use in production
-    'enrollment_questionnaire',
-    'back_end_mail_scans',
-    # 'illness_questionnaire_nasal_swab_collection',  # TODO use in production
-    'post_collection_data_entry_qc'
+    # # 'consent',   # TODO use in production
+    # 'enrollment_questionnaire',
+    # 'back_end_mail_scans',
+    # # 'illness_questionnaire_nasal_swab_collection',  # TODO use in production
+    # 'post_collection_data_entry_qc'
 ]
 
 @redcap_det.command_for_project(
@@ -129,13 +129,7 @@ def locations(record: dict) -> list:
 
         return tract_entry, address_entry
 
-    locations = [
-        create_resource_entry(
-            create_location(f"{INTERNAL_SYSTEM}/site", 'self-test', "site"),
-            generate_full_url_uuid()
-        ),
-        *housing(record)
-    ]
+    locations = [*housing(record)]
 
     uw_location = uw_affiliation(record)
     for location in uw_location:
@@ -229,6 +223,14 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
     non_tracts = list(filter(non_tract_locations, locations))
     non_tract_references = list(map(build_locations_list, non_tracts))
+    # Site for all swab-n-send Encounters is 'self-test'
+    site_reference = {
+        "location": create_reference(
+            reference_type = "Location",
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'self-test')
+        )
+    }
+    non_tract_references.append(site_reference)
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
