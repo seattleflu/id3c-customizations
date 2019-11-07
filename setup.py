@@ -56,6 +56,8 @@ setup(
         "id3c >=2019.1",
         "click >=7.0",
         "requests",
+        "flask",
+        "flask-cors",
     ],
 
     extras_require = {
