@@ -345,18 +345,33 @@ def create_locations(encounter_locations: dict) -> tuple:
     location_resource_entries = []
     location_references = []
     for location in encounter_locations:
-        part_of = None
+        # Locations related to encounter site only needs a logical reference
+        # since we expect site to already exist within ID3C warehouse.site
         if location == 'site':
-            location_fullUrl = generate_full_url_uuid()
-            location_identifier = create_identifier(
-                system = f"{SFS}/site",
-                value = encounter_locations["site"]
+            location_reference = create_reference(
+                reference_type = 'Location',
+                identifier = {
+                    'system': f'{SFS}/site',
+                    'value': encounter_locations['site']
+                }
             )
 
         else:
             location_fullUrl = encounter_locations[location]['fullUrl']
             location_id = encounter_locations[location]['value']
             scale = 'tract' if location.endswith('-tract') else 'address'
+            location_identifier = create_identifier(
+                system = f'{SFS}/location/{scale}',
+                value = location_id
+            )
+
+            # Only create partOf if location is an address to reference the
+            # related tract Location resource.
+            part_of = None
+
+            # Only create a literal location reference for the Encounter if
+            # the location is an address
+            location_reference = None
 
             if scale == 'address':
                 address_tract = f'{location}-tract'
@@ -369,27 +384,24 @@ def create_locations(encounter_locations: dict) -> tuple:
                     reference_type = 'Location',
                     reference = tract_fullUrl
                 )
+                location_reference = create_reference(
+                    reference_type = 'Location',
+                    reference = location_fullUrl
+                )
 
-            location_identifier = create_identifier(
-                system = f'{SFS}/location/{scale}',
-                value = location_id
+            location_resource = create_location_resource(
+                location_type = [determine_location_type_code(location)],
+                location_identifier = [location_identifier],
+                location_partOf = part_of
             )
 
-        location_resource = create_location_resource(
-            location_type = [determine_location_type_code(location)],
-            location_identifier = [location_identifier],
-            location_partOf = part_of
-        )
-        location_resource_entries.append(create_resource_entry(
-            resource = location_resource,
-            full_url = location_fullUrl
-        ))
-        location_reference = create_reference(
-            reference_type = 'Location',
-            reference = location_fullUrl
-        )
+            location_resource_entries.append(create_resource_entry(
+                resource = location_resource,
+                full_url = location_fullUrl
+            ))
 
-        location_references.append({'location': location_reference})
+        if location_reference:
+            location_references.append({'location': location_reference})
 
     return location_resource_entries, location_references
 
