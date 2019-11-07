@@ -43,10 +43,13 @@ setup(
         "Programming Language :: Python :: 3.6",
     ],
 
-    # Register extended ID3C CLI commands
+    # Register extended ID3C CLI commands and API routes
     entry_points = {
         "id3c.cli.commands": [
             "seattleflu = seattleflu.id3c.cli.command"
+        ],
+        "id3c.api.routes": [
+            "seattleflu = seattleflu.id3c.api.routes"
         ],
     },
 
@@ -56,6 +59,8 @@ setup(
         "id3c >=2019.1",
         "click >=7.0",
         "requests",
+        "flask",
+        "flask-cors",
     ],
 
     extras_require = {
