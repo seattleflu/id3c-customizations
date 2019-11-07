@@ -223,14 +223,14 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         code = "HH"
     )
     start_time = convert_to_iso(record['enrollment_date_time'], "%Y-%m-%d %H:%M")
-    locations = list(map(build_locations_list, locations))
+    location_references = list(map(build_locations_list, locations))
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class_coding,
         start_timestamp = start_time,
         patient_reference = patient_reference,
-        location_references = locations,
+        location_references = location_references,
         diagnosis = diagnosis,
         contained = contained
     )
