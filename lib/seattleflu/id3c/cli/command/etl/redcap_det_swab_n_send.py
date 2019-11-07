@@ -211,6 +211,9 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
             )
         }
 
+    def non_tract_locations(resource: dict):
+        return resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/locations/tract"
+
     symptom_keys = list(filter(grab_symptom_keys, record))
     contained = list(map(build_conditions_list, symptom_keys))
     diagnosis = list(map(build_diagnosis_list, symptom_keys))
@@ -223,14 +226,16 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         code = "HH"
     )
     start_time = convert_to_iso(record['enrollment_date_time'], "%Y-%m-%d %H:%M")
-    location_references = list(map(build_locations_list, locations))
+
+    non_tracts = list(filter(non_tract_locations, locations))
+    non_tract_references = list(map(build_locations_list, non_tracts))
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class_coding,
         start_timestamp = start_time,
         patient_reference = patient_reference,
-        location_references = location_references,
+        location_references = non_tract_references,
         diagnosis = diagnosis,
         contained = contained
     )
