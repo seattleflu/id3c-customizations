@@ -104,12 +104,11 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
     if diagnostic_report_resource_entry:
         all_resource_entries.append(diagnostic_report_resource_entry)
 
-    bundle = create_bundle_resource(
+    return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
-        entries = all_resource_entries)
-
-    return bundle
+        entries = list(filter(None, all_resource_entries))
+    )
 
 
 # FUNCTIONS SPECIFIC TO SFS KIOSK ENROLLMENT PROJECT
