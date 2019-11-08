@@ -77,7 +77,7 @@ def redcap_det_shelters(*, det: dict, redcap_record: dict):
         patient_reference
     )
 
-    encounter_id = '/'.join([REDCAP_URL, str(PROJECT_ID), redcap_record['record_id']])
+    encounter_id = '/'.join([REDCAP_URL.rstrip('/'), str(PROJECT_ID), redcap_record['record_id']])
     encounter_resource_entry, encounter_reference = create_encounter(
         encounter_id,
         redcap_record,
