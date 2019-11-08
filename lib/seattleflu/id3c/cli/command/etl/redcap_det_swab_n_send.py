@@ -223,11 +223,11 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
     non_tracts = list(filter(non_tract_locations, locations))
     non_tract_references = list(map(build_locations_list, non_tracts))
-    # Site for all swab-n-send Encounters is 'self-test'
+    # Site for all swab 'n send Encounters is 'swabNSend'
     site_reference = {
         "location": create_reference(
             reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'swab-n-send')
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'swabNSend')
         )
     }
     non_tract_references.append(site_reference)
