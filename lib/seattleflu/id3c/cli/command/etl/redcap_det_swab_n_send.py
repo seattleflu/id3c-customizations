@@ -24,7 +24,7 @@ LOG = logging.getLogger(__name__)
 
 REVISION = 1
 
-REDCAP_URL = 'https://redcap.iths.org/'
+REDCAP_URL = 'https://redcap.iths.org'
 INTERNAL_SYSTEM = "https://seattleflu.org"
 UW_CENSUS_TRACT = '53033005302'
 
