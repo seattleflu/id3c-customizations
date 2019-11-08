@@ -213,7 +213,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     diagnosis = list(map(build_diagnosis_list, symptom_keys))
     encounter_identifier = create_identifier(
         system = f"{INTERNAL_SYSTEM}/encounter",
-        value = f"{REDCAP_URL}/{PROJECT_ID}/{record['record_id']}"
+        value = f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}"
     )
     encounter_class_coding = create_coding(
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
