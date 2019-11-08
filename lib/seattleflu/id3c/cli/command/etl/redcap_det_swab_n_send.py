@@ -227,7 +227,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     site_reference = {
         "location": create_reference(
             reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'self-test')
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'swab-n-send')
         )
     }
     non_tract_references.append(site_reference)
