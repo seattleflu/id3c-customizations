@@ -167,16 +167,19 @@ def create_encounter_resource(encounter_identifier: List[dict],
 
 def create_specimen_resource(specimen_identifier: List[dict],
                              patient_reference: dict,
+                             specimen_type: str,
                              received_datetime: Optional[str] = None,
                              collection_datetime: Optional[str] = None) -> dict:
     """
     Create specimen resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/specimen.html)
     """
+    specimen_type_system = 'http://terminology.hl7.org/CodeSystem/v2-0487'
     specimen_resource = {
         "resourceType": "Specimen",
         "identifier": specimen_identifier,
-        "subject": patient_reference
+        "subject": patient_reference,
+        "type": create_codeable_concept(specimen_type_system, specimen_type)
     }
     if received_datetime:
         specimen_resource["receivedTime"] = received_datetime

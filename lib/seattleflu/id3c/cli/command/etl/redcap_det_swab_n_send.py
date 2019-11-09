@@ -328,8 +328,9 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     if record['collection_date']:
         collected_time = convert_to_iso(record['collection_date'], "%Y-%m-%d %H:%M")
 
+    specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
-        [specimen_identifier], patient_reference, received_time, collected_time
+        [specimen_identifier], patient_reference, specimen_type, received_time, collected_time
     )
 
     full_url = generate_full_url_uuid()
