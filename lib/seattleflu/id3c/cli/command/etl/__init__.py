@@ -125,6 +125,5 @@ from . import (
     clinical,
     longitudinal,
     redcap_det_kiosk,
-    redcap_det_shelters,
     redcap_det_swab_n_send,
 )
