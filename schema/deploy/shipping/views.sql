@@ -187,7 +187,7 @@ create or replace view shipping.return_results_v1 as
                                   'collections-household-intervention') and
           (organism is null or
           -- We only return results for these organisms, so omit all other presence/absence results
-          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapenumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
+          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapneumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
     group by barcode, sample_id
     order by barcode;
 
