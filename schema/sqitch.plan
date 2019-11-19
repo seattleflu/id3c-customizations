@@ -29,4 +29,6 @@ shipping/views [shipping/views@2019-10-18] 2019-10-29T23:58:26Z Jover Lee <jover
 roles/return-results-exporter/create [shipping/views] 2019-11-06T18:12:21Z Jover Lee <joverlee@fredhutch.org> # Role for exporting return results
 roles/return-results-exporter/grants [shipping/views] 2019-11-06T18:14:00Z Jover Lee <joverlee@fredhutch.org> # Grants to return-results-exporter
 @2019-10-30 2019-11-06T18:16:04Z Jover Lee <joverlee@fredhutch.org> # Schema as of 30 Oct 2019
+
 shipping/views [shipping/views@2019-10-30 seattleflu/schema:shipping/views@2019-11-18] 2019-11-21T01:03:35Z Jover Lee <joverlee@fredhutch.org> # Update views for data privacy
+roles/augur-build-exporter/grants [roles/augur-build-exporter/grants@2019-10-30] 2019-11-18T23:43:55Z Jover Lee <joverlee@fredhutch.org> # Update grants to shipping.metadata_for_augur_build_v2
