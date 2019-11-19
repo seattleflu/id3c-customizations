@@ -34,3 +34,4 @@ shipping/views [shipping/views@2019-10-30 seattleflu/schema:shipping/views@2019-
 roles/augur-build-exporter/grants [roles/augur-build-exporter/grants@2019-10-30] 2019-11-18T23:43:55Z Jover Lee <joverlee@fredhutch.org> # Update grants to shipping.metadata_for_augur_build_v2
 @2019-11-18-a 2019-11-19T00:18:36Z Jover Lee <joverlee@fredhutch.org> # Schema with both shipping.metadata_for_augur_build v1 and v2
 shipping/views [shipping/views@2019-11-18-a] 2019-11-19T00:19:58Z Jover Lee <joverlee@fredhutch.org> # Remove shipping.metadata_for_augur_build_v1
+@2019-11-18-b 2019-11-19T00:37:15Z Jover Lee <joverlee@fredhutch.org> # Schema as of 18 Nov 2019
