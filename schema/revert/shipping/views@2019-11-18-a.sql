@@ -47,32 +47,35 @@ create or replace view shipping.reportable_condition_v1 as
 
     order by encountered desc;
 
-
-drop view if exists shipping.metadata_for_augur_build_v1;
-create or replace view shipping.metadata_for_augur_build_v2 as
+drop view shipping.metadata_for_augur_build_v2;
+create or replace view shipping.metadata_for_augur_build_v1 as
 
     select  sample as strain,
-            encountered as date,
+            encountered_date as date,
             'seattle' as region,
-            -- XXX TODO: Change to PUMA and neighborhoods
             residence_census_tract as location,
             'Seattle Flu Study' as authors,
             case
-                when age_range_coarse <@ '[0 mon, 18 years)'::intervalrange then 'child'
+                when age < 18 then 'child'
                 else 'adult'
             end as age_category,
             case
                 when site_type in ('childrensHospital', 'childrensClinic', 'childrensHospital', 'clinic', 'hospital', 'retrospective') then 'clinical'
                 when site_type in ('childcare' , 'collegeCampus' , 'homelessShelter' , 'port', 'publicSpace', 'workplace') then 'community'
             end as site_category,
+            case
+                when age >= 1 then concat(cast(age::int as text) ,'y')
+                when age < 1 then concat(cast(round(age*12) as text), 'm')
+            end as age,
             residence_census_tract,
+            site,
+            site_type,
             flu_shot,
             sex
 
-      from shipping.incidence_model_observation_v3
-      join warehouse.encounter on encounter.identifier = incidence_model_observation_v3.encounter;
+			from shipping.incidence_model_observation_v2;
 
-comment on view shipping.metadata_for_augur_build_v2 is
+comment on view shipping.metadata_for_augur_build_v1 is
 		'View of metadata necessary for SFS augur build';
 
 
@@ -157,7 +160,7 @@ create or replace view shipping.return_results_v1 as
                                   'collections-household-intervention') and
           (organism is null or
           -- We only return results for these organisms, so omit all other presence/absence results
-          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapneumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
+          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapenumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
     group by barcode, sample_id
     order by barcode;
 
