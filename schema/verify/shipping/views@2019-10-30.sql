@@ -8,16 +8,10 @@ select 1/(count(*) = 1)::int
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.reportable_condition_v1');
 
--- Verify that the view has been dropped
-select 1/(count(*) = 0)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.metadata_for_augur_build_v1');
-
 select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.metadata_for_augur_build_v2');
+     = pg_catalog.parse_ident('shipping.metadata_for_augur_build_v1');
 
 select 1/(count(*) = 1)::int
   from information_schema.views

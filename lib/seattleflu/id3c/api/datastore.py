@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Iterable, Tuple
 from id3c.db.session import DatabaseSession
 from id3c.api.datastore import catch_permission_denied
 from id3c.api.utils import export
@@ -23,3 +23,38 @@ def fetch_barcode_results(session: DatabaseSession,
         results = barcode_result._asdict()
 
     return results
+
+
+@export
+@catch_permission_denied
+def fetch_metadata_for_augur_build(session: DatabaseSession) -> Iterable[Tuple[str]]:
+    """
+    Export metadata for augur build from shipping view
+    """
+    with session, session.cursor() as cursor:
+        cursor.execute("""
+            select row_to_json(r)::text
+            from shipping.metadata_for_augur_build_v2 as r
+            """)
+
+        yield from cursor
+
+
+@export
+@catch_permission_denied
+def fetch_genomic_sequences(session: DatabaseSession,
+                        lineage: str,
+                        segment: str) -> Iterable[Tuple[str]]:
+    """
+    Export sample identifier and sequence from shipping view based on the
+    provided *lineage* and *segment*
+    """
+    with session, session.cursor() as cursor:
+        cursor.execute("""
+            select row_to_json(r)::text
+            from (select sample, seq
+                    from shipping.genomic_sequences_for_augur_build_v1
+                   where organism = %s and segment = %s) as r
+            """,(lineage, segment))
+
+        yield from cursor
