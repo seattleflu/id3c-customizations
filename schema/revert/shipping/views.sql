@@ -47,7 +47,7 @@ create or replace view shipping.reportable_condition_v1 as
 
     order by encountered desc;
 
-
+drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v1 as
 
     select  sample as strain,
@@ -131,6 +131,40 @@ create or replace view shipping.flu_assembly_jobs_v1 as
 comment on view shipping.flu_assembly_jobs_v1 is
     'View of flu jobs that still need to be run through the assembly pipeline';
 
-drop view shipping.return_results_v1;
+
+create or replace view shipping.return_results_v1 as
+
+    select barcode,
+           case
+             when sample_id is null then 'notReceived'
+             when sample_id is not null and count(present) = 0 then 'processing'
+             when count(present) > 0 then 'complete'
+           end as status,
+           -- We only return the top level organisms for results so we want to omit subtypes
+           array_agg(distinct subpath(organism, 0, 1)::text)
+            filter (where present and organism is not null)  as organisms_present,
+           array_agg(distinct subpath(organism, 0, 1)::text)
+            filter (where not present and organism is not null) as organisms_absent
+
+      from warehouse.identifier
+      join warehouse.identifier_set using (identifier_set_id)
+      left join warehouse.sample on uuid::text = sample.collection_identifier
+      left join shipping.presence_absence_result_v1 on sample.identifier = presence_absence_result_v1.sample
+
+    --These are all past and current collection identifier sets not including self-test
+    where identifier_set.name in ('collections-seattleflu.org',
+                                  'collections-kiosks',
+                                  'collections-environmental',
+                                  'collections-swab&send',
+                                  'collections-household-observation'
+                                  'collections-household-intervention') and
+          (organism is null or
+          -- We only return results for these organisms, so omit all other presence/absence results
+          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapenumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
+    group by barcode, sample_id
+    order by barcode;
+
+comment on view shipping.return_results_v1 is
+    'View of barcodes and presence/absence results for return of results on website';
 
 commit;

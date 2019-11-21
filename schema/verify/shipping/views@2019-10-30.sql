@@ -16,11 +16,6 @@ select 1/(count(*) = 1)::int
 select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.metadata_for_augur_build_v2');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.genomic_sequences_for_augur_build_v1');
 
 select 1/(count(*) = 1)::int
