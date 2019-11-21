@@ -1,11 +1,14 @@
 import logging
-from flask import jsonify, Response
+from flask import jsonify, Response, Blueprint
 from flask_cors import cross_origin
-from id3c.api.routes import api_v1
+from id3c.api.routes import api_v1, blueprints
 from id3c.api.utils.routes import authenticated_datastore_session_required
 from . import datastore
 
 LOG = logging.getLogger(__name__)
+
+api_v2 = Blueprint('api_v2', 'api_v2', url_prefix='/v2')
+blueprints.append(api_v2)
 
 @api_v1.route("/shipping/return-results/<barcode>", methods = ['GET'])
 @cross_origin(origins=["https://seattleflu.org","https://dev.seattleflu.org","http://localhost:8080"])
@@ -19,7 +22,7 @@ def get_barcode_results(barcode, session):
     return jsonify(results)
 
 
-@api_v1.route("/shipping/augur-build-metadata", methods = ['GET'])
+@api_v2.route("/shipping/augur-build-metadata", methods = ['GET'])
 @authenticated_datastore_session_required
 def get_metadata(session):
     """
