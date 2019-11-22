@@ -255,6 +255,7 @@ def parse_sch(sch_filename, output):
     clinical_records = pd.read_csv(sch_filename, dtype=dtypes)
     clinical_records = trim_whitespace(clinical_records)
     clinical_records = add_metadata(clinical_records, sch_filename)
+    clinical_records = add_insurance(clinical_records)
 
     # Standardize column names
     column_map = {
@@ -263,14 +264,26 @@ def parse_sch(sch_filename, output):
         "drawndate": "encountered",
         "age": "age",
         "sex": "AssignedSex",
+        "ethnicity": "HispanicLatino",
+        "race": "Race",
+        "vaccine_given": "FluShot",
+        "MedicalInsurance": "MedicalInsurance",
         "census_tract": "census_tract",
     }
     clinical_records = clinical_records.rename(columns=column_map)
 
     barcode_quality_control(clinical_records, output)
 
+    # Subset df to drop missing encountered date
+    clinical_records = drop_missing_rows(clinical_records, 'encountered')
+
     # Drop unnecessary columns
-    clinical_records = clinical_records[column_map.values()]
+    columns_to_keep = list(column_map.values()) + [  # Test result columns
+        'adeno', 'chlamydia', 'corona_229e', 'corona_hku1', 'corona_nl63', 'corona_oc43',
+        'flu_a_h3', 'flu_a_h1_2009', 'flu_b', 'flu_a', 'flu_a_h1', 'hmpv', 'mycoplasma',
+        'paraflu_1_4', 'pertussis', 'rhino_ent', 'rsv'
+    ]
+    clinical_records = clinical_records[columns_to_keep]
 
     # Convert dtypes
     clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
@@ -278,18 +291,25 @@ def parse_sch(sch_filename, output):
     # Insert static value columns
     clinical_records["site"] = "SCH"
 
-    # Placeholder columns for future data
-    clinical_records["FluShot"] = None
-    clinical_records["Race"] = None
-    clinical_records["HispanicLatino"] = None
-    clinical_records["MedicalInsurace"] = None
-
     clinical_records = create_encounter_identifier(clinical_records)
     clinical_records = remove_pii(clinical_records)
 
     dump_ndjson(clinical_records)
 
 
+def add_insurance(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds a new column for insurance type to a given *df*. Returns the new
+    DataFrame.
+    """
+    def insurance(series: pd.Series) -> pd.Series:
+        """ Returns an array of unique insurance types from a given *series*. """
+        insurance_columns = ['insurance_1', 'insurance_2']
+        insurances = [ series[i] for i in insurance_columns if not pd.isna(series[i])]
+        return list(set(insurances))
+
+    df['MedicalInsurance'] = df.apply(insurance, axis=1)
+    return df
 
 def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
     """ Creates an encounter identifier column on a given *df*. Return the
