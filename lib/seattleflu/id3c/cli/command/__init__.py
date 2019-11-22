@@ -42,7 +42,7 @@ def trim_whitespace(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def every_value_is_str_or_na(df):
+def every_value_is_str_or_na(df: pd.DataFrame):
     """
     Evaluates whether every value in the columns of a given DataFrame *df* is
     either a string or NA.
