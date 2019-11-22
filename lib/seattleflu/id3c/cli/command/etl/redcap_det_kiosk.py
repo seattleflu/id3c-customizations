@@ -179,8 +179,9 @@ def create_specimen(redcap_record: dict, patient_reference: dict) -> tuple:
     sfs_sample_barcode = get_sfs_barcode(redcap_record)
     specimen_identifier = create_identifier(SFS, sfs_sample_barcode)
 
+    specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
-        [specimen_identifier], patient_reference
+        [specimen_identifier], patient_reference, specimen_type
     )
     full_url = generate_full_url_uuid()
     specimen_entry = create_resource_entry(specimen_resource, full_url)
