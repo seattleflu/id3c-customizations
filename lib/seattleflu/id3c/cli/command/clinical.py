@@ -272,19 +272,28 @@ def parse_sch(sch_filename, output):
     # Insert static value columns
     clinical_records["site"] = "SCH"
 
-    #Create encounter identifier(individual+encountered)
-    clinical_records["identifier"] = (clinical_records["individual"] + \
-                        clinical_records["encountered"].astype(str)).str.lower()
-
     # Placeholder columns for future data
     clinical_records["FluShot"] = None
     clinical_records["Race"] = None
     clinical_records["HispanicLatino"] = None
     clinical_records["MedicalInsurace"] = None
+
+    clinical_records = create_encounter_identifier(clinical_records)
     clinical_records = remove_pii(clinical_records)
 
     dump_ndjson(clinical_records)
 
+
+
+def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
+    """ Creates an encounter identifier column on a given *df*. Return the
+    modified DataFrame.
+    """
+    df["identifier"] = (
+        df["individual"] + df["encountered"].astype(str)
+        ).str.lower()
+
+    return df
 
 
 @clinical.command("parse-kp")
@@ -338,10 +347,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
     # Insert static value columns
     clinical_records["site"] = "KP"
 
-    #Create encounter identifier (individual + encountered)
-    clinical_records["identifier"] = (clinical_records["individual"] + \
-        clinical_records["encountered"].astype(str)).str.lower()
-
+    clinical_records = create_encounter_identifier(clinical_records)
     clinical_records = remove_pii(clinical_records)
 
     # Placeholder columns for future data.
