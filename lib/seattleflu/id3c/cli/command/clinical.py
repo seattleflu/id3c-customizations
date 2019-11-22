@@ -111,10 +111,8 @@ def parse_uw(uw_filename, uw_nwh_file, hmc_sch_file, output):
     # Drop columns we're not tracking
     clinical_records = clinical_records[column_map.values()]
 
-    # Remove PII
-    clinical_records['age'] = clinical_records['age'].apply(age_ceiling)
-    clinical_records['individual'] = clinical_records['individual'].apply(generate_hash)
-    clinical_records['identifier'] = clinical_records['identifier'].apply(generate_hash)
+    clinical_records = remove_pii(clinical_records)
+
 
     dump_ndjson(clinical_records)
 
@@ -204,6 +202,16 @@ def standardize_identifiers(df: pd.DataFrame) -> pd.DataFrame:
     df['Accession'] = df['Accession'].str.lower()
     return df
 
+def remove_pii(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Remove personally identifiable information from a given *df*.
+    Return the new DataFrame.
+    """
+    df['age'] = df['age'].apply(age_ceiling)
+    df["individual"] = df["individual"].apply(generate_hash)
+    df["identifier"] = df["identifier"].apply(generate_hash)
+
+    return df
 
 def age_ceiling(age: float, max_age=90) -> float:
     """
@@ -268,16 +276,12 @@ def parse_sch(sch_filename, output):
     clinical_records["identifier"] = (clinical_records["individual"] + \
                         clinical_records["encountered"].astype(str)).str.lower()
 
-    # Remove PII
-    clinical_records['age'] = clinical_records['age'].apply(age_ceiling)
-    clinical_records["individual"] = clinical_records["individual"].apply(generate_hash)
-    clinical_records["identifier"] = clinical_records["identifier"].apply(generate_hash)
-
     # Placeholder columns for future data
     clinical_records["FluShot"] = None
     clinical_records["Race"] = None
     clinical_records["HispanicLatino"] = None
     clinical_records["MedicalInsurace"] = None
+    clinical_records = remove_pii(clinical_records)
 
     dump_ndjson(clinical_records)
 
@@ -338,10 +342,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
     clinical_records["identifier"] = (clinical_records["individual"] + \
         clinical_records["encountered"].astype(str)).str.lower()
 
-    # Remove PII
-    clinical_records['age'] = clinical_records['age'].apply(age_ceiling)
-    clinical_records["individual"] = clinical_records["individual"].apply(generate_hash)
-    clinical_records["identifier"] = clinical_records["identifier"].apply(generate_hash)
+    clinical_records = remove_pii(clinical_records)
 
     # Placeholder columns for future data.
     # See https://seattle-flu-study.slack.com/archives/CCAA9RBFS/p1568156642033700?thread_ts=1568145908.029300&cid=CCAA9RBFS
