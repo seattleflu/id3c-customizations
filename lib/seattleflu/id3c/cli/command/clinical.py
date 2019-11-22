@@ -106,7 +106,7 @@ def parse_uw(uw_filename, uw_nwh_file, hmc_sch_file, output):
     clinical_records["age"] = clinical_records["age"].astype(pd.Int64Dtype())
 
     # Subset df to drop missing barcodes
-    clinical_records = clinical_records.loc[clinical_records['barcode'].notnull()]
+    clinical_records = drop_missing_rows(clinical_records, 'barcode')
 
     # Drop columns we're not tracking
     clinical_records = clinical_records[column_map.values()]
@@ -232,6 +232,12 @@ def generate_hash(identifier: str):
     new_hash.update(secret.encode("utf-8"))
     return new_hash.hexdigest()
 
+def drop_missing_rows(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """
+    Returns a filtered version of the given *df* where rows with ``null`` values
+    for the given *column* have been removed.
+    """
+    return df.loc[df[column].notnull()]
 
 @clinical.command("parse-sch")
 @click.argument("sch_filename", metavar = "<SCH Clinical Data filename>")
