@@ -11,8 +11,10 @@ import logging
 import pandas as pd
 from typing import List
 
+
 # Load all ETL subcommands.
 __all__ = [
+    "etl",
     "clinical",
     "longitudinal",
     "reportable_conditions"
