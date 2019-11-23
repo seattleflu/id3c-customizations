@@ -211,9 +211,13 @@ def hispanic_latino(ethnic_group: Optional[Any]) -> list:
 
     ethnic_map = {
         "Not Hispanic or Latino": "no",
+        "Non-Hispanic/Latino": "no",
         "Hispanic or Latino": "yes",
+        "Hispanic/Latino": "yes",
         0.0: "no",
         1.0: "yes",
+        "Patient Refused/Did Not Wish To Indicate": None,
+        "Unknown": None,
     }
 
     if ethnic_group not in ethnic_map:
@@ -258,6 +262,8 @@ def insurance(insurance_response: Optional[Any]) -> list:
         "medicare": "government",
         "tricare": "government",
         "other": "other",
+        "unknown": None,
+
     }
 
     def standardize_insurance(insurance):

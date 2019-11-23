@@ -64,7 +64,7 @@ def race(races: Optional[Any]) -> list:
         return [None]
 
     if not isinstance(races, list):
-        races = [races]
+        races = races.split("|")
 
     # Keys must be lowercase for case-insensitive lookup
     race_map = {
@@ -72,6 +72,7 @@ def race(races: Optional[Any]) -> list:
         "american indian or alaska native": "americanIndianOrAlaskaNative",
         "amerind": "americanIndianOrAlaskaNative",
         "native_american": "americanIndianOrAlaskaNative",
+        "indian": "americanIndianOrAlaskaNative",
 
         "asian": "asian",
 
@@ -81,16 +82,20 @@ def race(races: Optional[Any]) -> list:
 
         "nativehawaiian": "nativeHawaiian",
         "native hawaiian or other pacific islander": "nativeHawaiian",
+        "native hawaiian or other pacific islande": "nativeHawaiian",
+        "hawaiian-pacislander": "nativeHawaiian",
         "nativehi": "nativeHawaiian",
         "native_hawaiian": "nativeHawaiian",
 
         "white": "white",
 
         "other": "other",
+        "other race": "other",
         "multiple races": "other",
 
         "refused": None,
         "prefer not to say": None,
+        "did not wish to indicate": None,
         "unknown": None,
     }
 
