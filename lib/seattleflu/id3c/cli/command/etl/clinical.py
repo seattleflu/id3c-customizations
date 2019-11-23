@@ -245,19 +245,29 @@ def insurance(insurance_response: Optional[Any]) -> list:
     Given an *insurance_response*, returns corresponding insurance
     identifier.
     """
+    if not type(isinstance(insurance_response, list)):
+        insurance_response = [ insurance_response ]
+
     if insurance_response is None:
         LOG.debug("No insurance response found.")
         return [None]
 
     insurance_map = {
-        "Commercial": "privateInsurance",
-        "Medicaid": "government",
-        "Medicare": "government",
-        "Tricare": "government",
-        "Other": "other"
+        "commercial": "privateInsurance",
+        "medicaid": "government",
+        "medicare": "government",
+        "tricare": "government",
+        "other": "other",
     }
 
-    return [insurance_map.get(insurance_response, None)]
+    def standardize_insurance(insurance):
+        try:
+            insurance = insurance.lower()
+            return insurance if insurance in insurance_map.values() else insurance_map[insurance]
+        except KeyError:
+            raise Exception(f"Unknown insurance name «{insurance}»") from None
+
+    return list(map(standardize_insurance, insurance_response))
 
 
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
