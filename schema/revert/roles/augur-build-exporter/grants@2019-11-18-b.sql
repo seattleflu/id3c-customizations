@@ -13,7 +13,7 @@ grant usage
     to "augur-build-exporter";
 
 grant select
-    on shipping.metadata_for_augur_build_v2, shipping.genomic_sequences_for_augur_build_v1
+    on shipping.metadata_for_augur_build_v1, shipping.genomic_sequences_for_augur_build_v1
     to "augur-build-exporter";
 
 commit;
