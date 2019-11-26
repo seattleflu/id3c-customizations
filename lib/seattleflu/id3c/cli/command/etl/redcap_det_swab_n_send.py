@@ -28,13 +28,13 @@ REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
 UW_CENSUS_TRACT = '53033005302'
 
-PROJECT_ID = 17561  # TODO use '17421' in production
+PROJECT_ID = 17421
 REQUIRED_INSTRUMENTS = [
-    # # 'consent',   # TODO use in production
-    # 'enrollment_questionnaire',
-    # 'back_end_mail_scans',
-    # # 'illness_questionnaire_nasal_swab_collection',  # TODO use in production
-    # 'post_collection_data_entry_qc'
+    'consent',
+    'enrollment_questionnaire',
+    'back_end_mail_scans',
+    'illness_questionnaire_nasal_swab_collection',
+    'post_collection_data_entry_qc'
 ]
 
 @redcap_det.command_for_project(
@@ -102,14 +102,13 @@ def locations(record: dict) -> list:
             housing_type = 'residence'
 
         # TODO census tract
-        if record['home_country'] == 'US':
-            address = {
-                'street1': record['home_street'],
-                'city': record['homecity_other'],
-                'state': record['home_state_55ec63'],
-                'country': record['home_country'],
-                'zipcode': record['home_zipcode_2'],
-            }
+        address = {
+            'street1': record['home_street'],
+            'city': record['homecity_other'],
+            'state': record['home_state'],
+            'country': 'USA',
+            'zipcode': record['home_zipcode_2'],
+        }
 
         tract_location = create_location(
             f"{INTERNAL_SYSTEM}/locations/tract", '#TODO CENSUS TRACT', housing_type
@@ -219,6 +218,9 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
         code = "HH"
     )
+
+    if not record.get('enrollment_date_time'):
+        return None, None
     start_time = convert_to_iso(record['enrollment_date_time'], "%Y-%m-%d %H:%M")
 
     non_tracts = list(filter(non_tract_locations, locations))
@@ -298,35 +300,34 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
 
 def create_specimen(record: dict, patient_reference: dict) -> tuple:
     """ Returns a FHIR Specimen resource entry and reference """
-    # TODO: turn on barcode logic in production and replace the following line:
-    barcode = record['utm_tube_barcode']
+    def specimen_barcode(record: Any) -> str:
+        """
+        Given a REDCap *record*, returns the barcode or corrected barcode if it
+        exists.
+        """
+        barcode = record['utm_tube_barcode_2']
+        reentered_barcode = record['reenter_barcode']
 
-    # barcode = record['utm_tube_barcode_2']
-    # reentered_barcode = record['reenter_barcode']
+        if record['barcode_confirm'] == "No":
+            barcode = record['corrected_barcode']
 
-    # if record['barcode_confirm'] == "No":
-    #     barcode = record['corrected_barcode']
-    # elif barcode != reentered_barcode:
-    #     raise Error # TODO
-    # elif barcode != record['return_utm_barcode']:
-    #     raise Error # TODO
-
-    # TODO in production, throw error if no barcode (or skip)
+        return barcode
 
     specimen_identifier = create_identifier(
         system = f"{INTERNAL_SYSTEM}/sample",
-        value = barcode
+        value = specimen_barcode(record)
     )
 
-    received_time = None
-    collected_time = None
-    # TODO I believe in production all samples should have a sample process date
-    if record['samp_process_date']:
-        received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M")
+    if not record.get('collection_date'):
+        return None, None
 
-    # TODO same as above comment
-    if record['collection_date']:
-        collected_time = convert_to_iso(record['collection_date'], "%Y-%m-%d %H:%M")
+    collected_time = convert_to_iso(record['collection_date'], "%Y-%m-%d")
+
+    if record.get('samp_process_date'):
+        received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M:%S")
+    else:
+        LOG.warning("No sample process date found. Using collection date instead.")
+        received_time = collected_time
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
@@ -348,18 +349,20 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     encounter_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Questionnaire Response resource entry. """
 
-    def create_custom_race_key(record: dict) -> List:
+    def create_custom_coding_key(coded_question: str, record: dict) -> List:
         """
-        Handles the 'race' edge case by combining "select all that apply"-type
-        responses into one list.
+        Handles the 'race' or 'insurance' edge case by combining "select all
+        that apply"-type responses into one list.
         """
-        race_keys = list(filter(grab_race_keys, record))
-        race_names = list(map(lambda x: record[x], race_keys))
-        return race(race_names)
+        coded_keys = list(filter(lambda r: grab_coding_keys(coded_question, r), record))
+        coded_names = list(map(lambda k: record[k], coded_keys))
 
-    def grab_race_keys(key: str) -> Optional[Match[str]]:
+        if coded_question == 'race':
+            race(coded_names)
+
+    def grab_coding_keys(coded_question: str, key: str) -> Optional[Match[str]]:
         if record[key] != '':
-            return re.match('race___[0-9]{1,3}$', key)
+            return re.match(f'{coded_question}___[0-9]{1,3}$', key)
         else:
             return None
 
@@ -368,6 +371,9 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
     coding_questions = [
         'race',
+        # 'insurance',  # TODO address these non-essential coded questions later
+        # 'how_hear_sfs',
+        # 'poc_behaviors',
     ]
 
     boolean_questions = [
@@ -384,18 +390,15 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
     string_questions = [
         'education',
-        'insurance',
         'doctor_3e8fae',
-        'how_hear_sfs',
         'samp_process_date',
-        'house_members_d5f2d9',
+        'house_members',
         'shelter_members',
         'where_sick',
-        # 'antiviral_0',    TODO turn on for production
+        'antiviral_0',
         'acute_symptom_onset',
         'doctor_1week',
-        # 'antiviral_1',    TODO turn on for production
-        # 'poc_behaviors',  TODO turn on for production
+        'antiviral_1',
     ]
 
     question_categories = {
@@ -405,7 +408,8 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'valueString': string_questions,
     }
 
-    record['race'] = create_custom_race_key(record)
+    record['race'] = create_custom_coding_key('race', record)
+    record['insurance'] = create_custom_coding_key('insurance', record)
 
     items: List[dict] = []
     for category in question_categories:

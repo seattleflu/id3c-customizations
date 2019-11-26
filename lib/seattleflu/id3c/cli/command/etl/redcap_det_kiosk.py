@@ -80,6 +80,10 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
         symptom_references
     )
 
+    if not encounter_resource_entry:
+        LOG.info("Skipping FHIR document with insufficient encounter information.")
+        return
+
     questionnaire_response_resource_entry = create_questionnaire_response_entry(
         redcap_record,
         patient_reference,
@@ -98,7 +102,7 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
         encounter_resource_entry,
         questionnaire_response_resource_entry,
         specimen_resource_entry,
-        specimen_observation_resource_entry
+        specimen_observation_resource_entry,
     ]
 
     if diagnostic_report_resource_entry:
@@ -166,7 +170,7 @@ def determine_vaccine_date(vaccine_year: str, vaccine_month: str) -> Optional[st
     if vaccine_year == '' or vaccine_year == 'Do not know':
         return None
 
-    if vaccine_month == 'Do not know':
+    if vaccine_month == '' or vaccine_month == 'Do not know':
         return datetime.strptime(vaccine_year, '%Y').strftime('%Y')
 
     return datetime.strptime(f'{vaccine_month} {vaccine_year}', '%B %Y').strftime('%Y-%m')
@@ -349,6 +353,9 @@ def create_locations(encounter_locations: dict) -> tuple:
         # Locations related to encounter site only needs a logical reference
         # since we expect site to already exist within ID3C warehouse.site
         if location == 'site':
+            if not encounter_locations['site']:
+                return [], None
+
             location_reference = create_reference(
                 reference_type = 'Location',
                 identifier = {
@@ -443,7 +450,7 @@ def determine_encounter_locations(redcap_record: dict) -> dict:
     return locations
 
 
-def determine_site_name(redcap_record: dict) -> str:
+def determine_site_name(redcap_record: dict) -> Optional[str]:
     """
     Given a *redcap_record*, determine the site name for the encounter.
 
@@ -451,6 +458,8 @@ def determine_site_name(redcap_record: dict) -> str:
     name is not in expected values.
     """
     potential_site_names = find_selected_options('site_identifier_', redcap_record)
+    if not potential_site_names:
+        return
 
     # Check only one site identifier is selected
     assert len(potential_site_names) == 1, \
@@ -633,9 +642,13 @@ def create_symptoms(redcap_record: dict, patient_reference: dict) -> tuple:
     if not symptom_codes:
         return None, None
 
-    symptom_onset = datetime \
-        .strptime(redcap_record['symptom_duration'], "%Y-%m-%d") \
-        .strftime('%Y-%m-%d')
+    symptom_duration = redcap_record.get('symptom_duration')
+    if symptom_duration:
+        symptom_onset = datetime \
+            .strptime(symptom_duration, "%Y-%m-%d") \
+            .strftime('%Y-%m-%d')
+    else:
+        symptom_onset = None
 
     symptom_resources = []
     symptom_references = []
@@ -723,6 +736,9 @@ def create_encounter(encounter_id: str,
     enrollment_date = redcap_record.get('enrollment_date') \
                    or redcap_record.get('enrollment_date_time')
 
+    if not enrollment_date:
+        return None, None
+
     encounter_date = datetime\
         .strptime(enrollment_date, '%Y-%m-%d %H:%M')\
         .astimezone().isoformat()
@@ -776,7 +792,8 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
     # a separate answer for each selection
     insurance_responses = find_selected_options('insurance___', redcap_record)
     insurances = determine_insurance_type(insurance_responses)
-    items['insurance'] = [{'valueString': insurance} for insurance in insurances]
+    if insurances:
+        items['insurance'] = [{'valueString': insurance} for insurance in insurances]
 
     # Participant can select multiple races, so create
     # a separate answer for each selection
