@@ -82,12 +82,14 @@ def create_condition_resource(condition_id: str,
         "resourceType": "Condition",
         "id": condition_id,
         "subject": patient_reference,
-        "onsetDateTime": onset_datetime,
         "code": condition_code,
     }
 
     if severity:
         condition_resource["severity"] = severity
+
+    if onset_datetime:
+        condition_resource["onsetDateTime"] = onset_datetime
 
     return condition_resource
 
