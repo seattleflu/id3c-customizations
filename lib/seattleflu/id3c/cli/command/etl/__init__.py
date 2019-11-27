@@ -39,7 +39,7 @@ def race(races: Optional[Any]) -> list:
     >>> race("whi te")
     Traceback (most recent call last):
         ...
-    id3c.cli.command.etl.UnknownRaceError: Unknown race name «whi te»
+    seattleflu.id3c.cli.command.etl.UnknownRaceError: Unknown race name «whi te»
 
     ``None`` may be passed for convenience with :meth:`dict.get`.
 
@@ -52,12 +52,12 @@ def race(races: Optional[Any]) -> list:
     >>> race("foobarbaz")
     Traceback (most recent call last):
         ...
-    id3c.cli.command.etl.UnknownRaceError: Unknown race name «foobarbaz»
+    seattleflu.id3c.cli.command.etl.UnknownRaceError: Unknown race name «foobarbaz»
 
     >>> race(["white", "nonsense", "other"])
     Traceback (most recent call last):
         ...
-    id3c.cli.command.etl.UnknownRaceError: Unknown race name «nonsense»
+    seattleflu.id3c.cli.command.etl.UnknownRaceError: Unknown race name «nonsense»
     """
     if races is None:
         LOG.debug("No race response found.")
