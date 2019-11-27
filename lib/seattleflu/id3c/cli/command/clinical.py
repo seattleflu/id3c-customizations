@@ -43,11 +43,11 @@ def clinical():
 
 def parse_uw(uw_filename, uw_nwh_file, hmc_sch_file, output):
     """
-    Process and insert clinical data from UW.
+    Process clinical data from UW.
 
     Given a <UW Clinical Data filename> of an Excel document, selects specific
-    columns of interest and inserts the queried data into the
-    receiving.clinical table as a JSON document.
+    columns of interest and reformats the queried data into a stream of JSON
+    documents suitable for the "upload" sibling command.
 
     Uses <UW/NWH filename> and <HMC/SCH filename> to join clinical data to fill
     in SFS barcodes.
@@ -246,7 +246,7 @@ def drop_missing_rows(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
 def parse_sch(sch_filename, output):
     """
-    Process and insert clinical data from SCH.
+    Process clinical data from SCH.
 
     All clinical records parsed are output to stdout as newline-delimited JSON
     records.  You will likely want to redirect stdout to a file.
@@ -330,7 +330,7 @@ def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
 
 def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
     """
-    Process and insert clinical data from KP.
+    Process clinical data from KP.
 
     All clinical records parsed are output to stdout as newline-delimited JSON
     records.  You will likely want to redirect stdout to a file.
