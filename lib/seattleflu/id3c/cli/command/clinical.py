@@ -227,6 +227,10 @@ def generate_hash(identifier: str):
     variable.
     """
     secret = os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"]
+
+    assert len(secret) > 0, "Empty *secret* provided!"
+    assert len(identifier) > 0, "Empty *identifier* provided!"
+
     new_hash = hashlib.sha256()
     new_hash.update(identifier.encode("utf-8"))
     new_hash.update(secret.encode("utf-8"))
