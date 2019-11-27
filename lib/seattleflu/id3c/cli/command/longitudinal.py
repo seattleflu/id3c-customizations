@@ -160,7 +160,7 @@ def rename_baseline_columns(df: pd.DataFrame) -> pd.DataFrame:
         'baseline_id': 'sample_id_0',
     }
 
-    baseline_columns = list(df.filter(regex='_bl$|_bl_', axis=1))
+    baseline_columns = list(df.filter(regex='_bl$|_bl_', axis='columns'))
 
     for col in baseline_columns:
         rename_map[col] = re.sub("_bl", "", col) + "_0"
@@ -217,7 +217,7 @@ def rename_stub(df: pd.DataFrame, regex: str, current_stub: str,
     """
     rename_map = {}
 
-    stub_columns = list(df.filter(regex=regex, axis=1))
+    stub_columns = list(df.filter(regex=regex, axis='columns'))
 
     for col in stub_columns:
         rename_map[col] = re.sub(current_stub, desired_stub, col)
@@ -259,7 +259,7 @@ def select_all_that_apply_wide_to_long(df: pd.DataFrame) -> pd.DataFrame:
     pid = ['study_id'] + ['week']
 
     stubbed_columns = list(df.filter(regex='|'.join(stubnames)))
-    reshaped_data = df.drop(stubbed_columns, axis=1)
+    reshaped_data = df.drop(stubbed_columns, axis='columns')
 
     for stub in stubnames:
         true_values = collapse_wide_stubbed_columns(df, stub, pid)

@@ -100,7 +100,7 @@ def print_problem_barcodes(problem_barcodes: pd.DataFrame, output: str):
         problem_barcodes.apply(lambda x: LOG.warning(
             f"{x['problem']} in row {x['_metadata']['row']} of file "
             f"{x['_metadata']['filename']}, barcode {x['barcode']}"
-        ), axis=1)
+        ), axis='columns')
 
 
 def group_true_values_into_list(long_subset: pd.DataFrame, stub: str,
@@ -118,7 +118,7 @@ def group_true_values_into_list(long_subset: pd.DataFrame, stub: str,
     return true_subset.groupby(pid + [stub]) \
                       .agg(lambda x: x.tolist()) \
                       .reset_index() \
-                      .drop(stub, axis=1) \
+                      .drop(stub, axis='columns') \
                       .rename(columns={f'new_{stub}': stub})
 
 

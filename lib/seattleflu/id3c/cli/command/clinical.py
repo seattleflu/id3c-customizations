@@ -308,7 +308,7 @@ def add_insurance(df: pd.DataFrame) -> pd.DataFrame:
         insurances = [ series[i] for i in insurance_columns if not pd.isna(series[i])]
         return list(set(insurances))
 
-    df['MedicalInsurance'] = df.apply(insurance, axis=1)
+    df['MedicalInsurance'] = df.apply(insurance, axis='columns')
     return df
 
 def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
@@ -452,7 +452,7 @@ def collapse_columns(df: pd.DataFrame, stub: str, pid='enrollid') -> pd.DataFram
     column called "Race". Removes the original "Race*" option columns. Returns
     the new DataFrame.
     """
-    stub_data = df.filter(regex=f'{pid}|{stub}*', axis=1)
+    stub_data = df.filter(regex=f'{pid}|{stub}*', axis='columns')
     stub_columns = list(stub_data)
     stub_columns.remove(pid)
 
