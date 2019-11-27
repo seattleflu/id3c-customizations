@@ -71,6 +71,7 @@ def race(races: Optional[Any]) -> list:
         "americanindianoralaskanative": "americanIndianOrAlaskaNative",
         "american indian or alaska native": "americanIndianOrAlaskaNative",
         "amerind": "americanIndianOrAlaskaNative",
+        "native_american": "americanIndianOrAlaskaNative",
 
         "asian": "asian",
 
@@ -81,6 +82,7 @@ def race(races: Optional[Any]) -> list:
         "nativehawaiian": "nativeHawaiian",
         "native hawaiian or other pacific islander": "nativeHawaiian",
         "nativehi": "nativeHawaiian",
+        "native_hawaiian": "nativeHawaiian",
 
         "white": "white",
 
@@ -89,6 +91,7 @@ def race(races: Optional[Any]) -> list:
 
         "refused": None,
         "prefer not to say": None,
+        "unknown": None,
     }
 
     assert set(race_map.keys()) == set(map(str.lower, race_map.keys()))

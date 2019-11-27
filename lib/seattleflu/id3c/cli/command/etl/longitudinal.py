@@ -25,9 +25,9 @@ from id3c.cli.command.etl import (
     SampleNotFoundError,
     UnknownEthnicGroupError,
     UnknownFluShotResponseError,
-    UnknownRaceError,
     UnknownSiteError,
 )
+from . import race
 
 
 LOG = logging.getLogger(__name__)
@@ -234,33 +234,6 @@ def sex(document: dict) -> str:
     }
 
     return sex_map.get(sex_name, "other")
-
-
-def race(races: Optional[list]) -> list:
-    """
-    Given a *race_name*, returns the matching race identifier found in Audere
-    survey data.
-    """
-    if races is None:
-        LOG.debug("No race response found.")
-        return [None]
-
-    race_map = {
-        "native_american": "americanIndianOrAlaskaNative",
-        "asian": "asian",
-        "black": "blackOrAfricanAmerican",
-        "native_hawaiian": "nativeHawaiian",
-        "white": "white",
-        "other": "other",
-        "unknown": None,
-    }
-
-    for i in range(len(races)):
-        if races[i] not in race_map:
-            raise UnknownRaceError(f"Unknown race name «{races[i]}»")
-        races[i] = race_map[races[i]]
-
-    return races
 
 
 def hispanic_latino(document: dict) -> list:
