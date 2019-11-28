@@ -1,16 +1,18 @@
 """
 Process REDCap DETs that are specific to the Kiosk Enrollment Project.
 """
+import os
 import logging
 import re
 from uuid import uuid4
 from datetime import datetime
 from typing import Any, List, Optional
 from copy import deepcopy
-from id3c.cli.command.clinical import generate_hash
-from id3c.cli.command.etl import race, redcap_det, UnknownSiteError
+from id3c.cli.command.de_identify import generate_hash
+from id3c.cli.command.etl import redcap_det, UnknownSiteError
 from .redcap_map import *
 from .fhir import *
+from . import race
 
 LOG = logging.getLogger(__name__)
 
@@ -159,7 +161,8 @@ def generate_patient_hash(redcap_record: dict, gender: str) -> str:
         address = determine_dorm_address(redcap_record['uw_dorm'])
         patient['zipcode'] = address['zipcode']
 
-    return generate_hash(str(sorted(patient.values())))
+    return generate_hash(str(sorted(patient.values())),
+        secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
 
 
 def determine_vaccine_date(vaccine_year: str, vaccine_month: str) -> Optional[str]:
