@@ -13,10 +13,11 @@ import logging
 from uuid import uuid4
 from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union
 from datetime import datetime
-from id3c.cli.command.etl import race, redcap_det
-from id3c.cli.command.clinical import generate_hash
+from id3c.cli.command.etl import redcap_det
+from id3c.cli.command.de_identify import generate_hash
 from .redcap_map import *
 from .fhir import *
+from . import race
 
 
 LOG = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ REQUIRED_INSTRUMENTS = [
     'illness_questionnaire_nasal_swab_collection',
     'post_collection_data_entry_qc'
 ]
+
 
 @redcap_det.command_for_project(
     "swab-n-send",
@@ -178,7 +180,8 @@ def generate_patient_hash(record: dict, gender: str) -> dict:
         "zipcode": record['home_zipcode_2']  # TODO redundant?
     }
 
-    return generate_hash(str(sorted(personal_information.items())))
+    return generate_hash(str(sorted(personal_information.items())),
+        secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
 
 
 def create_encounter(record: dict, patient_reference: dict, locations: list) -> tuple:
