@@ -248,6 +248,8 @@ def insurance(insurance_response: Optional[Any]) -> list:
     """
     Given an *insurance_response*, returns corresponding insurance
     identifier.
+
+    Raises an :class:`Exception` if the given insurance name is unknown.
     """
     if not type(isinstance(insurance_response, list)):
         insurance_response = [ insurance_response ]
