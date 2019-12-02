@@ -6,9 +6,13 @@ import logging
 import re
 from uuid import uuid4
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 from copy import deepcopy
+from cachetools import TTLCache
+from id3c.db.session import DatabaseSession
 from id3c.cli.command.de_identify import generate_hash
+from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
+from id3c.cli.command.location import location_lookup
 from id3c.cli.command.etl import redcap_det, UnknownSiteError
 from .redcap_map import *
 from .fhir import *
@@ -45,7 +49,7 @@ REVISION = 1
     revision = REVISION,
     help = __doc__)
 
-def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
+def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':
         return None
@@ -64,7 +68,7 @@ def redcap_det_kisok(*, det: dict, redcap_record: dict) -> Optional[dict]:
             specimen_reference
         )
 
-    encounter_locations = determine_encounter_locations(redcap_record)
+    encounter_locations = determine_encounter_locations(db, cache, redcap_record)
     location_resource_entries, location_references = create_locations(encounter_locations)
 
     symptom_resources, symptom_references = create_symptoms(
@@ -421,7 +425,7 @@ def create_locations(encounter_locations: dict) -> tuple:
     return location_resource_entries, location_references
 
 
-def determine_encounter_locations(redcap_record: dict) -> dict:
+def determine_encounter_locations(db: DatabaseSession, cache: TTLCache, redcap_record: dict) -> dict:
     """
     Find all locations within a *redcap_record* that are relevant to
     an encounter
@@ -430,10 +434,11 @@ def determine_encounter_locations(redcap_record: dict) -> dict:
         'site': determine_site_name(redcap_record)
     }
 
-    def construct_location(address: dict, location_type: str) -> dict:
+    def construct_location(db: DatabaseSession, cache: TTLCache, lat_lng: Tuple[int, int],
+        canonicalized_address: Any, location_type: str) -> dict:
         return ({
             f'{location_type}-tract': {
-                'value': determine_census_tract(address),
+                'value': location_lookup(db, lat_lng, 'tract').identifier,  # TODO what if null?
                 'fullUrl': generate_full_url_uuid()
             },
             location_type: {
@@ -442,6 +447,7 @@ def determine_encounter_locations(redcap_record: dict) -> dict:
             }
         })
 
+    address: Dict[str, str] = {}
     if redcap_record['shelter_name'] and redcap_record['shelter_name'] != 'Other/none of the above':
         address = determine_shelter_address(redcap_record['shelter_name'])
         housing_type = 'lodging'
@@ -454,7 +460,11 @@ def determine_encounter_locations(redcap_record: dict) -> dict:
         address = determine_home_address(redcap_record)
         housing_type = 'residence'
 
-    locations.update(construct_location(db, cache, (lat_lng), canonicalized_address, housing_type))
+    if address:
+        lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
+
+        if canonicalized_address:
+            locations.update(construct_location(db, cache, (lat, lng), canonicalized_address, housing_type))
 
     return locations
 
@@ -580,6 +590,7 @@ def construct_address_dict(street: str,
     """
     return ({
         'street': street,
+        'secondary': None,
         'city': city,
         'state': state,
         'zipcode': zipcode
@@ -608,14 +619,6 @@ def determine_home_address(redcap_record: dict) -> dict:
     zipcode = redcap_record['home_zipcode']
 
     return construct_address_dict(street, city, state, zipcode)
-
-
-def determine_census_tract(address: dict) -> str:
-    """
-    Given an *address* return census tract for address
-    """
-    # TODO: geocoding *address*
-    return 'census_tract'
 
 
 def determine_location_type_code(location_type: str) -> dict:
