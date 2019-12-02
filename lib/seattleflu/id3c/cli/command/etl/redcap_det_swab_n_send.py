@@ -13,8 +13,11 @@ import logging
 from uuid import uuid4
 from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union
 from datetime import datetime
+from id3c.db.session import DatabaseSession
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.de_identify import generate_hash
+from id3c.cli.command.geocode import geocode_address
+from id3c.cli.command.location import location_lookup
 from .redcap_map import *
 from .fhir import *
 from . import race
@@ -47,8 +50,8 @@ REQUIRED_INSTRUMENTS = [
     revision = REVISION,
     help = __doc__)
 
-def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
-    location_resource_entries = locations(redcap_record)
+def redcap_det_swab_n_send(*, db: DatabaseSession, det: dict, redcap_record: dict) -> Optional[dict]:
+    location_resource_entries = locations(db, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
     encounter_entry, encounter_reference = create_encounter(redcap_record, patient_reference, location_resource_entries)
     questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
@@ -74,7 +77,7 @@ def redcap_det_swab_n_send(*, det: dict, redcap_record: dict) -> Optional[dict]:
     )
 
 
-def locations(record: dict) -> list:
+def locations(db: DatabaseSession, record: dict) -> list:
     """ Creates a list of Location resource entries from a REDCap record. """
     def uw_affiliation(record: dict) -> List[Dict[Any, Any]]:
         uw_affiliation = record['uw_affiliation']
@@ -90,7 +93,7 @@ def locations(record: dict) -> list:
 
         return uw_locations
 
-    def housing(record: dict) -> tuple:
+    def housing(db: DatabaseSession, record: dict) -> tuple:
         lodging_options = [
             'Shelter',
             'Assisted living facility',
@@ -103,14 +106,21 @@ def locations(record: dict) -> list:
         else:
             housing_type = 'residence'
 
-        # TODO census tract
         address = {
-            'street1': record['home_street'],
+            'street': record['home_street'],
+            'secondary': None,
             'city': record['homecity_other'],
             'state': record['home_state'],
-            'country': 'USA',
             'zipcode': record['home_zipcode_2'],
         }
+
+        # TODO set up cache
+        result = geocode_address(address)
+        lat_lng = (result['lat'], result['lng'])
+        temp = location_lookup(db, lat_lng, 'tract')
+        print(result)
+        print(temp)
+        breakpoint()
 
         tract_location = create_location(
             f"{INTERNAL_SYSTEM}/locations/tract", '#TODO CENSUS TRACT', housing_type
@@ -130,7 +140,7 @@ def locations(record: dict) -> list:
 
         return tract_entry, address_entry
 
-    locations = [*housing(record)]
+    locations = [*housing(db, record)]
 
     uw_location = uw_affiliation(record)
     for location in uw_location:
