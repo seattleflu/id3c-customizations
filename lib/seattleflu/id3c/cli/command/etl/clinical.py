@@ -164,18 +164,29 @@ def site_identifier(site_name: str) -> str:
 def sex(sex_name) -> str:
     """
     Given a *sex_name*, returns its matching sex identifier.
+
+    Raises an :class:`Exception` if the given sex name is unknown.
     """
-    if type(sex_name) is str:
-        sex_name = sex_name.upper()
+    if not sex_name:
+        LOG.debug("No sex name found")
+        return None
 
     sex_map = {
-        "M": "male",
-        "F": "female",
+        "m": "male",
+        "f": "female",
         1.0: "male",
-        0.0: "female"
+        0.0: "female",
+        "other": "other",
     }
 
-    return sex_map.get(sex_name, "other")
+    def standardize_sex(sex):
+        try:
+            sex = sex.lower()
+            return sex if sex in sex_map.values() else sex_map[sex]
+        except KeyError:
+            raise Exception(f"Unknown sex name «{sex}»") from None
+
+    return standardize_sex(sex_name)
 
 
 def encounter_details(document: dict) -> dict:
