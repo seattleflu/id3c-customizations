@@ -87,6 +87,7 @@ def parse_uw(uw_filename, output):
         'tract_identifier': 'census_tract',
         'fluvaccine': 'FluShot',
         'identifier': 'identifier',
+        '_metadata': '_metadata',
     }
 
     clinical_records = clinical_records.rename(columns=column_map)
