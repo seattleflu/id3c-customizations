@@ -24,9 +24,9 @@ __all__ = [
 LOG = logging.getLogger(__name__)
 
 
-def add_metadata(df: pd.DataFrame, filename: str) -> pd.DataFrame:
-    """ Adds a metadata column to a given DataFrame *df* for reporting """
-    df['_metadata'] = list(map(lambda index: {
+def add_provenance(df: pd.DataFrame, filename: str) -> pd.DataFrame:
+    """ Adds a ``_provenance`` column to a given DataFrame *df* for reporting """
+    df['_provenance'] = list(map(lambda index: {
         'filename': filename,
         'row': index + 2}, df.index))
     return df
@@ -98,8 +98,8 @@ def print_problem_barcodes(problem_barcodes: pd.DataFrame, output: str):
         problem_barcodes.to_csv(output, index=False)
     else:
         problem_barcodes.apply(lambda x: LOG.warning(
-            f"{x['problem']} in row {x['_metadata']['row']} of file "
-            f"{x['_metadata']['filename']}, barcode {x['barcode']}"
+            f"{x['problem']} in row {x['_provenance']['row']} of file "
+            f"{x['_provenance']['filename']}, barcode {x['barcode']}"
         ), axis='columns')
 
 

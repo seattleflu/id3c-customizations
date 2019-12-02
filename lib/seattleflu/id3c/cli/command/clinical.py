@@ -19,7 +19,7 @@ from id3c.db.session import DatabaseSession
 from id3c.cli import cli
 from id3c.cli.command import dump_ndjson
 from . import (
-    add_metadata,
+    add_provenance,
     barcode_quality_control,
     trim_whitespace,
     group_true_values_into_list,
@@ -70,7 +70,7 @@ def parse_uw(uw_filename, output):
     clinical_records = (
         read_uw(uw_filename)
             .pipe(trim_whitespace)
-            .pipe(add_metadata, uw_filename)
+            .pipe(add_provenance, uw_filename)
             .pipe(create_unique_identifier))
 
     # Standardize names of columns that will be added to the database
@@ -87,7 +87,7 @@ def parse_uw(uw_filename, output):
         'tract_identifier': 'census_tract',
         'fluvaccine': 'FluShot',
         'identifier': 'identifier',
-        '_metadata': '_metadata',
+        '_provenance': '_provenance',
     }
 
     clinical_records = clinical_records.rename(columns=column_map)
@@ -178,7 +178,7 @@ def parse_sch(sch_filename, output):
     dtypes = {'census_tract': 'str'}
     clinical_records = pd.read_csv(sch_filename, dtype=dtypes)
     clinical_records = trim_whitespace(clinical_records)
-    clinical_records = add_metadata(clinical_records, sch_filename)
+    clinical_records = add_provenance(clinical_records, sch_filename)
     clinical_records = add_insurance(clinical_records)
 
     # Standardize column names
@@ -193,6 +193,7 @@ def parse_sch(sch_filename, output):
         "vaccine_given": "FluShot",
         "MedicalInsurance": "MedicalInsurance",
         "census_tract": "census_tract",
+        "_provenance": "_provenance",
     }
     clinical_records = clinical_records.rename(columns=column_map)
 
@@ -263,7 +264,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
     clinical_records.columns = clinical_records.columns.str.lower()
 
     clinical_records = trim_whitespace(clinical_records)
-    clinical_records = add_metadata(clinical_records, kp_filename)
+    clinical_records = add_provenance(clinical_records, kp_filename)
     clinical_records = add_kp_manifest_data(clinical_records, kp_specimen_manifest_filename)
 
     clinical_records = convert_numeric_columns_to_binary(clinical_records)
@@ -283,6 +284,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
         "hispanic": "HispanicLatino",
         "symptom": "Symptoms",
         "FluShot": "FluShot",
+        "_provenance": "_provenance",
     }
     clinical_records = clinical_records.rename(columns=column_map)
 
