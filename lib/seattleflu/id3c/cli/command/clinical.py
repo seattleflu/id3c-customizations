@@ -13,6 +13,7 @@ import os
 import re
 import pandas as pd
 import id3c.db as db
+from functools import partial
 from math import ceil
 from id3c.db.session import DatabaseSession
 from id3c.cli import cli
@@ -35,28 +36,17 @@ def clinical():
 # UW Clinical subcommand
 @clinical.command("parse-uw")
 @click.argument("uw_filename", metavar = "<UW Clinical Data filename>")
-@click.argument("uw_nwh_file", metavar="<UW/NWH filename>")
-@click.argument("hmc_sch_file", metavar="<HMC/SCH filename>")
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
 
 
-def parse_uw(uw_filename, uw_nwh_file, hmc_sch_file, output):
+def parse_uw(uw_filename, output):
     """
     Process clinical data from UW.
 
     Given a <UW Clinical Data filename> of an Excel document, selects specific
     columns of interest and reformats the queried data into a stream of JSON
     documents suitable for the "upload" sibling command.
-
-    Uses <UW/NWH filename> and <HMC/SCH filename> to join clinical data to fill
-    in SFS barcodes.
-
-    <UW/NWH filename> is the filepath to the data containing
-    manifests of the barcodes from UWMC and NWH Samples.
-
-    <HMC/SCH filename> is the filepath to the data containing manifests of the
-    barcodes from HMC and SCH Retrospective Samples.
 
     <output filename> is the desired filepath of the output CSV of problematic
     barcodes encountered while parsing. If not provided, the problematic
@@ -65,24 +55,28 @@ def parse_uw(uw_filename, uw_nwh_file, hmc_sch_file, output):
     All clinical records parsed are output to stdout as newline-delimited JSON
     records.  You will likely want to redirect stdout to a file.
     """
-    clinical_records, uw_manifest, nwh_manifest, hmc_manifest = load_data(uw_filename,
-        uw_nwh_file, hmc_sch_file)
-    clinical_records = create_unique_identifier(clinical_records)
-    clinical_records = standardize_identifiers(clinical_records)
+    if uw_filename.endswith('.csv'):
+        read = pd.read_csv
+    else:
+        read = pd.read_excel
 
-    #Add barcode using manifests
-    master_ref = hmc_manifest.append([uw_manifest, nwh_manifest], ignore_index=True)
-    master_ref = standardize_identifiers(master_ref)
-    master_ref['Barcode ID'] = master_ref['Barcode ID'].str.lower()
+    read_uw = partial(
+        read,
+        dtypes = {'tract_identifier': 'str'},
+        dates = ['Collection.Date'],
+        na_values = ['NA', '', 'Unknown', 'NULL'],
+    )
 
-    #Join on MRN, Accession and Collection date
-    clinical_records = clinical_records.merge(master_ref, how='left',
-                  on=['MRN', 'Accession', 'Collection date'])
+    clinical_records = (
+        read_uw(uw_filename)
+            .pipe(trim_whitespace)
+            .pipe(add_metadata, uw_filename)
+            .pipe(create_unique_identifier))
 
     # Standardize names of columns that will be added to the database
     column_map = {
         'Age': 'age',
-        'Barcode ID': 'barcode',
+        'Collection_ID': 'barcode',
         'EthnicGroup': 'HispanicLatino',
         'Fac': 'site',
         'FinClass': 'MedicalInsurance',
@@ -90,12 +84,15 @@ def parse_uw(uw_filename, uw_nwh_file, hmc_sch_file, output):
         'PersonID': 'individual',
         'Race': 'Race',
         'Sex': 'AssignedSex',
-        'census_tract': 'census_tract',
+        'tract_identifier': 'census_tract',
         'fluvaccine': 'FluShot',
         'identifier': 'identifier',
     }
 
     clinical_records = clinical_records.rename(columns=column_map)
+
+    # Normalize barcode to strings and lowercase
+    clinical_records['barcode'] = clinical_records['barcode'].str.lower()
 
     barcode_quality_control(clinical_records, output)
 
@@ -117,90 +114,12 @@ def parse_uw(uw_filename, uw_nwh_file, hmc_sch_file, output):
     dump_ndjson(clinical_records)
 
 
-def load_data(uw_filename: str, uw_nwh_file: str, hmc_sch_file: str):
-    """
-    Returns a pandas DataFrame containing clinical records from UW given the
-    *uw_filename*.
-
-    Returns a pandas DataFrame containing barcode manifest data from UWMC & NWH
-    and SCH given the two filepaths *uw_nwh_file* and *hmc_sch_file*,
-    respectively.
-    """
-    clinical_records = load_uw_metadata(uw_filename, date='Collection.Date')
-
-    uw_manifest = load_uw_manifest_data(uw_nwh_file, 'UWMC', 'Collection Date')
-    nwh_manifest = load_uw_manifest_data(uw_nwh_file, 'NWH',
-                                      'Collection Date (per tube)')
-    hmc_manifest = load_uw_manifest_data(hmc_sch_file, 'HMC', 'Collection date')
-
-    return clinical_records, uw_manifest, nwh_manifest, hmc_manifest
-
-def load_uw_metadata(uw_filename: str, date: str) -> pd.DataFrame:
-    """
-    Given a filename *uw_filename*, returns a pandas DataFrame containing
-    clinical metadata.
-
-    Standardizes the collection date column with some hard-coded logic that may
-    need to be updated in the future.
-    Removes leading and trailing whitespace from str-type columns.
-    """
-    dtypes = {'census_tract': 'str'}
-    dates = ['Collection.Date']
-    na_values = ['Unknown']
-
-    if uw_filename.endswith('.csv'):
-        df = pd.read_csv(uw_filename, na_values=na_values, parse_dates=dates,
-                         dtype=dtypes)
-    else:
-        df = pd.read_excel(uw_filename, na_values=na_values, parse_dates=dates,
-                           dtype=dtypes)
-
-    df = df.rename(columns={date: 'Collection date'})
-    df = trim_whitespace(df)
-    df = add_metadata(df, uw_filename)
-
-    return df
-
-
-def load_uw_manifest_data(filename: str, sheet_name: str, date: str) -> pd.DataFrame:
-    """
-    Given a *filename* and *sheet_name*, returns a pandas DataFrame containing
-    barcode manifest data.
-
-    Renames collection *date* and barcode columns with some hard-coded logic
-    that may need to be updated in the future.
-    Removes leading and trailing whitespace from str-type columns.
-    """
-    barcode = 'Barcode ID (Sample ID)'
-    dtypes = {barcode: 'str'}
-
-    df = pd.read_excel(filename, sheet_name=sheet_name, keep_default_na=False,
-        na_values=['NA', '', 'Unknown', 'NULL'], dtype=dtypes)
-
-    rename_map = {
-        barcode: 'Barcode ID',
-        date: 'Collection date',
-    }
-
-    df = df.rename(columns=rename_map)
-    df = trim_whitespace(df)
-
-    return df[['Barcode ID', 'MRN', 'Collection date', 'Accession']]
-
-
 def create_unique_identifier(df: pd.DataFrame):
     """Generate a unique identifier for each encounter and drop duplicates"""
     df['identifier'] = (df['labMRN'] + df['LabAccNum'] + \
-                        df['Collection date'].astype(str)
+                        df['Collection.Date'].astype(str)
                         ).str.lower()
     return df.drop_duplicates(subset="identifier")
-
-
-def standardize_identifiers(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert all to lower case for matching purposes"""
-    df['MRN'] = df['MRN'].str.lower()
-    df['Accession'] = df['Accession'].str.lower()
-    return df
 
 def remove_pii(df: pd.DataFrame) -> pd.DataFrame:
     """
