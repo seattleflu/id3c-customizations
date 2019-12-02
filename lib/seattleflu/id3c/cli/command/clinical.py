@@ -62,8 +62,8 @@ def parse_uw(uw_filename, output):
 
     read_uw = partial(
         read,
-        dtypes = {'tract_identifier': 'str'},
-        dates = ['Collection.Date'],
+        dtype = {'tract_identifier': 'str'},
+        parse_dates = ['Collection.Date', 'LabDtTm'],
         na_values = ['NA', '', 'Unknown', 'NULL'],
     )
 
@@ -71,6 +71,7 @@ def parse_uw(uw_filename, output):
         read_uw(uw_filename)
             .pipe(trim_whitespace)
             .pipe(add_provenance, uw_filename)
+            .pipe(coalesce_columns, "encountered", "Collection.Date", "LabDtTm")
             .pipe(create_unique_identifier))
 
     # Standardize names of columns that will be added to the database
@@ -80,7 +81,7 @@ def parse_uw(uw_filename, output):
         'EthnicGroup': 'HispanicLatino',
         'Fac': 'site',
         'FinClass': 'MedicalInsurance',
-        'LabDtTm': 'encountered',
+        'encountered': 'encountered',
         'PersonID': 'individual',
         'Race': 'Race',
         'Sex': 'AssignedSex',
@@ -97,8 +98,6 @@ def parse_uw(uw_filename, output):
 
     barcode_quality_control(clinical_records, output)
 
-    # Convert dtypes
-    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
     # Age must be converted to Int64 dtype because pandas does not support NaNs
     # with normal type 'int'
     clinical_records["age"] = clinical_records["age"].astype(pd.Int64Dtype())
@@ -113,6 +112,13 @@ def parse_uw(uw_filename, output):
 
 
     dump_ndjson(clinical_records)
+
+
+def coalesce_columns(df: pd.DataFrame, new_column: str, column_a: str, column_b: str) -> pd.DataFrame:
+    """
+    Coalesces values from *column_a* and *column_b* of *df* into *new_column*.
+    """
+    return df.assign(**{new_column: df[column_a].combine_first(df[column_b])})
 
 
 def create_unique_identifier(df: pd.DataFrame):
@@ -132,7 +138,7 @@ def create_unique_identifier(df: pd.DataFrame):
     #   -trs, 2 Dec 2019
 
     df['identifier'] = (df['labMRN'] + df['LabAccNum'] + \
-                        df['Collection.Date'].astype(str)
+                        df['encountered'].astype(str)
                         ).str.lower()
     return df.drop_duplicates(subset="identifier")
 
