@@ -117,6 +117,20 @@ def parse_uw(uw_filename, output):
 
 def create_unique_identifier(df: pd.DataFrame):
     """Generate a unique identifier for each encounter and drop duplicates"""
+
+    # This could theoretically use the EID (encounter id) column provided to
+    # us, but sticking to this constructed identifier has two benefits I see:
+    #
+    # 1. We will continue to match existing data if we get updated records or
+    #    re-process old datasets.  This is somewhat unlikely, but possible.
+    #
+    # 2. More importantly, a clinical encounter may span multiple days (unlike
+    #    those in ID3C) and so multiple samples may be collected on different
+    #    days from one encounter.  We want to keep treating those as multiple
+    #    encounters on our end.
+    #
+    #   -trs, 2 Dec 2019
+
     df['identifier'] = (df['labMRN'] + df['LabAccNum'] + \
                         df['Collection.Date'].astype(str)
                         ).str.lower()
