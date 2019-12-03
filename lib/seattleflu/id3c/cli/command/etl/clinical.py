@@ -249,12 +249,12 @@ def insurance(insurance_response: Optional[Any]) -> list:
     Given an *insurance_response*, returns corresponding insurance
     identifier.
     """
-    if not isinstance(insurance_response, list):
-        insurance_response = [ insurance_response ]
-
     if insurance_response is None:
         LOG.debug("No insurance response found.")
         return [None]
+
+    if not isinstance(insurance_response, list):
+        insurance_response = [ insurance_response ]
 
     insurance_map = {
         "commercial": "privateInsurance",
