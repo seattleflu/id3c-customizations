@@ -181,7 +181,9 @@ def sex(sex_name) -> str:
 
     def standardize_sex(sex):
         try:
-            sex = sex.lower()
+            if isinstance(sex, str):
+                sex = sex.lower()
+
             return sex if sex in sex_map.values() else sex_map[sex]
         except KeyError:
             raise Exception(f"Unknown sex name «{sex}»") from None
