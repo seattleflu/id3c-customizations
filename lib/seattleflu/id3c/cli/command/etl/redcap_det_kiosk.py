@@ -8,8 +8,10 @@ from uuid import uuid4
 from datetime import datetime
 from typing import Any, List, Optional
 from copy import deepcopy
+from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.de_identify import generate_hash
+from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.etl import redcap_det, UnknownSiteError
 from .redcap_map import *
 from .fhir import *
@@ -46,7 +48,7 @@ REVISION = 1
     revision = REVISION,
     help = __doc__)
 
-def redcap_det_kisok(*, db: DatabaseSession, det: dict, redcap_record: dict) -> Optional[dict]:
+def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':
         return None
