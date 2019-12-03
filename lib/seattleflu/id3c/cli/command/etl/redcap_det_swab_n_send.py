@@ -189,7 +189,7 @@ def generate_patient_hash(record: dict, gender: str) -> dict:
         "zipcode": record['home_zipcode_2']  # TODO redundant?
     }
 
-    return generate_hash(str(sorted(personal_information.items())),
+    return generate_hash(str(sorted(personal_information.items())),  # TODO is there any guidance on how to construct the hash?
         secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
 
 
