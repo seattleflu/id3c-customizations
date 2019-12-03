@@ -249,7 +249,7 @@ def insurance(insurance_response: Optional[Any]) -> list:
     Given an *insurance_response*, returns corresponding insurance
     identifier.
     """
-    if not type(isinstance(insurance_response, list)):
+    if not isinstance(insurance_response, list):
         insurance_response = [ insurance_response ]
 
     if insurance_response is None:
