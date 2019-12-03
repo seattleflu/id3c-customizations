@@ -1,0 +1,8 @@
+---
+cache: id3c-geocode.cache
+columns:
+  street: Street
+  secondary: Street2
+  city: City
+  state: State
+  zipcode: ZipCode
