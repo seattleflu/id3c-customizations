@@ -80,7 +80,6 @@ def parse_uw(uw_filename, output):
         'Collection_ID': 'barcode',
         'EthnicGroup': 'HispanicLatino',
         'Fac': 'site',
-        'FinClass': 'MedicalInsurance',
         'encountered': 'encountered',
         'PersonID': 'individual',
         'Race': 'Race',
