@@ -1,0 +1,8 @@
+$schema: "http://json-schema.org/draft-06/schema#"
+properties:
+  dataset:
+    type: string
+    description: "Basename of input dataset under s3://fh-pi-bedford-t/seattleflu/uw/"
+
+required:
+  - dataset

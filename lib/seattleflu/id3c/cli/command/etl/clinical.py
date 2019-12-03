@@ -262,12 +262,12 @@ def insurance(insurance_response: Optional[Any]) -> list:
 
     Raises an :class:`Exception` if the given insurance name is unknown.
     """
-    if not type(isinstance(insurance_response, list)):
-        insurance_response = [ insurance_response ]
-
     if insurance_response is None:
         LOG.debug("No insurance response found.")
         return [None]
+
+    if not isinstance(insurance_response, list):
+        insurance_response = [ insurance_response ]
 
     insurance_map = {
         "commercial": "privateInsurance",

@@ -18,7 +18,7 @@ from id3c.db.session import DatabaseSession
 from id3c.cli import cli
 from id3c.cli.command import dump_ndjson
 from . import (
-    add_metadata,
+    add_provenance,
     barcode_quality_control,
     group_true_values_into_list,
     trim_whitespace,
@@ -98,7 +98,7 @@ def load_data(filename: str) -> pd.DataFrame:
     """
     df = pd.read_csv(filename)
     df = trim_whitespace(df)
-    df = add_metadata(df, filename)
+    df = add_provenance(df, filename)
 
     return df
 
@@ -112,9 +112,9 @@ def merge_data(baseline_records: pd.DataFrame, weekly_records: pd.DataFrame,
 
     Raises a :class:`AssertionError` if the pid columns are missing in any
     DataFrame or if there are duplicated columns between any two DataFrames
-    other than the pid and ``_metadata`` columns (added by a previous process).
+    other than the pid and ``_provenance`` columns (added by a previous process).
 
-    The ``_metadata`` columns in *weekly_records* and *survey_records* receive
+    The ``_provenance`` columns in *weekly_records* and *survey_records* receive
     suffixes of ``_followup`` and ``_survey`` after merging, respectively.
     """
     pid = ['study_id']  # This harcoding may need to be updated in the future
@@ -123,7 +123,7 @@ def merge_data(baseline_records: pd.DataFrame, weekly_records: pd.DataFrame,
     for combo in combinations([baseline_records, weekly_records, survey_records], 2):
         duplicated_columns = set(list(combo[0])).intersection(list(combo[1]))
 
-        expected_duplicates = set(pid + ['_metadata'])
+        expected_duplicates = set(pid + ['_provenance'])
         assert duplicated_columns == expected_duplicates, \
             f"""You are either missing {expected_duplicates} columns in your
             dataset or have duplicated columns other than {expected_duplicates}

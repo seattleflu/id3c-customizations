@@ -1,0 +1,84 @@
+import snakemake.remote.S3
+from pathlib import Path
+from snakemake.utils import validate
+
+
+#
+# Config.
+#
+validate(config, "workflow-schema.yaml")
+
+s3prefix = Path("fh-pi-bedford-t/seattleflu/uw")
+dataset = Path(config["dataset"])
+
+
+#
+# S3 helpers.
+#
+S3 = snakemake.remote.S3.RemoteProvider()
+
+def s3(path, **kwargs):
+    return S3.remote(str(s3prefix / path), **kwargs)
+
+
+#
+# Rules.
+#
+# Note that referencing output of other rules by name, e.g.
+# rules.geocode.output, breaks Snakemake's remote file resolution.  This is
+# definitely a Snakemake bug, but I'm not going to write the patch for it at
+# this moment.
+#   -trs, 3 Dec 2019
+#
+rule default:
+    input: s3(f"{dataset.stem}.ndjson")
+
+rule geocode_cache:
+    message: "Fetching geocoding cache"
+    input: s3("id3c-geocode.cache")
+    output: "id3c-geocode.cache"
+    shell:
+        """
+        cp -v {input:q} {output:q}
+        """
+
+rule geocode:
+    message: "Geocoding {dataset} addresses → lng/lat"
+    input:
+        dataset = s3(dataset),
+        config = "id3c-geocode.yaml",
+        cache = "id3c-geocode.cache",
+    output:
+        dataset = s3(f"{dataset.stem}-geocoded.csv"),
+        cache = s3("id3c-geocode.cache")
+    shell:
+        """
+        id3c geocode using-config {input.dataset:q} {input.config:q} > {output.dataset:q}
+        cp -v {input.cache} {output.cache}
+        """
+
+rule tract:
+    message: "Converting lng/lat → Census tracts"
+    input: s3(f"{dataset.stem}-geocoded.csv")
+    output: s3(f"{dataset.stem}-tract.csv")
+    shell:
+        """
+        id3c location lookup --scale tract --drop-latlng-columns {input:q} > {output:q}
+        """
+
+rule parse:
+    message: "Parsing into clinical enrollments"
+    input: s3(f"{dataset.stem}-tract.csv")
+    output: s3(f"{dataset.stem}.ndjson")
+    shell:
+        """
+        id3c clinical parse-uw {input:q} > {output:q}
+        """
+
+rule upload:
+    message: "Uploading records"
+    input: s3(f"{dataset.stem}.ndjson")
+    shell:
+        """
+        id3c clinical upload {input:q}
+        """
