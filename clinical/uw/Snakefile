@@ -33,16 +33,28 @@ def s3(path, **kwargs):
 rule default:
     input: s3(f"{dataset.stem}.ndjson")
 
+rule geocode_cache:
+    message: "Fetching geocoding cache"
+    input: s3("id3c-geocode.cache")
+    output: "id3c-geocode.cache"
+    shell:
+        """
+        cp -v {input:q} {output:q}
+        """
+
 rule geocode:
     message: "Geocoding {dataset} addresses → lng/lat"
     input:
         dataset = s3(dataset),
         config = "id3c-geocode.yaml",
+        cache = "id3c-geocode.cache",
     output:
-        s3(f"{dataset.stem}-geocoded.csv")
+        dataset = s3(f"{dataset.stem}-geocoded.csv"),
+        cache = s3("id3c-geocode.cache")
     shell:
         """
-        id3c geocode using-config {input.dataset:q} {input.config:q} > {output:q}
+        id3c geocode using-config {input.dataset:q} {input.config:q} > {output.dataset:q}
+        cp -v {input.cache} {output.cache}
         """
 
 rule tract:
