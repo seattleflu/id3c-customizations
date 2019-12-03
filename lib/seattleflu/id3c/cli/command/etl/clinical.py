@@ -273,10 +273,17 @@ def insurance(insurance_response: Optional[Any]) -> list:
 
     insurance_map = {
         "commercial": "privateInsurance",
+        "comm": "privateInsurance",
         "medicaid": "government",
         "medicare": "government",
         "tricare": "government",
+        "care": "government",
+        "caid": "government",
         "other": "other",
+        "self": "other",
+        "tce": "other",
+        "case rate": "other",
+        "wc": "other",
         "unknown": None,
 
     }
