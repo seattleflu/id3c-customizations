@@ -40,7 +40,7 @@ LOG = logging.getLogger(__name__)
 # clinical records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all clinical records,
 # this revision number should be incremented.
-REVISION = 3
+REVISION = 4
 
 
 @etl.command("clinical", help = __doc__)
