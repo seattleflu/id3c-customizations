@@ -217,7 +217,8 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         }
 
     def non_tract_locations(resource: dict):
-        return resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/locations/tract"
+        return bool(resource) \
+            and resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/locations/tract"
 
     symptom_keys = list(filter(grab_symptom_keys, record))
     contained = list(map(build_conditions_list, symptom_keys))
