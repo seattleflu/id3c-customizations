@@ -5,6 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 mypy = "*"
+pytest = "*"
 
 [packages]
 seattleflu-id3c-customizations = {editable = true,path = "."}
