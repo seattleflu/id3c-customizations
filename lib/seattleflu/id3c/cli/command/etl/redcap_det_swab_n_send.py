@@ -326,9 +326,13 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
 
         return barcode
 
+    barcode = specimen_barcode(record)
+    if not barcode:
+        return None, None
+
     specimen_identifier = create_identifier(
         system = f"{INTERNAL_SYSTEM}/sample",
-        value = specimen_barcode(record)
+        value = barcode
     )
 
     if not record.get('collection_date'):
