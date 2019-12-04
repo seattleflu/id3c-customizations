@@ -184,6 +184,7 @@ def create_specimen(redcap_record: dict, patient_reference: dict) -> tuple:
     Create FHIR specimen resource entry and reference from given *redcap_record*
     """
     sfs_sample_barcode = get_sfs_barcode(redcap_record)
+
     specimen_identifier = create_identifier(SFS, sfs_sample_barcode)
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
@@ -439,16 +440,18 @@ def determine_encounter_locations(redcap_record: dict) -> dict:
         })
 
     if redcap_record['shelter_name'] and redcap_record['shelter_name'] != 'Other/none of the above':
-        shelter_address = determine_shelter_address(redcap_record['shelter_name'])
-        locations.update(construct_location(shelter_address, 'lodging'))
+        address = determine_shelter_address(redcap_record['shelter_name'])
+        housing_type = 'lodging'
 
     elif redcap_record['uw_dorm'] and redcap_record['uw_dorm'] != 'Other':
-        dorm_address = determine_dorm_address(redcap_record['uw_dorm'])
-        locations.update(construct_location(dorm_address, 'residence'))
+        address = determine_dorm_address(redcap_record['uw_dorm'])
+        housing_type = 'residence'
 
     elif redcap_record['home_street'] or redcap_record['home_street_optional']:
-        home_address = determine_home_address(redcap_record)
-        locations.update(construct_location(home_address, 'residence'))
+        address = determine_home_address(redcap_record)
+        housing_type = 'residence'
+
+    locations.update(construct_location(db, cache, (lat_lng), canonicalized_address, housing_type))
 
     return locations
 
