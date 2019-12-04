@@ -40,7 +40,7 @@ LOG = logging.getLogger(__name__)
 # clinical records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all clinical records,
 # this revision number should be incremented.
-REVISION = 3
+REVISION = 4
 
 
 @etl.command("clinical", help = __doc__)
@@ -181,7 +181,9 @@ def sex(sex_name) -> str:
 
     def standardize_sex(sex):
         try:
-            sex = sex.lower()
+            if isinstance(sex, str):
+                sex = sex.lower()
+
             return sex if sex in sex_map.values() else sex_map[sex]
         except KeyError:
             raise Exception(f"Unknown sex name «{sex}»") from None
@@ -271,10 +273,17 @@ def insurance(insurance_response: Optional[Any]) -> list:
 
     insurance_map = {
         "commercial": "privateInsurance",
+        "comm": "privateInsurance",
         "medicaid": "government",
         "medicare": "government",
         "tricare": "government",
+        "care": "government",
+        "caid": "government",
         "other": "other",
+        "self": "other",
+        "tce": "other",
+        "case rate": "other",
+        "wc": "other",
         "unknown": None,
 
     }
