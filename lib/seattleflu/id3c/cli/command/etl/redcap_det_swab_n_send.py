@@ -380,10 +380,11 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         return None
 
     def grab_coding_keys(coded_question: str, key: str) -> Optional[Match[str]]:
-        if record[key] != '':
-            return re.match(f'{coded_question}___[0-9]{1,3}$', key)
-        else:
+        if record[key] == '':
             return None
+
+        return re.match(f'{coded_question}___[0-9]{1,3}$', key)
+
 
     def build_questionnaire_items(question: str) -> Optional[dict]:
         return questionnaire_item(record, question, category)
