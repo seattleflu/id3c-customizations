@@ -585,25 +585,23 @@ def determine_home_address(redcap_record: dict) -> dict:
     Parse a home address from a given REDCap *redcap_record* and return as a dict
     with each address field.
     """
-    address = {}
-    # Street
     if redcap_record['home_street'] != '':
-        address['street'] = redcap_record['home_street']
+        street = redcap_record['home_street']
     else:
-        address['street'] = redcap_record['home_street_optional']
+        street = redcap_record['home_street_optional']
 
     # City and State
     if redcap_record['seattle_home'] == 'Seattle':
-        address['city'] = 'Seattle'
-        address['state'] = 'WA'
+        city = 'Seattle'
+        state = 'WA'
     else:
-        address['city'] = redcap_record['homecity_other']
-        address['state'] = redcap_record['home_state']
+        city = redcap_record['homecity_other']
+        state = redcap_record['home_state']
 
     # Zip Code
-    address['zipcode'] = redcap_record['home_zipcode']
+    zipcode = redcap_record['home_zipcode']
 
-    return address
+    return construct_address_dict(street, city, state, zipcode)
 
 
 def determine_census_tract(address: dict) -> str:
