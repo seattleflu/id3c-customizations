@@ -442,7 +442,7 @@ def determine_encounter_locations(db: DatabaseSession, cache: TTLCache, redcap_r
                 'fullUrl': generate_full_url_uuid()
             },
             location_type: {
-                'value': 'address_hash', #TODO: hash address
+                'value': generate_hash(canonicalized_address, secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"]),
                 'fullUrl': generate_full_url_uuid()
             }
         })
