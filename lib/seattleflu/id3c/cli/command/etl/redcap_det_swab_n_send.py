@@ -383,7 +383,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         if record[key] == '':
             return None
 
-        return re.match(f'{coded_question}___[0-9]{1,3}$', key)
+        return re.match(f'{coded_question}___[0-9]+$', key)
 
 
     def build_questionnaire_items(question: str) -> Optional[dict]:
