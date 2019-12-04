@@ -209,7 +209,7 @@ def create_specimen(redcap_record: dict, patient_reference: dict) -> tuple:
     return specimen_entry, specimen_reference
 
 
-def get_sfs_barcode(redcap_record: dict):
+def get_sfs_barcode(redcap_record: dict) -> str:
     """
     Find SFS barcode within *redcap_record*.
 
