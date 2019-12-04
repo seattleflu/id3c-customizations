@@ -125,9 +125,12 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         tract_full_url = generate_full_url_uuid()
         tract_entry = create_resource_entry(tract_location, tract_full_url)
 
+        address_hash = generate_hash(canonicalized_address,
+            secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
+
         address_location = create_location(
             f"{INTERNAL_SYSTEM}/locations/address",
-            '#TODO ADDRESS HASH',
+            address_hash,
             housing_type,
             tract_full_url
         )
@@ -186,7 +189,7 @@ def generate_patient_hash(record: dict, gender: str) -> dict:
         "zipcode": record['home_zipcode_2']  # TODO redundant?
     }
 
-    return generate_hash(str(sorted(personal_information.items())),
+    return generate_hash(str(sorted(personal_information.items())),  # TODO is there any guidance on how to construct the hash?
         secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
 
 
