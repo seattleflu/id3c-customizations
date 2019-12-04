@@ -366,7 +366,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     encounter_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Questionnaire Response resource entry. """
 
-    def create_custom_coding_key(coded_question: str, record: dict) -> List:
+    def create_custom_coding_key(coded_question: str, record: dict) -> Optional[List]:
         """
         Handles the 'race' or 'insurance' edge case by combining "select all
         that apply"-type responses into one list.
@@ -375,7 +375,9 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         coded_names = list(map(lambda k: record[k], coded_keys))
 
         if coded_question == 'race':
-            race(coded_names)
+            return race(coded_names)
+
+        return None
 
     def grab_coding_keys(coded_question: str, key: str) -> Optional[Match[str]]:
         if record[key] != '':
