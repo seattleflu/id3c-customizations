@@ -368,8 +368,8 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
     def create_custom_coding_key(coded_question: str, record: dict) -> Optional[List]:
         """
-        Handles the 'race' or 'insurance' edge case by combining "select all
-        that apply"-type responses into one list.
+        Handles the 'race' edge case by combining "select all that apply"-type
+        responses into one list.
         """
         coded_keys = list(filter(lambda r: grab_coding_keys(coded_question, r), record))
         coded_names = list(map(lambda k: record[k], coded_keys))
@@ -428,7 +428,6 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     }
 
     record['race'] = create_custom_coding_key('race', record)
-    record['insurance'] = create_custom_coding_key('insurance', record)
 
     items: List[dict] = []
     for category in question_categories:
