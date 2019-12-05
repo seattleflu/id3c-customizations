@@ -203,8 +203,12 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     def build_conditions_list(symptom_key: str) -> dict:
         return create_resource_condition(record, record[symptom_key], patient_reference)
 
-    def build_diagnosis_list(symptom_key: str) -> dict:
-        return { "condition": { "reference": f"#{map_symptom(record[symptom_key])}" } }
+    def build_diagnosis_list(symptom_key: str) -> Optional[dict]:
+        mapped_symptom = map_symptom(record[symptom_key])
+        if not mapped_symptom:
+            return
+
+        return { "condition": { "reference": f"#{mapped_symptom}" } }
 
     def build_locations_list(location: dict) -> dict:
         return {
@@ -219,8 +223,8 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
             and resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/locations/tract"
 
     symptom_keys = list(filter(grab_symptom_keys, record))
-    contained = list(map(build_conditions_list, symptom_keys))
-    diagnosis = list(map(build_diagnosis_list, symptom_keys))
+    contained = list(filter(None, map(build_conditions_list, symptom_keys)))
+    diagnosis = list(filter(None, map(build_diagnosis_list, symptom_keys)))
     encounter_identifier = create_identifier(
         system = f"{INTERNAL_SYSTEM}/encounter",
         value = f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}"
@@ -268,7 +272,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     return encounter_resource_entry, encounter_reference
 
 
-def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> dict:
+def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Condition resource. """
     def symptom_duration(record: dict) -> str:
         return convert_to_iso(record['symptom_duration'], "%Y-%m-%d")
@@ -282,6 +286,8 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
         return None
 
     mapped_symptom_name = map_symptom(symptom_name)
+    if not mapped_symptom_name:
+        return None
 
     # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
     # 3.8.  Until then, there's no reasonable way to type this data structure
