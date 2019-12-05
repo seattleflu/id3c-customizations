@@ -192,7 +192,7 @@ def create_specimen(redcap_record: dict, patient_reference: dict) -> tuple:
     if not sfs_sample_barcode:
         return None, None
 
-    specimen_identifier = create_identifier(SFS, sfs_sample_barcode)
+    specimen_identifier = create_identifier(f"{SFS}/sample", sfs_sample_barcode)
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
