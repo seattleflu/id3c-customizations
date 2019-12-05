@@ -196,12 +196,15 @@ def create_specimen_resource(specimen_identifier: List[dict],
 
 def create_specimen_observation(specimen_reference: dict,
                                 patient_reference: dict,
-                                encounter_reference: dict) -> dict:
+                                encounter_reference: dict) -> Optional[dict]:
     """
     Create an observation resource that is a links a specimen, a patient, and
     an encounter. Follows the FHIR format
     (http://www.hl7.org/implement/standards/fhir/observation.html)
     """
+    if not specimen_reference:
+        return None
+
     return ({
         "resourceType": "Observation",
         "status": "final",
