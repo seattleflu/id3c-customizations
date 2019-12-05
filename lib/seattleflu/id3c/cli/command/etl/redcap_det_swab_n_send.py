@@ -158,27 +158,27 @@ def create_location(system: str, value: str, location_type: str, parent: str=Non
         "lodging": "PTLDG",
     }
 
-    location_type = create_codeable_concept(location_type_system,
+    location_type_cc = create_codeable_concept(location_type_system,
                                             location_type_map[location_type])
     location_identifier = create_identifier(system, value)
     part_of = None
     if parent:
         part_of = create_reference(reference_type="Location", reference=parent)
 
-    return create_location_resource([location_type], [location_identifier], part_of)
+    return create_location_resource([location_type_cc], [location_identifier], part_of)
 
 
 def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
     gender = map_sex(record["sex"])
     patient_id = generate_patient_hash(record, gender)
-    patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual",patient_id)
+    patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
 
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def generate_patient_hash(record: dict, gender: str) -> dict:
+def generate_patient_hash(record: dict, gender: str) -> str:
     """ Returns a hash generated from patient information. """
     personal_information = {
         "name": canonicalize_name(f"{record['first_name_1']}{record['last_name_1']}"),
@@ -206,7 +206,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     def build_diagnosis_list(symptom_key: str) -> Optional[dict]:
         mapped_symptom = map_symptom(record[symptom_key])
         if not mapped_symptom:
-            return
+            return None
 
         return { "condition": { "reference": f"#{mapped_symptom}" } }
 
@@ -444,7 +444,8 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     # Vaccine is an edge case because it can have two answers of different value types
     vaccine_status = map_vaccine(record["vaccine"])
     if vaccine_status is not None:
-        answers = [{ 'valueBoolean': vaccine_status }]
+        answers: List[Dict[str, Any]] = [{ 'valueBoolean': vaccine_status }]
+
         date = vaccine_date(record)
         if vaccine_status and date:
             answers.append({ 'valueDate': date })

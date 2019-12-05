@@ -6,7 +6,7 @@ import logging
 import re
 from uuid import uuid4
 from datetime import datetime
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Dict
 from copy import deepcopy
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
@@ -88,7 +88,7 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
 
     if not encounter_resource_entry:
         LOG.info("Skipping FHIR document with insufficient encounter information.")
-        return
+        return None
 
     questionnaire_response_resource_entry = create_questionnaire_response_entry(
         redcap_record,
@@ -478,7 +478,7 @@ def determine_site_name(redcap_record: dict) -> Optional[str]:
     """
     potential_site_names = find_selected_options('site_identifier_', redcap_record)
     if not potential_site_names:
-        return
+        return None
 
     # Check only one site identifier is selected
     assert len(potential_site_names) == 1, \
@@ -792,7 +792,7 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
     """
     Given a *redcap_record*, determine answers for all core questions
     """
-    items = {}
+    items: Dict[str, Any] = {}
 
     if redcap_record['age']:
         items['age'] = [{ 'valueInteger' : int(redcap_record['age']) }]
