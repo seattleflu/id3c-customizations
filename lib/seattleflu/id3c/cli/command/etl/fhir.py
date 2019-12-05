@@ -194,6 +194,25 @@ def create_specimen_resource(specimen_identifier: List[dict],
     return specimen_resource
 
 
+def create_specimen_observation_entry(specimen_reference: dict,
+                                patient_reference: dict,
+                                encounter_reference: dict) -> dict:
+    """
+    Create a speciment observation entry for the bundle that connects given
+    *specimen_reference*, *patient_reference*, and *encounter_reference*.
+    """
+    specimen_observation_resource = create_specimen_observation(
+       specimen_reference  = specimen_reference,
+       patient_reference   = patient_reference,
+       encounter_reference = encounter_reference
+    )
+
+    return (create_resource_entry(
+       resource = specimen_observation_resource,
+       full_url = generate_full_url_uuid()
+    ))
+
+
 def create_specimen_observation(specimen_reference: dict,
                                 patient_reference: dict,
                                 encounter_reference: dict) -> Optional[dict]:
@@ -205,7 +224,7 @@ def create_specimen_observation(specimen_reference: dict,
     if not specimen_reference:
         return None
 
-    return ({
+    return {
         "resourceType": "Observation",
         "status": "final",
         "code": {
@@ -220,7 +239,7 @@ def create_specimen_observation(specimen_reference: dict,
         "encounter": encounter_reference,
         "subject": patient_reference,
         "specimen": specimen_reference
-    })
+    }
 
 
 def create_questionnaire_response_resource(patient_reference: dict,

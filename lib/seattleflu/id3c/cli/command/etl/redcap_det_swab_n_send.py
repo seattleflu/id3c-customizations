@@ -57,10 +57,8 @@ def redcap_det_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, r
     encounter_entry, encounter_reference = create_encounter(redcap_record, patient_reference, location_resource_entries)
     questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
-    specimen_observation_entry = create_resource_entry(
-        resource = create_specimen_observation(specimen_reference, patient_reference, encounter_reference),
-        full_url = generate_full_url_uuid()
-    )
+
+    specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
     resource_entries = [
         patient_entry,

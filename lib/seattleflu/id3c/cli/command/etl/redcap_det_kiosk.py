@@ -885,25 +885,6 @@ def create_questionnaire_response_entry(redcap_record: dict,
     ))
 
 
-def create_specimen_observation_entry(specimen_reference: dict,
-                                patient_reference: dict,
-                                encounter_reference: dict) -> dict:
-    """
-    Create a speciment observation entry for the bundle that connects given
-    *specimen_reference*, *patient_reference*, and *encounter_reference*.
-    """
-    specimen_observation_resource = create_specimen_observation(
-       specimen_reference  = specimen_reference,
-       patient_reference   = patient_reference,
-       encounter_reference = encounter_reference
-    )
-
-    return (create_resource_entry(
-       resource = specimen_observation_resource,
-       full_url = generate_full_url_uuid()
-    ))
-
-
 def find_selected_options(option_prefix: str, redcap_record:dict) -> list:
     """
     Find all choosen options within *redcap_record* where option begins with
