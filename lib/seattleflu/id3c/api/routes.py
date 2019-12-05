@@ -11,7 +11,11 @@ api_v2 = Blueprint('api_v2', 'api_v2', url_prefix='/v2')
 blueprints.append(api_v2)
 
 @api_v1.route("/shipping/return-results/<barcode>", methods = ['GET'])
-@cross_origin(origins=["https://seattleflu.org","https://dev.seattleflu.org","http://localhost:8080"])
+@cross_origin(origins=[
+    "https://seattleflu.org",
+    "https://dev.seattleflu.org",
+    "https://seattleflu-website-dev-blab.herokuapp.com",
+    "http://localhost:8080"])
 @authenticated_datastore_session_required
 def get_barcode_results(barcode, session):
     """
