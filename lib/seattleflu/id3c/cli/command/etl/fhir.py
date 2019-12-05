@@ -287,10 +287,13 @@ def create_bundle_resource(bundle_id: str,
     })
 
 
-def create_resource_entry(resource: dict, full_url: str) -> dict:
+def create_resource_entry(resource: dict, full_url: str) -> Optional[dict]:
     """
     Create bundle entry that contains a *resource* and a *full_url*.
     """
+    if not resource:
+        return None
+
     return ({
         "resource": resource,
         "fullUrl": full_url
