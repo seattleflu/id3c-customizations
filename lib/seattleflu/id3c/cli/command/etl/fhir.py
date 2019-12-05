@@ -156,9 +156,10 @@ def create_encounter_resource(encounter_identifier: List[dict],
             "start": start_timestamp
         },
         "subject": patient_reference,
-        "location": location_references
     }
 
+    if location_references:
+        encounter_resource["location"] = location_references
     if diagnosis:
         encounter_resource["diagnosis"] = diagnosis
     if contained:
