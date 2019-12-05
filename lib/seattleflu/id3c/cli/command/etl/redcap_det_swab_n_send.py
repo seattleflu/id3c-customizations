@@ -84,11 +84,11 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         uw_locations = []
         if uw_affiliation in ['1', '2']:
             uw_locations.append(
-                create_location(f"{INTERNAL_SYSTEM}/location", UW_CENSUS_TRACT, "school"))
+                create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "school"))
 
         if uw_affiliation in ['2', '3', '4']:
             uw_locations.append(
-                create_location(f"{INTERNAL_SYSTEM}/location", UW_CENSUS_TRACT, "work"))
+                create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "work"))
 
         return uw_locations
 
@@ -127,7 +127,7 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
             secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
 
         address_location = create_location(
-            f"{INTERNAL_SYSTEM}/locations/address",
+            f"{INTERNAL_SYSTEM}/location/address",
             address_hash,
             housing_type,
             tract_full_url
@@ -220,7 +220,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
     def non_tract_locations(resource: dict):
         return bool(resource) \
-            and resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/locations/tract"
+            and resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/location/tract"
 
     symptom_keys = list(filter(grab_symptom_keys, record))
     contained = list(filter(None, map(build_conditions_list, symptom_keys)))
@@ -542,7 +542,7 @@ def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
 
     if location and location.identifier:
         return create_location(
-            f"{INTERNAL_SYSTEM}/locations/tract", location.identifier, housing_type
+            f"{INTERNAL_SYSTEM}/location/tract", location.identifier, housing_type
         )
     else:
         LOG.debug("No census tract found for given location.")
