@@ -344,13 +344,8 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
 
     collected_time = convert_to_iso(record['collection_date'], "%Y-%m-%d")
 
-    if record.get('samp_process_date'):
-        try:
-            received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d")
-
-    else:
+    received_time = sample_process_date(record)
+    if not received_time:
         LOG.warning("No sample process date found. Using collection date instead.")
         received_time = collected_time
 
@@ -368,6 +363,22 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     )
 
     return specimen_entry, specimen_reference
+
+
+def sample_process_date(record: Any) -> Optional[str]:
+    """
+    Returns the sample process date in ISO format from a given *record* if it
+    exists, else returns None. The date is specific down to the hour, second,
+    and minute if the specificity is available. If it is not, returns a date
+    specific down to the year, month, and day.
+    """
+    if record.get('samp_process_date'):
+        try:
+            return convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return convert_to_iso(record['samp_process_date'], "%Y-%m-%d")
+
+    return None
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict,
