@@ -32,7 +32,7 @@ def add_provenance(df: pd.DataFrame, filename: str) -> pd.DataFrame:
     return df
 
 
-def age_ceiling(age: float, max_age=90) -> float:
+def age_ceiling(age: float, max_age=85) -> float:
     """
     Given an *age*, returns the same *age* unless it exceeds the *max_age*, in
     which case the *max_age* is returned.
