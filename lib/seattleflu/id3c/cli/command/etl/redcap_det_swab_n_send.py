@@ -345,7 +345,11 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     collected_time = convert_to_iso(record['collection_date'], "%Y-%m-%d")
 
     if record.get('samp_process_date'):
-        received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M:%S")
+        try:
+            received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            received_time = convert_to_iso(record['samp_process_date'], "%Y-%m-%d")
+
     else:
         LOG.warning("No sample process date found. Using collection date instead.")
         received_time = collected_time
