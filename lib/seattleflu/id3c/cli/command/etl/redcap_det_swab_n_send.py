@@ -461,6 +461,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'valueString': string_questions,
     }
 
+    # Do some pre-processing
     record['race'] = create_custom_coding_key('race', record)
 
     items: List[dict] = []
@@ -470,6 +471,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
             if item:
                 items.append(item)
 
+    # Handle edge cases
     vaccine_item = vaccine(record)
     if vaccine_item:
         items.append(vaccine_item)
