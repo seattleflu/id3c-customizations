@@ -19,6 +19,7 @@ from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
+from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
 from . import race
@@ -463,6 +464,8 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
     # Do some pre-processing
     record['race'] = create_custom_coding_key('race', record)
+    record['age'] = age_ceiling(int(record['age']))
+    record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
 
     items: List[dict] = []
     for category in question_categories:

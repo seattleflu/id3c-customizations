@@ -14,6 +14,7 @@ from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.etl import redcap_det, UnknownSiteError
+from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
 from . import race
@@ -795,6 +796,7 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
     items: Dict[str, Any] = {}
 
     if redcap_record['age']:
+        age = age_ceiling(int(redcap_record['age']))
         items['age'] = [{ 'valueInteger' : int(redcap_record['age']) }]
         items['age_months'] = [{ 'valueInteger' : int(float(redcap_record['age_months'])) }]
 
