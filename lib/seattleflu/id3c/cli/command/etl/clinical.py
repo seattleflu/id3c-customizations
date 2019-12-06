@@ -285,7 +285,7 @@ def insurance(insurance_response: Optional[Any]) -> list:
         "case rate": "other",
         "wc": "other",
         "unknown": None,
-
+        "none": "none",
     }
 
     def standardize_insurance(insurance):
