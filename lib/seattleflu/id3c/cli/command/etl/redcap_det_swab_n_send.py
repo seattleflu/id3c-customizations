@@ -470,15 +470,8 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
             if item:
                 items.append(item)
 
-    # Vaccine is an edge case because it can have two answers of different value types
-    vaccine_status = map_vaccine(record["vaccine"])
-    if vaccine_status is not None:
-        answers: List[Dict[str, Any]] = [{ 'valueBoolean': vaccine_status }]
-
-        date = vaccine_date(record)
-        if vaccine_status and date:
-            answers.append({ 'valueDate': date })
-        vaccine_item = create_questionnaire_response_item('vaccine', answers)
+    vaccine_item = vaccine(record)
+    if vaccine_item:
         items.append(vaccine_item)
 
     if items:
@@ -545,6 +538,24 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         return create_questionnaire_response_item(question_id, answers)
 
     return None
+
+
+def vaccine(record: Any) -> Optional[dict]:
+    """
+    For a given *record*, return a questionnaire response item with the vaccine
+    response(s) encoded.
+    """
+    vaccine_status = map_vaccine(record["vaccine"])
+    if vaccine_status is None:
+        return None
+
+    answers: List[Dict[str, Any]] = [{ 'valueBoolean': vaccine_status }]
+
+    date = vaccine_date(record)
+    if vaccine_status and date:
+        answers.append({ 'valueDate': date })
+
+    return create_questionnaire_response_item('vaccine', answers)
 
 
 def vaccine_date(record: dict) -> Optional[str]:
