@@ -170,12 +170,26 @@ def create_location(system: str, value: str, location_type: str, parent: str=Non
 
 def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
-    gender = map_sex(record["sex"])
+    gender = sex(record)
     patient_id = generate_patient_hash(record, gender)
     patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
 
     return create_entry_and_reference(patient_resource, "Patient")
+
+
+def sex(record: Any) -> str:
+    """
+    Given a REDCap *record*, returns the FHIR-equivalent gender value. Tries
+    first to return the response from the newer REDCap sex question titled
+    "sex_new". If it's not available, returns the value from the old sex
+    question titled "sex".
+    """
+    sex = map_sex(record["sex_new"])
+    if not sex:
+        sex = map_sex(record["sex"])
+
+    return sex
 
 
 def generate_patient_hash(record: dict, gender: str) -> str:
