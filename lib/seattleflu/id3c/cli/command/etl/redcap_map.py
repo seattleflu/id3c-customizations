@@ -13,6 +13,7 @@ def map_sex(sex_response: str) -> Optional[str]:
         'Male': 'male',
         'Female': 'female',
         'Indeterminate/other': 'other',
+        'Other (please specify)': 'other',
         'Prefer not to say': 'unknown',
         '': 'unknown'
     }
