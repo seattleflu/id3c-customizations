@@ -37,3 +37,5 @@ shipping/views [shipping/views@2019-11-18-a] 2019-11-19T00:19:58Z Jover Lee <jov
 @2019-11-18-b 2019-11-19T00:37:15Z Jover Lee <joverlee@fredhutch.org> # Schema as of 18 Nov 2019
 roles/augur-build-exporter/grants [roles/augur-build-exporter/grants@2019-11-18-b] 2019-11-23T01:30:44Z Thomas Sibley <tsibley@fredhutch.org> # Allow augur-build-exporter select on tracts for joins
 @2019-11-22 2019-11-23T01:32:23Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 2019-11-22
+shipping/views [shipping/views@2019-11-22] 2019-12-10T17:26:18Z Jover Lee <joverlee@fredhutch.org> # Fix typo in shipping.return_results_v1
+@2019-12-10 2019-12-10T17:29:38Z Jover Lee <joverlee@fredhutch.org> # Schema as of 2019-12-10

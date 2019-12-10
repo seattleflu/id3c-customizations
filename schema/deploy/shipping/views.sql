@@ -153,7 +153,7 @@ create or replace view shipping.return_results_v1 as
                                   'collections-kiosks',
                                   'collections-environmental',
                                   'collections-swab&send',
-                                  'collections-household-observation'
+                                  'collections-household-observation',
                                   'collections-household-intervention') and
           (organism is null or
           -- We only return results for these organisms, so omit all other presence/absence results
