@@ -182,7 +182,7 @@ def create_patient(record: dict) -> tuple:
 def generate_patient_hash(record: dict, gender: str) -> str:
     """ Returns a hash generated from patient information. """
     personal_information = {
-        "name": canonicalize_name(f"{record['first_name_1']}{record['last_name_1']}"),
+        "name": canonicalize_name(record['first_name_1'], record['last_name_1']),
         "gender": gender,
         "birthday": convert_to_iso(record['birthday'], '%Y-%m-%d'),
         "zipcode": record['home_zipcode_2']  # TODO redundant?

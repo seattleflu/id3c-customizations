@@ -138,16 +138,16 @@ def generate_patient_hash(redcap_record: dict, gender: str) -> str:
     Create a hashed patient id for a given *redcap_record*
     """
     if redcap_record['participant_first_name'] != '':
-        full_name = ' '.join([
+        full_name: Tuple = (
             redcap_record['participant_first_name'],
             redcap_record['participant_last_name']
-        ])
+        )
     else:
-        full_name = redcap_record['part_name_sp']
+        full_name = (redcap_record['part_name_sp'],)
 
     patient = {
         'gender': gender,
-        'name': canonicalize_name(full_name)
+        'name': canonicalize_name(*full_name)
     }
 
     if redcap_record['birthday']:

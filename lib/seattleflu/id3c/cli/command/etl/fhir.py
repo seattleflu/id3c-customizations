@@ -1,8 +1,8 @@
 """
 REDCap DET ETL shared functions to create FHIR documents
 """
-import re
-from typing import Optional, List
+import regex
+from typing import Iterable, Optional, List
 from uuid import uuid4
 from datetime import datetime
 
@@ -371,6 +371,35 @@ def convert_to_iso(time: str, current_format: str) -> str:
     return datetime.strptime(time, current_format).astimezone().isoformat()
 
 
-def canonicalize_name(full_name: str) -> str:
-    """ """
-    return re.sub(r'\s*[\d\W]+\s*', ' ', full_name).upper()
+def canonicalize_name(*parts: Iterable[str]) -> str:
+    """
+    Takes a list of name *parts* and returns a single, canonicalized string.
+
+    >>> canonicalize_name("`1234567890-=~!@#$%^&*()_+")
+    '1234567890'
+    >>> canonicalize_name("qwertyuiop[]\\QWERTYUIOP{}|")
+    'QWERTYUIOPQWERTYUIOP'
+    >>> canonicalize_name("asdfghjkl;'ASDFGHJKL:\\"")
+    'ASDFGHJKLASDFGHJKL'
+    >>> canonicalize_name("zxcvbnm,./ZXCVBNM<>?")
+    'ZXCVBNMZXCVBNM'
+    >>> canonicalize_name("¿¡Y", "tú", "quién", "te crees!?")
+    'Y TÚ QUIÉN TE CREES'
+    >>> canonicalize_name("The \\t\\n, quick   brown fox")
+    'THE QUICK BROWN FOX'
+    >>> canonicalize_name("  jumps\\t\\tover\\n\\n\\nthe   .  ")
+    'JUMPS OVER THE'
+    >>> canonicalize_name("lazydog")
+    'LAZYDOG'
+    """
+    def remove_non_word_chars(part):
+        # Python's core "re" module doesn't support Unicode property classes
+        return regex.sub(r'[^\s\p{Alphabetic}\p{Mark}\p{Decimal_Number}\p{Join_Control}]', "", part)
+
+    def collapse_whitespace(part):
+        return regex.sub(r'\s+', " ", part)
+
+    def canonicalize(part):
+        return collapse_whitespace(remove_non_word_chars(part)).strip().upper()
+
+    return " ".join(map(canonicalize, parts))
