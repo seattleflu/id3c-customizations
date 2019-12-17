@@ -342,10 +342,10 @@ def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict
     else:
         for result in diagnostic_results:
             if result in cepheid_results:
-                diagnostic_results[result]['valueBoolean'] == True
+                diagnostic_results[result]['valueBoolean'] = True
                 cepheid_results.remove(result)
             else:
-                diagnostic_results[result]['valueBoolean'] == False
+                diagnostic_results[result]['valueBoolean'] = False
 
         if len(cepheid_results) != 0:
             raise UnknownCepheidResultError(f"Unknown Cepheid result «{cepheid_results}»")
