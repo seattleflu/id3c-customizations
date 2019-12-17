@@ -7,9 +7,9 @@ from uuid import uuid4
 from datetime import datetime
 
 # CREATE FHIR RESOURCES
-def create_reference(reference_type: Optional[str] = None,
-                     reference: Optional[str] = None,
-                     identifier: Optional[dict] = None) -> dict:
+def create_reference(reference_type: str = None,
+                     reference: str = None,
+                     identifier: dict = None) -> dict:
     """
     Create a reference resource following the FHIR format
     (https://www.hl7.org/fhir/references.html)
@@ -118,7 +118,7 @@ def create_condition_severity_code(condition_severity: str) -> dict:
 
 def create_location_resource(location_type: List[dict],
                              location_identifier: List[dict],
-                             location_partOf: Optional[dict] = None) -> dict:
+                             location_partOf: dict = None) -> dict:
     """
     Create location resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/location.html)
@@ -141,8 +141,8 @@ def create_encounter_resource(encounter_identifier: List[dict],
                               start_timestamp: str,
                               patient_reference: dict,
                               location_references: List[dict],
-                              diagnosis: Optional[List[dict]] = None,
-                              contained: Optional[List[dict]] = None) -> dict:
+                              diagnosis: List[dict] = None,
+                              contained: List[dict] = None) -> dict:
     """
     Create encounter resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/encounter.html)
@@ -171,8 +171,8 @@ def create_encounter_resource(encounter_identifier: List[dict],
 def create_specimen_resource(specimen_identifier: List[dict],
                              patient_reference: dict,
                              specimen_type: str,
-                             received_datetime: Optional[str] = None,
-                             collection_datetime: Optional[str] = None) -> dict:
+                             received_datetime: str = None,
+                             collection_datetime: str = None) -> dict:
     """
     Create specimen resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/specimen.html)
@@ -301,7 +301,7 @@ def create_resource_entry(resource: dict, full_url: str) -> Optional[dict]:
 
 
 def create_entry_and_reference(resource: dict,
-                               reference_type: Optional[str] = None) -> tuple:
+                               reference_type: str = None) -> tuple:
     """
     Create a bundle entry and a reference that refers to the fullUrl of the
     bundle entry.
@@ -317,7 +317,7 @@ def create_entry_and_reference(resource: dict,
 
 
 # CREATE FHIR DATA TYPES
-def create_coding(system: str, code: str, display: Optional[str] = None) -> dict:
+def create_coding(system: str, code: str, display: str = None) -> dict:
     """
     Create coding concept following the FHIR format
     (https://www.hl7.org/fhir/datatypes.html#codesystem)
