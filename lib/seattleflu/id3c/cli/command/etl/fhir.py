@@ -31,7 +31,7 @@ def create_patient_resource(patient_identifier: List[dict], gender: str) -> dict
     Create patient resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/patient.html)
     """
-    gender_codes = ("male", "female", "other", "unknown")
+    gender_codes = {"male", "female", "other", "unknown"}
 
     assert gender in gender_codes, \
         f"Gender must be one of these gender codes: {gender_codes}"
