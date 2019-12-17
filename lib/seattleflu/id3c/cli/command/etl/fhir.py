@@ -138,7 +138,7 @@ def create_location_resource(location_type: List[dict],
 
 def create_encounter_resource(encounter_identifier: List[dict],
                               encounter_class: dict,
-                              start_timestamp: str,
+                              encounter_date: str,
                               patient_reference: dict,
                               location_references: List[dict],
                               diagnosis: List[dict] = None,
@@ -153,7 +153,7 @@ def create_encounter_resource(encounter_identifier: List[dict],
         "identifier": encounter_identifier,
         "status": "finished",
         "period": {
-            "start": start_timestamp
+            "start": encounter_date
         },
         "subject": patient_reference,
     }
@@ -360,15 +360,6 @@ def generate_full_url_uuid() -> str:
     (http://www.hl7.org/implement/standards/fhir/bundle-definitions.html#Bundle.entry.fullUrl)
     """
     return f"urn:uuid:{uuid4()}"
-
-
-def convert_to_iso(time: str, current_format: str) -> str:
-    """
-    Converts a *time* to ISO format from the *current_format* specified in
-    C-standard format codes.
-    """
-    # TODO uses locale time zone
-    return datetime.strptime(time, current_format).astimezone().isoformat()
 
 
 def canonicalize_name(*parts: Iterable[str]) -> str:

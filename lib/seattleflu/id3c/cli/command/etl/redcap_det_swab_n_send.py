@@ -184,7 +184,7 @@ def generate_patient_hash(record: dict, gender: str) -> str:
     personal_information = {
         "name": canonicalize_name(record['first_name_1'], record['last_name_1']),
         "gender": gender,
-        "birthday": convert_to_iso(record['birthday'], '%Y-%m-%d'),
+        "birthday": record['birthday'],
         "zipcode": record['home_zipcode_2']  # TODO redundant?
     }
 
@@ -237,7 +237,9 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
     if not record.get('enrollment_date_time'):
         return None, None
-    start_time = convert_to_iso(record['enrollment_date_time'], "%Y-%m-%d %H:%M")
+
+    # YYYY-MM-DD HH:MM in REDCap
+    encounter_date = record['enrollment_date_time'].split()[0]
 
     non_tracts = list(filter(non_tract_locations, locations))
     non_tract_references = list(map(build_locations_list, non_tracts))
@@ -253,7 +255,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class_coding,
-        start_timestamp = start_time,
+        encounter_date = encounter_date,
         patient_reference = patient_reference,
         location_references = non_tract_references,
         diagnosis = diagnosis,
@@ -275,9 +277,6 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
 def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Condition resource. """
-    def symptom_duration(record: dict) -> str:
-        return convert_to_iso(record['symptom_duration'], "%Y-%m-%d")
-
     def severity(symptom_name: Optional[str]) -> Optional[str]:
         if symptom_name:
             category = re.search('fever|cough|ache|fatigue|sorethroat', symptom_name.lower())
@@ -305,7 +304,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
                 }
             ]
         },
-        "onsetDateTime": symptom_duration(record),
+        "onsetDateTime": record["symptom_duration"], # YYYY-MM-DD in REDCap
         "subject": patient_reference
     }
 
@@ -343,9 +342,11 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     if not record.get('collection_date'):
         return None, None
 
-    collected_time = convert_to_iso(record['collection_date'], "%Y-%m-%d")
+    # YYYY-MM-DD in REDCap
+    collected_time = record['collection_date']
 
-    received_time = sample_process_date(record)
+    # YYYY-MM-DD HH:MM:SS in REDCap
+    received_time = record['samp_process_date'].split()[0]
     if not received_time:
         LOG.warning("No sample process date found. Using collection date instead.")
         received_time = collected_time
@@ -364,22 +365,6 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     )
 
     return specimen_entry, specimen_reference
-
-
-def sample_process_date(record: Any) -> Optional[str]:
-    """
-    Returns the sample process date in ISO format from a given *record* if it
-    exists, else returns None. The date is specific down to the hour, second,
-    and minute if the specificity is available. If it is not, returns a date
-    specific down to the year, month, and day.
-    """
-    if record.get('samp_process_date'):
-        try:
-            return convert_to_iso(record['samp_process_date'], "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            return convert_to_iso(record['samp_process_date'], "%Y-%m-%d")
-
-    return None
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict,

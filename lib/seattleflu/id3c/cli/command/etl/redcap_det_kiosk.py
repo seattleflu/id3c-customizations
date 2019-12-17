@@ -151,9 +151,7 @@ def generate_patient_hash(redcap_record: dict, gender: str) -> str:
     }
 
     if redcap_record['birthday']:
-        patient['birthday'] = datetime \
-            .strptime(redcap_record['birthday'], '%Y-%m-%d') \
-            .isoformat()
+        patient['birthday'] = redcap_record['birthday']
 
     if redcap_record.get('home_zipcode'):
         patient['zipcode'] = redcap_record['home_zipcode']
@@ -243,9 +241,9 @@ def create_diagnostic_report(redcap_record:dict,
         )
         diagnostic_result_references.append(reference)
 
-    collection_datetime = datetime\
-        .strptime(redcap_record['collection_date'], '%Y-%m-%d %H:%M:%S')\
-        .strftime('%Y-%m-%dT%H:%M:%S')
+    # Intentionally only capture date, not time.  collection_date is reported
+    # as "YYYY-MM-DD HH:MM:SS".
+    collection_datetime = redcap_record['collection_date'].split()[0]
 
     diagnostic_code = create_codeable_concept(
         system = 'http://loinc.org',
@@ -653,13 +651,8 @@ def create_symptoms(redcap_record: dict, patient_reference: dict) -> tuple:
     if not symptom_codes:
         return None, None
 
-    symptom_duration = redcap_record.get('symptom_duration')
-    if symptom_duration:
-        symptom_onset = datetime \
-            .strptime(symptom_duration, "%Y-%m-%d") \
-            .strftime('%Y-%m-%d')
-    else:
-        symptom_onset = None
+    # YYYY-MM-DD in REDCap
+    symptom_onset = redcap_record.get('symptom_duration')
 
     symptom_resources = []
     symptom_references = []
@@ -744,15 +737,13 @@ def create_encounter(encounter_id: str,
     Create FHIR encounter resource and encounter reference from given
     *redcap_record*.
     """
-    enrollment_date = redcap_record.get('enrollment_date') \
-                   or redcap_record.get('enrollment_date_time')
+    enrollment_date = redcap_record.get('enrollment_date')
 
     if not enrollment_date:
         return None, None
 
-    encounter_date = datetime\
-        .strptime(enrollment_date, '%Y-%m-%d %H:%M')\
-        .astimezone().isoformat()
+    # YYYY-MM-DD HH:MM in REDCap
+    encounter_date = enrollment_date.split()[0]
 
     encounter_identifier = create_identifier(
         system = f'{SFS}/encounter',
@@ -769,7 +760,7 @@ def create_encounter(encounter_id: str,
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class,
-        start_timestamp = encounter_date,
+        encounter_date = encounter_date,
         patient_reference = patient_reference,
         location_references = location_references,
         diagnosis = symptom_references,
