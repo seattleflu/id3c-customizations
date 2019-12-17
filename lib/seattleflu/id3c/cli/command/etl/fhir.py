@@ -153,7 +153,8 @@ def create_encounter_resource(encounter_identifier: List[dict],
         "identifier": encounter_identifier,
         "status": "finished",
         "period": {
-            "start": encounter_date
+            "start": encounter_date,
+            "end": encounter_date,
         },
         "subject": patient_reference,
     }
