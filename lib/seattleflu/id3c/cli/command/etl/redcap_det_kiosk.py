@@ -885,13 +885,12 @@ def find_selected_options(option_prefix: str, redcap_record:dict) -> list:
 
     Note: Values of options not choosen are empty strings.
     """
-    selected = []
-
-    for key in redcap_record:
-        if key.startswith(option_prefix) and redcap_record[key]:
-            selected.append(redcap_record[key])
-
-    return selected
+    return [
+        value
+        for key, value
+        in redcap_record.items()
+        if key.startswith(option_prefix) and value
+    ]
 
 
 class UnknownInsuranceError(ValueError):
