@@ -125,7 +125,7 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
 # FUNCTIONS SPECIFIC TO SFS KIOSK ENROLLMENT PROJECT
 def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patietn resource entry and reference. """
-    gender = map_sex(record["sex"])
+    gender = map_sex(record["sex_new"] or record["sex"])
     patient_id = generate_patient_hash(record, gender)
     patient_identifier = create_identifier(f"{SFS}/individual",patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
