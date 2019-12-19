@@ -7,7 +7,6 @@ Contains some hard-coded logic for which project ID correlates to which project
 import re
 import click
 import json
-import hashlib
 import logging
 from uuid import uuid4
 from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union, Tuple
