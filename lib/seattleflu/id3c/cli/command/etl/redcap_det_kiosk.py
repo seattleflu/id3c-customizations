@@ -52,6 +52,7 @@ REVISION = 1
 def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':
+        LOG.warn("Skipping enrollment because the Spanish questionnaire is not yet supported")
         return None
 
     patient_entry, patient_reference = create_patient(redcap_record)
@@ -87,7 +88,7 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
     )
 
     if not encounter_resource_entry:
-        LOG.info("Skipping FHIR document with insufficient encounter information.")
+        LOG.warn("Skipping enrollment with insufficient information to construct an encounter")
         return None
 
     questionnaire_response_resource_entry = create_questionnaire_response_entry(
