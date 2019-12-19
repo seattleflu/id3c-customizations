@@ -565,5 +565,5 @@ def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
             f"{INTERNAL_SYSTEM}/location/tract", location.identifier, housing_type
         )
     else:
-        LOG.debug("No census tract found for given location.")
+        LOG.warn("No census tract found for given location.")
         return None
