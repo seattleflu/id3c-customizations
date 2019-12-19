@@ -1,7 +1,6 @@
 """
 Process REDCap DETs that are specific to the Kiosk Enrollment Project.
 """
-import os
 import logging
 import re
 from uuid import uuid4
@@ -124,48 +123,53 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
 
 # FUNCTIONS SPECIFIC TO SFS KIOSK ENROLLMENT PROJECT
 def create_patient(record: dict) -> tuple:
-    """ Returns a FHIR Patietn resource entry and reference. """
+    """ Returns a FHIR Patient resource entry and reference. """
     gender = map_sex(record["sex_new"] or record["sex"])
-    patient_id = generate_patient_hash(record, gender)
+
+    patient_id = generate_patient_hash(
+        names       = participant_names(record),
+        gender      = gender,
+        birth_date  = record['birthday'],
+        postal_code = participant_zipcode(record))
+
     patient_identifier = create_identifier(f"{SFS}/individual",patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
 
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def generate_patient_hash(redcap_record: dict, gender: str) -> str:
+def participant_names(redcap_record: dict) -> Tuple[str, ...]:
     """
-    Create a hashed patient id for a given *redcap_record*
+    Extracts a tuple of names for the participant from the given
+    *redcap_record*.
     """
-    if redcap_record['participant_first_name'] != '':
-        full_name: Tuple = (
-            redcap_record['participant_first_name'],
-            redcap_record['participant_last_name']
-        )
+    if redcap_record['participant_first_name']:
+        return (redcap_record['participant_first_name'], redcap_record['participant_last_name'])
     else:
-        full_name = (redcap_record['part_name_sp'],)
+        return (redcap_record['part_name_sp'],)
 
-    patient = {
-        'gender': gender,
-        'name': canonicalize_name(*full_name)
-    }
 
-    if redcap_record['birthday']:
-        patient['birthday'] = redcap_record['birthday']
-
+def participant_zipcode(redcap_record: dict) -> str:
+    """
+    Extract the home zipcode for the participant from the given
+    *redcap_record*.
+    """
     if redcap_record.get('home_zipcode'):
-        patient['zipcode'] = redcap_record['home_zipcode']
+        return redcap_record['home_zipcode']
+
     elif redcap_record.get('home_zipcode_notus'):
-        patient['zipcode'] = redcap_record['home_zipcode_notus']
+        return redcap_record['home_zipcode_notus']
+
     elif redcap_record.get('shelter_name') and redcap_record['shelter_name'] != 'Other/none of the above':
         address = determine_shelter_address(redcap_record['shelter_name'])
-        patient['zipcode'] = address['zipcode']
+        return address['zipcode']
+
     elif redcap_record.get('uw_dorm') and redcap_record['uw_dorm'] != 'Other':
         address = determine_dorm_address(redcap_record['uw_dorm'])
-        patient['zipcode'] = address['zipcode']
+        return address['zipcode']
 
-    return generate_hash(str(sorted(patient.values())),
-        secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
+    else:
+        return None
 
 
 def determine_vaccine_date(vaccine_year: str, vaccine_month: str) -> Optional[str]:
@@ -441,7 +445,7 @@ def determine_encounter_locations(db: DatabaseSession, cache: TTLCache, redcap_r
                 'fullUrl': generate_full_url_uuid()
             },
             location_type: {
-                'value': generate_hash(canonicalized_address, secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"]),
+                'value': generate_hash(canonicalized_address),
                 'fullUrl': generate_full_url_uuid()
             }
         })

@@ -2,9 +2,12 @@
 REDCap DET ETL shared functions to create FHIR documents
 """
 import regex
+from itertools import filterfalse
 from typing import Iterable, Optional, List
 from uuid import uuid4
 from datetime import datetime
+from id3c.cli.command.de_identify import generate_hash
+
 
 # CREATE FHIR RESOURCES
 def create_reference(reference_type: str = None,
@@ -361,6 +364,27 @@ def generate_full_url_uuid() -> str:
     (http://www.hl7.org/implement/standards/fhir/bundle-definitions.html#Bundle.entry.fullUrl)
     """
     return f"urn:uuid:{uuid4()}"
+
+
+def generate_patient_hash(names: Iterable[str], gender: str, birth_date: str, postal_code: str) -> str:
+    """
+    Creates a likely-to-be unique, unreversible hash from the *names*,
+    *gender*, *birth_date*, and *postal_code* for an individual.
+
+    Used in FHIR Patient resources as an identifier, which ultimately winds up
+    in ID3C's ``warehouse.individual.identifier`` column.
+    """
+    personal_information = [
+        canonicalize_name(*names),
+        gender,
+        birth_date,
+        postal_code,
+    ]
+
+    assert not filterfalse(None, personal_information), \
+        "All personal information is required to generate a robust patient hash."
+
+    return generate_hash("\N{UNIT SEPARATOR}".join(personal_information))
 
 
 def canonicalize_name(*parts: Iterable[str]) -> str:

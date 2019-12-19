@@ -6,7 +6,7 @@ from typing import Optional
 
 def map_sex(sex_response: str) -> Optional[str]:
     """
-    Map expected *sex_response* from a REDCap record to FHIR gender codes
+    Map expected *sex_response* from a REDCap record to FHIR administrative gender codes
     (https://www.hl7.org/fhir/valueset-administrative-gender.html)
     """
     sex_map = {

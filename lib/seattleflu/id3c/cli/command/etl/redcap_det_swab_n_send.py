@@ -4,7 +4,6 @@ Process REDCap DET documents into the relational warehouse.
 Contains some hard-coded logic for which project ID correlates to which project
 (e.g. 17421 is the PID for Shelters)
 """
-import os
 import re
 import click
 import json
@@ -16,7 +15,6 @@ from datetime import datetime
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.etl import redcap_det
-from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
 from seattleflu.id3c.cli.command import age_ceiling
@@ -124,8 +122,7 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         tract_full_url = generate_full_url_uuid()
         tract_entry = create_resource_entry(tract_location, tract_full_url)
 
-        address_hash = generate_hash(canonicalized_address,
-            secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
+        address_hash = generate_hash(canonicalized_address)
 
         address_location = create_location(
             f"{INTERNAL_SYSTEM}/location/address",
@@ -172,24 +169,17 @@ def create_location(system: str, value: str, location_type: str, parent: str=Non
 def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
     gender = map_sex(record["sex_new"] or record["sex"])
-    patient_id = generate_patient_hash(record, gender)
+
+    patient_id = generate_patient_hash(
+        names       = (record['first_name_1'], record['last_name_1']),
+        gender      = gender,
+        birth_date  = record['birthday'],
+        postal_code = record['home_zipcode_2'])
+
     patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
 
     return create_entry_and_reference(patient_resource, "Patient")
-
-
-def generate_patient_hash(record: dict, gender: str) -> str:
-    """ Returns a hash generated from patient information. """
-    personal_information = {
-        "name": canonicalize_name(record['first_name_1'], record['last_name_1']),
-        "gender": gender,
-        "birthday": record['birthday'],
-        "zipcode": record['home_zipcode_2']  # TODO redundant?
-    }
-
-    return generate_hash(str(sorted(personal_information.items())),  # TODO is there any guidance on how to construct the hash?
-        secret=os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"])
 
 
 def create_encounter(record: dict, patient_reference: dict, locations: list) -> tuple:
