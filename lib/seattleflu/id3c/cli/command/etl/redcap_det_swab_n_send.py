@@ -79,12 +79,27 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
     def uw_affiliation(record: dict) -> List[Dict[Any, Any]]:
         uw_affiliation = record['uw_affiliation']
 
+        student_responses = {
+            'Yes, I am an undergraduate student',
+            'Yes, I am a graduate/professional student',
+        }
+
+        employee_responses = {
+            'Yes, I am a graduate/professional student',
+            'Yes, I am a faculty member',
+            'Yes, I am a staff member/university employee',
+        }
+
+        if uw_affiliation:
+            assert uw_affiliation in student_responses | employee_responses, \
+                "Unknown UW affiliation answer"
+
         uw_locations = []
-        if uw_affiliation in ['1', '2']:
+        if uw_affiliation in student_responses:
             uw_locations.append(
                 create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "school"))
 
-        if uw_affiliation in ['2', '3', '4']:
+        if uw_affiliation in employee_responses:
             uw_locations.append(
                 create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "work"))
 
