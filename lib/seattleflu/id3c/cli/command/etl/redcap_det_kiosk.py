@@ -800,7 +800,7 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
 
     if redcap_record['age']:
         items['age'] = [{ 'valueInteger': age_ceiling(int(redcap_record['age'])) }]
-        items['age_months'] = [{ 'valueInteger': int(age_ceiling(int(redcap_record['age_months']) / 12) * 12) }]
+        items['age_months'] = [{ 'valueInteger': int(age_ceiling(float(redcap_record['age_months']) / 12) * 12) }]
 
     # Participant can select multiple insurance types, so create
     # a separate answer for each selection
