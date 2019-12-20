@@ -57,6 +57,10 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
 
     patient_entry, patient_reference = create_patient(redcap_record)
 
+    if not patient_entry:
+        LOG.warn("Skipping enrollment with insufficient information to construct a patient")
+        return None
+
     specimen_resource_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
     # Create diagnostic report resource if the participant agrees
@@ -132,6 +136,9 @@ def create_patient(record: dict) -> tuple:
         gender      = gender,
         birth_date  = record['birthday'],
         postal_code = participant_zipcode(record))
+
+    if not patient_id:
+        return None, None
 
     patient_identifier = create_identifier(f"{SFS}/individual",patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)

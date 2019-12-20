@@ -1,12 +1,16 @@
 """
 REDCap DET ETL shared functions to create FHIR documents
 """
+import logging
 import regex
 from itertools import filterfalse
-from typing import Iterable, Optional, List
+from typing import Iterable, NamedTuple, Optional, List
 from uuid import uuid4
 from datetime import datetime
 from id3c.cli.command.de_identify import generate_hash
+
+
+LOG = logging.getLogger(__name__)
 
 
 # CREATE FHIR RESOURCES
@@ -374,15 +378,30 @@ def generate_patient_hash(names: Iterable[str], gender: str, birth_date: str, po
     Used in FHIR Patient resources as an identifier, which ultimately winds up
     in ID3C's ``warehouse.individual.identifier`` column.
     """
-    personal_information = [
+    class PersonalInformation(NamedTuple):
+        name: str
+        gender: str
+        birth_date: str
+        postal_code: str
+
+    personal_information = PersonalInformation(
         canonicalize_name(*names),
         gender,
         birth_date,
         postal_code,
-    ]
+    )
 
-    assert not filterfalse(None, personal_information), \
-        "All personal information is required to generate a robust patient hash."
+    def missing(info):
+        return [
+            field
+            for field, value
+            in zip(info._fields, info)
+            if not value
+        ]
+
+    if missing(personal_information):
+        LOG.warning(f"All personal information is required to generate a robust patient hash; missing {missing(personal_information)}")
+        return None
 
     return generate_hash("\N{UNIT SEPARATOR}".join(personal_information))
 
