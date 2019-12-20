@@ -90,9 +90,9 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
             'Yes, I am a staff member/university employee',
         }
 
-        if uw_affiliation:
+        if uw_affiliation and uw_affiliation not in {'No'}:
             assert uw_affiliation in student_responses | employee_responses, \
-                "Unknown UW affiliation answer"
+                f"Unknown UW affiliation answer: {uw_affiliation}"
 
         uw_locations = []
         if uw_affiliation in student_responses:
