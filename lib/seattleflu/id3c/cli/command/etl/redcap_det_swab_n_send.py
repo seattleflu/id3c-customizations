@@ -330,7 +330,8 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         reentered_barcode = record['reenter_barcode']
 
         if record['barcode_confirm'] == "No":
-            barcode = record['corrected_barcode']
+            #TODO: Figure out why 'corrected_barcode' doesn't always exist?
+            barcode = record.get('corrected_barcode')
 
         return barcode
 
