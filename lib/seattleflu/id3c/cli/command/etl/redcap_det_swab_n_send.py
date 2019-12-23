@@ -56,6 +56,10 @@ def redcap_det_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, r
     questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
+    if not specimen_entry:
+        LOG.warn("Skipping enrollment with insufficent information to construct a specimen")
+        return None
+
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
     resource_entries = [
