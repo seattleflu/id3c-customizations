@@ -332,7 +332,7 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         """
         barcode = record['pre_scan_barcode']
 
-        if record['prescan_barcode_yn'] == "No":
+        if not barcode or record['prescan_barcode_yn'] == "No":
             barcode = record['utm_tube_barcode_2']
             reentered_barcode = record['reenter_barcode']
 
