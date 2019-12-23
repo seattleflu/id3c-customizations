@@ -330,15 +330,15 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         Given a REDCap *record*, returns the barcode or corrected barcode if it
         exists.
         """
-        barcode = record['pre_scan_barcode']
+        barcode = record['return_utm_barcode'] or record['pre_scan_barcode']
 
-        if not barcode or record['prescan_barcode_yn'] == "No":
+        if not barcode:
             barcode = record['utm_tube_barcode_2']
             reentered_barcode = record['reenter_barcode']
 
-        if record['barcode_confirm'] == "No":
-            #TODO: Figure out why 'corrected_barcode' doesn't always exist?
-            barcode = record.get('corrected_barcode')
+            if record['barcode_confirm'] == "No":
+                #TODO: Figure out why 'corrected_barcode' doesn't always exist?
+                barcode = record.get('corrected_barcode')
 
         return barcode
 
