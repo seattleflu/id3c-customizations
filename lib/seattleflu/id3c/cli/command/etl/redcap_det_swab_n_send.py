@@ -340,6 +340,7 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
 
     barcode = specimen_barcode(record)
     if not barcode:
+        LOG.warn("Could not create Specimen Resource due to lack of barcode.")
         return None, None
 
     specimen_identifier = create_identifier(
@@ -348,6 +349,7 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     )
 
     if not record.get('collection_date'):
+        LOG.warn("Could not create Specimen Resource due to lack of collection date.")
         return None, None
 
     # YYYY-MM-DD in REDCap
