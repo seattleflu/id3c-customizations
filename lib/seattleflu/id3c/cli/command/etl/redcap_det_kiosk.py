@@ -63,6 +63,10 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
 
     specimen_resource_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
+    if not specimen_resource_entry:
+        LOG.warn("Skipping enrollment with insufficient information to construct a specimen")
+        return None
+
     # Create diagnostic report resource if the participant agrees
     # to do the rapid flu test on site
     diagnostic_report_resource_entry = None
