@@ -511,7 +511,8 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         for item in response:
             type_casted_item = casting_functions[response_type](item)
 
-            if type_casted_item:
+            # cast_to_boolean can return False, so must be `is not None`
+            if type_casted_item is not None:
                 answers.append({ response_type: type_casted_item })
 
         return answers
