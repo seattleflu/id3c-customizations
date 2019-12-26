@@ -20,6 +20,7 @@ from id3c.cli import cli
 from id3c.cli.command import dump_ndjson
 from . import (
     add_provenance,
+    age_ceiling,
     barcode_quality_control,
     trim_whitespace,
     group_true_values_into_list,
@@ -152,12 +153,6 @@ def remove_pii(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def age_ceiling(age: float, max_age=90) -> float:
-    """
-    Given an *age*, returns the same *age* unless it exceeds the *max_age*, in
-    which case the *max_age* is returned.
-    """
-    return min(age, max_age)
 
 def generate_hash(identifier: str):
     """

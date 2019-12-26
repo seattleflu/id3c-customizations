@@ -32,6 +32,14 @@ def add_provenance(df: pd.DataFrame, filename: str) -> pd.DataFrame:
     return df
 
 
+def age_ceiling(age: float, max_age=85) -> float:
+    """
+    Given an *age*, returns the same *age* unless it exceeds the *max_age*, in
+    which case the *max_age* is returned.
+    """
+    return min(age, max_age)
+
+
 def trim_whitespace(df: pd.DataFrame) -> pd.DataFrame:
     """ Trims leading and trailing whitespace from strings in *df* """
     str_columns = df.columns[every_value_is_str_or_na(df)]
