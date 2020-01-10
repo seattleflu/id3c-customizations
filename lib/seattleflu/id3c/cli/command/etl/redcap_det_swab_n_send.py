@@ -57,7 +57,7 @@ def redcap_det_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, r
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
     if not specimen_entry:
-        LOG.warn("Skipping enrollment with insufficent information to construct a specimen")
+        LOG.warning("Skipping enrollment with insufficent information to construct a specimen")
         return None
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
@@ -344,7 +344,7 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
 
     barcode = specimen_barcode(record)
     if not barcode:
-        LOG.warn("Could not create Specimen Resource due to lack of barcode.")
+        LOG.warning("Could not create Specimen Resource due to lack of barcode.")
         return None, None
 
     specimen_identifier = create_identifier(
@@ -353,7 +353,7 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     )
 
     if not record.get('collection_date'):
-        LOG.warn("Could not create Specimen Resource due to lack of collection date.")
+        LOG.warning("Could not create Specimen Resource due to lack of collection date.")
         return None, None
 
     # YYYY-MM-DD in REDCap
@@ -576,5 +576,5 @@ def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
             f"{INTERNAL_SYSTEM}/location/tract", location.identifier, housing_type
         )
     else:
-        LOG.warn("No census tract found for given location.")
+        LOG.warning("No census tract found for given location.")
         return None

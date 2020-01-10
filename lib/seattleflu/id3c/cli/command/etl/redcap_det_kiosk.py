@@ -52,19 +52,19 @@ REVISION = 1
 def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':
-        LOG.warn("Skipping enrollment because the Spanish questionnaire is not yet supported")
+        LOG.warning("Skipping enrollment because the Spanish questionnaire is not yet supported")
         return None
 
     patient_entry, patient_reference = create_patient(redcap_record)
 
     if not patient_entry:
-        LOG.warn("Skipping enrollment with insufficient information to construct a patient")
+        LOG.warning("Skipping enrollment with insufficient information to construct a patient")
         return None
 
     specimen_resource_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
     if not specimen_resource_entry:
-        LOG.warn("Skipping enrollment with insufficient information to construct a specimen")
+        LOG.warning("Skipping enrollment with insufficient information to construct a specimen")
         return None
 
     # Create diagnostic report resource if the participant agrees
@@ -96,7 +96,7 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
     )
 
     if not encounter_resource_entry:
-        LOG.warn("Skipping enrollment with insufficient information to construct an encounter")
+        LOG.warning("Skipping enrollment with insufficient information to construct an encounter")
         return None
 
     questionnaire_response_resource_entry = create_questionnaire_response_entry(
