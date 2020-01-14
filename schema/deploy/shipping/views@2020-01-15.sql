@@ -48,6 +48,7 @@ create or replace view shipping.reportable_condition_v1 as
     order by encountered desc;
 
 
+drop view if exists shipping.metadata_for_augur_build_v1;
 create or replace view shipping.metadata_for_augur_build_v2 as
 
     select  sample as strain,
@@ -258,8 +259,5 @@ revoke all
 grant select
    on shipping.fhir_encounter_details_v1
    to "incidence-modeler";
-
--- Not including drop view statements for shipping views ported from
--- core ID3C because other views are dependent on them.
 
 commit;
