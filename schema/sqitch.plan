@@ -46,3 +46,5 @@ shipping/views [shipping/views@2019-12-10] 2020-01-10T19:29:25Z Jover Lee <jover
 warehouse/site/data [seattleflu/schema:warehouse/site] 2020-01-14T22:32:27Z Jover Lee <joverlee@fredhutch.org> # Add site with site details
 shipping/views [shipping/views@2020-01-15 seattleflu/schema:shipping/views@2020-01-14d] 2020-01-14T00:31:27Z Jover Lee <joverlee@fredhutch.org> # Port over SFS specific views from core ID3C
 @2020-01-15b 2020-01-15T17:59:20Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 15 Jan 2020
+
+shipping/views [shipping/views@2020-01-15b] 2020-01-14T00:47:13Z Jover Lee <joverlee@fredhutch.org> # Update modeling views to use FHIR encounter details
