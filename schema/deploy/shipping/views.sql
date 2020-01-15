@@ -252,5 +252,12 @@ create or replace view shipping.fhir_encounter_details_v1 as
 comment on view shipping.fhir_encounter_details_v1 is
   'A view of encounter details that are in FHIR format';
 
+revoke all
+    on shipping.fhir_encounter_details_v1
+  from "incidence-modeler";
+
+grant select
+   on shipping.fhir_encounter_details_v1
+   to "incidence-modeler";
 
 commit;
