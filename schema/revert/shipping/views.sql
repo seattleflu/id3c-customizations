@@ -153,7 +153,7 @@ create or replace view shipping.return_results_v1 as
                                   'collections-kiosks',
                                   'collections-environmental',
                                   'collections-swab&send',
-                                  'collections-household-observation'
+                                  'collections-household-observation',
                                   'collections-household-intervention') and
           (organism is null or
           -- We only return results for these organisms, so omit all other presence/absence results
@@ -163,5 +163,11 @@ create or replace view shipping.return_results_v1 as
 
 comment on view shipping.return_results_v1 is
     'View of barcodes and presence/absence results for return of results on website';
+
+revoke all
+    on shipping.fhir_encounter_details_v1
+  from "incidence-modeler";
+
+drop view shipping.fhir_encounter_details_v1;
 
 commit;
