@@ -48,3 +48,4 @@ shipping/views [shipping/views@2020-01-15 seattleflu/schema:shipping/views@2020-
 @2020-01-15b 2020-01-15T17:59:20Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 15 Jan 2020
 
 shipping/views [shipping/views@2020-01-15b] 2020-01-14T00:47:13Z Jover Lee <joverlee@fredhutch.org> # Update modeling views to use FHIR encounter details
+@2020-01-15c 2020-01-15T18:05:47Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 15 Jan 2020
