@@ -52,6 +52,11 @@ REQUIRED_INSTRUMENTS = [
 def redcap_det_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
+
+    if not patient_entry:
+        LOG.warning("Skipping enrollment with insufficient information to construct patient")
+        return None
+
     encounter_entry, encounter_reference = create_encounter(redcap_record, patient_reference, location_resource_entries)
     questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
@@ -193,6 +198,9 @@ def create_patient(record: dict) -> tuple:
         gender      = gender,
         birth_date  = record['birthday'],
         postal_code = record['home_zipcode_2'])
+
+    if not patient_id:
+        return None, None
 
     patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
