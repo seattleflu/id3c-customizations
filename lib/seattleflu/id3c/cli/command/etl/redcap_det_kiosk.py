@@ -38,7 +38,7 @@ REQUIRED_INSTRUMENTS = [
 # REDCap DET records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all REDCap DET records,
 # this revision number should be incremented.
-REVISION = 1
+REVISION = 2
 
 
 @redcap_det.command_for_project(
@@ -165,6 +165,9 @@ def participant_zipcode(redcap_record: dict) -> str:
     """
     Extract the home zipcode for the participant from the given
     *redcap_record*.
+
+    If no zipcode could be found for the participant, then it returns
+    «{PROJECT_ID}-{record_id}»
     """
     if redcap_record.get('home_zipcode'):
         return redcap_record['home_zipcode']
@@ -180,8 +183,8 @@ def participant_zipcode(redcap_record: dict) -> str:
         address = determine_dorm_address(redcap_record['uw_dorm'])
         return address['zipcode']
 
-    else:
-        return None
+    LOG.warning(f"Could not extract zipcode from redcap record, using 'project_id-record_id' «{PROJECT_ID}-{redcap_record['record_id']}» instead")
+    return str(PROJECT_ID) + '-' + redcap_record['record_id']
 
 
 def determine_vaccine_date(vaccine_year: str, vaccine_month: str) -> Optional[str]:
