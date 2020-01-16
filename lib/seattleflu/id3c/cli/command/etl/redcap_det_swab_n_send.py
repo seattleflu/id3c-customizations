@@ -25,7 +25,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 1
+REVISION = 2
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -352,18 +352,11 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         value = barcode
     )
 
-    if not record.get('collection_date'):
-        LOG.warning("Could not create Specimen Resource due to lack of collection date.")
-        return None, None
-
     # YYYY-MM-DD in REDCap
-    collected_time = record['collection_date']
+    collected_time = record['collection_date'] or None
 
     # YYYY-MM-DD HH:MM:SS in REDCap
-    received_time = record['samp_process_date'].split()[0]
-    if not received_time:
-        LOG.warning("No sample process date found. Using collection date instead.")
-        received_time = collected_time
+    received_time = record['samp_process_date'].split()[0] if record['samp_process_date'] else None
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
