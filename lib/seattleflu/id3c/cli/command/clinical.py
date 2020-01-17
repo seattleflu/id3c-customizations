@@ -218,7 +218,7 @@ def parse_sch(sch_filename, output):
 
     # Drop unnecessary columns
     columns_to_keep = list(column_map.values()) + [  # Test result columns
-        'adeno', 'chlamydia', 'corona_229e', 'corona_hku1', 'corona_nl63', 'corona_oc43',
+        'adeno', 'chlamydia', 'corona229e', 'corona_hku1', 'corona_nl63', 'corona_oc43',
         'flu_a_h3', 'flu_a_h1_2009', 'flu_b', 'flu_a', 'flu_a_h1', 'hmpv', 'mycoplasma',
         'paraflu_1_4', 'pertussis', 'rhino_ent', 'rsv'
     ]
