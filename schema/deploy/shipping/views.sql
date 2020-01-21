@@ -560,3 +560,28 @@ comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
 
 commit;
+
+create or replace view shipping.metadata_for_augur_build_v3 as
+
+    select sample as strain,
+            encountered_date as date,
+            'seattle' as region,
+            -- XXX TODO: Change to PUMA and neighborhoods
+            residence_census_tract as location,
+            'Seattle Flu Study' as authors,
+            age_range_coarse,
+            case
+                when age_range_coarse <@ '[0 mon, 18 years)'::intervalrange then 'child'
+                else 'adult'
+            end as age_category,
+            warehouse.site.details->>'category' as site_category,
+            residence_census_tract,
+            flu_shot,
+            sex
+
+      from shipping.incidence_model_observation_v2
+      join warehouse.encounter on encounter.identifier = incidence_model_observation_v2.encounter
+      join warehouse.site on site = site.identifier;
+
+comment on view shipping.metadata_for_augur_build_v3 is
+		'View of metadata necessary for SFS augur build';
