@@ -48,11 +48,10 @@ create or replace view shipping.reportable_condition_v1 as
     order by encountered desc;
 
 
-drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v2 as
 
-    select sample as strain,
-            (encountered at time zone 'US/Pacific')::date as date,
+    select  sample as strain,
+            encountered as date,
             'seattle' as region,
             -- XXX TODO: Change to PUMA and neighborhoods
             residence_census_tract as location,
