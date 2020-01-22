@@ -564,7 +564,10 @@ commit;
 create or replace view shipping.metadata_for_augur_build_v3 as
 
     select sample.identifier as strain,
-            encountered_date as date,
+            coalesce(
+              encountered_date,
+              date_or_null(sample.details->>'date')
+            ) as date,
             'seattle' as region,
             -- XXX TODO: Change to PUMA and neighborhoods
             residence_census_tract as location,
