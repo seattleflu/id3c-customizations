@@ -563,7 +563,7 @@ commit;
 
 create or replace view shipping.metadata_for_augur_build_v3 as
 
-    select sample as strain,
+    select sample.identifier as strain,
             encountered_date as date,
             'seattle' as region,
             -- XXX TODO: Change to PUMA and neighborhoods
@@ -579,9 +579,11 @@ create or replace view shipping.metadata_for_augur_build_v3 as
             flu_shot,
             sex
 
-      from shipping.incidence_model_observation_v2
-      join warehouse.encounter on encounter.identifier = incidence_model_observation_v2.encounter
-      join warehouse.site on site = site.identifier;
+      from warehouse.sample
+      left join shipping.incidence_model_observation_v2 on sample.identifier = incidence_model_observation_v2.sample
+      left join warehouse.site on site.identifier = incidence_model_observation_v2.site
+
+     where sample.identifier is not null;
 
 comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
