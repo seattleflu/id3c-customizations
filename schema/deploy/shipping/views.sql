@@ -57,6 +57,7 @@ create or replace view shipping.metadata_for_augur_build_v2 as
             -- XXX TODO: Change to PUMA and neighborhoods
             residence_census_tract as location,
             'Seattle Flu Study' as authors,
+            age_range_coarse,
             case
                 when age_range_coarse <@ '[0 mon, 18 years)'::intervalrange then 'child'
                 else 'adult'
