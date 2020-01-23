@@ -566,7 +566,10 @@ create or replace view shipping.metadata_for_augur_build_v3 as
     select sample.identifier as strain,
             coalesce(
               encountered_date,
-              date_or_null(sample.details->>'date')
+              case
+                when date_or_null(sample.details->>'date') <= current_date
+                  then date_or_null(sample.details->>'date')
+              end
             ) as date,
             'seattle' as region,
             -- XXX TODO: Change to PUMA and neighborhoods
