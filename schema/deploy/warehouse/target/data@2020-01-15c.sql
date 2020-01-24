@@ -49,7 +49,6 @@ insert into warehouse.organism (lineage, identifiers, details)
 
 with target_lineage (identifier, lineage) as (
     values
-        -- Targets reported by NWGC from Thermo Fisher's OpenArray cards
         ('Adenovirus_pan_1',            'Adenovirus'::ltree),
         ('Adenovirus_pan_2',            'Adenovirus'),
         ('AdV_1of2',                    'Adenovirus'),
@@ -108,11 +107,7 @@ with target_lineage (identifier, lineage) as (
         ('S_pneumoniae',                'Streptococcus_pneumoniae'),
         ('S. pneumoniae',               'Streptococcus_pneumoniae'),
         ('S. pneumoniae_APZTD4A',       'Streptococcus_pneumoniae'),
-        ('S.pneumoniae',                'Streptococcus_pneumoniae'),
-
-        -- Targets reported by Ellume using SNOMED CT
-        ('http://snomed.info/id/181000124108', 'Influenza.A'),
-        ('http://snomed.info/id/441345003',    'Influenza.B')
+        ('S.pneumoniae',                'Streptococcus_pneumoniae')
 )
 insert into warehouse.target (identifier, organism_id, control)
 
