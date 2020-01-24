@@ -56,6 +56,7 @@ rule download:
         expand("data/tract/cb_{vintage}_{state.fips_code}_tract_500k.zip", vintage = vintages, state = states_with_tracts.itertuples()),
         expand("data/puma/tl_{vintage}_{state.fips_code}_puma10.zip",      vintage = vintages, state = states_with_pumas.itertuples()),
         expand("data/puma/cb_{vintage}_{state.fips_code}_puma10_500k.zip", vintage = vintages, state = states_with_pumas.itertuples()),
+        "data/cra/seattle_cra.geojson",
 
 
 # Download 2016 Census tracts + tract cartographic boundaries
@@ -99,6 +100,16 @@ rule download_state_pumas_boundaries:
         """
         wget -P data/puma/ \
              -N https://www2.census.gov/geo/tiger/GENZ{wildcards.vintage:q}/shp/cb_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_puma10_500k.zip
+        """
+
+rule download_community_reporting_areas:
+    message: "Downloading Community reporting areas(CRAs) for Seattle"
+    output:
+        "data/cra/seattle_cra.geojson"
+    shell:
+        """
+        curl -o data/cra/seattle_cra.geojson \
+             'https://gisdata.seattle.gov/server/rest/services/COS/CommunityReportingAreas/MapServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json'
         """
 
 

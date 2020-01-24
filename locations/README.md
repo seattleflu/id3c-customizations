@@ -61,3 +61,9 @@ Files stored in the `data/` directory are:
   These are also not checked into version control and must be downloaded
   locally by running `snakemake download`.  Do not download the files in
   parallel or repeatedly or the Census will likely ban your IP address!
+
+* `cra/seattle_cra.geojson` is the GeoJSON of Seattle's Community Reporting Areas that are
+  downloaded from <https://gisdata.seattle.gov/server/rest/services/COS/CommunityReportingAreas/MapServer/0>
+
+  These are also not checked into version control and must be downloaded
+  locally by running `snakemake download`.
