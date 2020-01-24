@@ -112,7 +112,6 @@ rule download_community_reporting_areas:
              'https://gisdata.seattle.gov/server/rest/services/COS/CommunityReportingAreas/MapServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json'
         """
 
-
 # Import locations
 rule import:
     message: "Importing geographies into ID3C"
@@ -179,3 +178,18 @@ rule import_puma:
                 --simplified-polygons {input.simplified:q} \
                 --if-exists update
         """)
+
+rule cra_to_neighborhood_district:
+    message: "Combining Community reporting areas(CRAs) features into neighborhood district features"
+    input:
+        geojson = ancient(rules.download_community_reporting_areas.output)
+    output:
+        geojson = "data/neighborhood_district/seattle_neighborhood_district.geojson"
+    shell:
+        """
+        ogr2ogr \
+            -f GeoJSON \
+            {output.geojson} {input.geojson} \
+            -dialect sqlite \
+            -sql "SELECT replace(replace(NEIGHDIST,' ','_'), '/', '_') as NEIGHDIST, ST_Union(geometry) as geometry FROM seattle_cra GROUP BY CRA_GRP"
+        """

@@ -67,3 +67,9 @@ Files stored in the `data/` directory are:
 
   These are also not checked into version control and must be downloaded
   locally by running `snakemake download`.
+
+* `neighborhood_district/seattle_neighborhood_district.geojson` is the GeoJSON of Seattle's neighborhood districts
+  that is generated from combining CRAs within `cra/seattle_cra.geojson`.
+
+  These are also not checked into version control and must be generated
+  locally by running `snakemake cra_to_neighborhood_district`.
