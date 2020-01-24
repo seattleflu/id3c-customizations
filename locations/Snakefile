@@ -48,21 +48,6 @@ def fips_to_name(code):
     return states.at[code, 'name']
 
 
-# Static tract → puma data
-tract_to_puma = (
-    pandas
-    .read_csv("data/2010_Census_Tract_to_2010_PUMA.txt", dtype = object)
-    .assign(
-        tract_geoid = lambda df: df.STATEFP + df.COUNTYFP + df.TRACTCE,
-        puma_geoid  = lambda df: df.STATEFP + df.PUMA5CE
-    )
-    .set_index("tract_geoid", drop = False)
-)
-
-def puma_for_tract(tract_geoid):
-    return tract_to_puma.at[tract_geoid, "puma"]
-
-
 # Download all geographies
 rule download:
     message: f"Downloaded Census geographies and cartographic boundaries for all states"
@@ -124,11 +109,31 @@ rule import:
         expand("log/import/{vintage}_{state.fips_code}_tract", vintage = vintages, state = states_with_tracts.itertuples()),
         expand("log/import/{vintage}_{state.fips_code}_puma", vintage = vintages, state = states_with_pumas.itertuples())
 
+rule hierarchy:
+    message: "Creating tract hierarchy CSV file"
+    input:
+        original = "data/2010_Census_Tract_to_2010_PUMA.txt"
+    output:
+        csv = temp("data/2010_Census_Tract_Hierarchy.csv")
+    run:
+        hierarchies = (
+            pandas
+            .read_csv(input.original, dtype = object)
+            .assign(
+                feature_identifier = lambda df: df.STATEFP + df.COUNTYFP + df.TRACTCE,
+                puma  = lambda df: df.STATEFP + df.PUMA5CE,
+                state = lambda df: df.STATEFP.apply(lambda x: hierarchy_state(fips_to_name(x))),
+                country = "united_states"
+            )
+        )
+        hierarchies[['feature_identifier', 'puma', 'state', 'country']].to_csv(output.csv, index=False)
+
 rule import_state:
     message: "Importing {wildcards.vintage} Census tracts into ID3C for {wildcards.state_fips_code}"
     input:
         original   = ancient("data/tract/tl_{vintage}_{state_fips_code}_tract.zip"),
         simplified = ancient("data/tract/cb_{vintage}_{state_fips_code}_tract_500k.zip"),
+        hierarchy  = ancient(rules.hierarchy.output.csv)
     output:
         touch("log/import/{vintage}_{state_fips_code}_tract")
     run:
@@ -139,6 +144,7 @@ rule import_state:
                 --scale tract \
                 --identifier-from GEOID \
                 --hierarchy 'country=>united_states,state=>'{state_name:q} \
+                --hierarchy-by-feature {input.hierarchy} \
                 --point-from INTPTLON INTPTLAT \
                 --simplified-polygons {input.simplified:q} \
                 --if-exists update
