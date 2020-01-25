@@ -72,4 +72,5 @@ Files stored in the `data/` directory are:
   that is generated from combining CRAs within `cra/seattle_cra.geojson`.
 
   These are also not checked into version control and must be generated
-  locally by running `snakemake cra_to_neighborhood_district`.
+  locally by running `snakemake cra_to_neighborhood_district`. This will also be
+  generated automatically when running `snakemake import`.
