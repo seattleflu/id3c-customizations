@@ -31,6 +31,12 @@ Files stored in the `data/` directory are:
   was downloaded unmodified from
   <https://www2.census.gov/geo/docs/maps-data/data/rel/2010_Census_Tract_to_2010_PUMA.txt>.
 
+* `SeattleCensusBlocksandNeighborhoodCorrelationFile.xlsx` contains a mapping of
+  Census tracts to neighborhood districts within Seattle, letting us establish
+  tracts under neighborhood_district in our location catalog hierarchy. This file
+  was downloaded unmodified from
+  <https://www.seattle.gov/Documents/Departments/OPCD/Demographics/GeographicFilesandMaps/SeattleCensusBlocksandNeighborhoodCorrelationFile.xlsx>.
+
 * `tract/tl_2016_${state_fips_code}_tract.zip` contain the 2016-vintage Census
   tract Shapefiles, as described at
   <https://www.census.gov/geo/maps-data/data/tiger-line.html>.
