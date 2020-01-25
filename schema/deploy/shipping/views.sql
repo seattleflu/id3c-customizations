@@ -58,9 +58,9 @@ create or replace view shipping.metadata_for_augur_build_v2 as
             residence_census_tract as location,
             'Seattle Flu Study' as authors,
             age_range_coarse,
-            case
-                when age_range_coarse <@ '[0 mon, 18 years)'::intervalrange then 'child'
-                else 'adult'
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
             end as age_category,
             case
                 when site_type in ('childrensHospital', 'childrensClinic', 'childrensHospital', 'clinic', 'hospital', 'retrospective') then 'clinical'
@@ -576,9 +576,9 @@ create or replace view shipping.metadata_for_augur_build_v3 as
             residence_census_tract as location,
             'Seattle Flu Study' as authors,
             age_range_coarse,
-            case
-                when age_range_coarse <@ '[0 mon, 18 years)'::intervalrange then 'child'
-                else 'adult'
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
             end as age_category,
             warehouse.site.details->>'category' as site_category,
             residence_census_tract,
