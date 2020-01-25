@@ -46,3 +46,18 @@ Files stored in the `data/` directory are:
   These are also not checked into version control and must be downloaded
   locally by running `snakemake download`.  Do not download the files in
   parallel or repeatedly or the Census will likely ban your IP address!
+
+* `puma/tl_2016_${state_fips_code}_puma10.zip` contain the 2016-vintage PUMA Shapefiles,
+  as described at <https://www.census.gov/geo/maps-data/data/tiger-line.html>.
+
+  These are also not checked into version control and must be downloaded locally by
+  running `snakemake download`.  Do not download the files in parallel or
+  repeatedly or the Census will likely ban your IP address!
+
+* `puma/cb_2016_${state_fips_code}_puma10_500k.zip` contain the 2016-vintage PUMA
+  cartographic boundary Shapefiles, as described at
+  <https://www.census.gov/programs-surveys/geography/technical-documentation/naming-convention/cartographic-boundary-file.html>.
+
+  These are also not checked into version control and must be downloaded
+  locally by running `snakemake download`.  Do not download the files in
+  parallel or repeatedly or the Census will likely ban your IP address!
