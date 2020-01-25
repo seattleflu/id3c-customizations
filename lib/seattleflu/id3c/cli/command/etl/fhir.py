@@ -400,7 +400,7 @@ def generate_patient_hash(names: Iterable[str], gender: str, birth_date: str, po
         ]
 
     if missing(personal_information):
-        LOG.warning(f"All personal information is required to generate a robust patient hash; missing {missing(personal_information)}")
+        LOG.debug(f"All personal information is required to generate a robust patient hash; missing {missing(personal_information)}")
         return None
 
     return generate_hash("\N{UNIT SEPARATOR}".join(personal_information))
