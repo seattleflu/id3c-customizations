@@ -518,7 +518,8 @@ def determine_site_name(redcap_record: dict) -> Optional[str]:
         'Westlake Center': 'WestlakeCenter',
         'King Street Station': 'KingStreetStation',
         'Westlake Light Rail Station': 'WestlakeLightRailStation',
-        'CapitolHillLightRailStation': 'CapitolHillLightRailStation'
+        'CapitolHillLightRailStation': 'CapitolHillLightRailStation',
+        'Capitol Hill Light Rail Station': 'CapitolHillLightRailStation',
     }
 
     if site not in site_name_map:
