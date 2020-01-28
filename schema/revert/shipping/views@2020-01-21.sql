@@ -48,7 +48,6 @@ create or replace view shipping.reportable_condition_v1 as
     order by encountered desc;
 
 
-drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v2 as
 
     select  sample as strain,
@@ -290,10 +289,10 @@ create or replace view shipping.incidence_model_observation_v1 as
            residence_census_tract,
            work_census_tract,
 
-           coalesce(encounter_responses.flu_shot,fhir.vaccine) as flu_shot,
-           coalesce(encounter_responses.symptoms,fhir.symptoms) as symptoms,
-           coalesce(encounter_responses.race,fhir.race) as race,
-           coalesce(encounter_responses.hispanic_or_latino,fhir.hispanic_or_latino) as hispanic_or_latino,
+           encounter_responses.flu_shot,
+           encounter_responses.symptoms,
+           encounter_responses.race,
+           encounter_responses.hispanic_or_latino,
 
            sample.identifier as sample
 
@@ -303,7 +302,6 @@ create or replace view shipping.incidence_model_observation_v1 as
       left join warehouse.sample using (encounter_id)
       left join shipping.age_bin_fine on age_bin_fine.range @> ceiling(age_in_years(age))::int
       left join shipping.age_bin_coarse on age_bin_coarse.range @> ceiling(age_in_years(age))::int
-      left join shipping.fhir_encounter_details_v1 as fhir using (encounter_id)
       left join (
           select encounter_id, hierarchy->'tract' as residence_census_tract
           from warehouse.encounter_location
@@ -385,10 +383,10 @@ create or replace view shipping.incidence_model_observation_v2 as
            residence_census_tract,
            work_census_tract,
 
-           coalesce(encounter_responses.flu_shot,fhir.vaccine) as flu_shot,
-           coalesce(encounter_responses.symptoms,fhir.symptoms) as symptoms,
-           coalesce(encounter_responses.race,fhir.race) as race,
-           coalesce(encounter_responses.hispanic_or_latino,fhir.hispanic_or_latino) as hispanic_or_latino,
+           encounter_responses.flu_shot,
+           encounter_responses.symptoms,
+           encounter_responses.race,
+           encounter_responses.hispanic_or_latino,
 
            sample.identifier as sample
 
@@ -398,7 +396,6 @@ create or replace view shipping.incidence_model_observation_v2 as
       left join warehouse.sample using (encounter_id)
       left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
       left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
-      left join shipping.fhir_encounter_details_v1 as fhir using (encounter_id)
       left join (
           select encounter_id, hierarchy->'tract' as residence_census_tract
           from warehouse.encounter_location
@@ -490,8 +487,8 @@ create or replace view shipping.incidence_model_observation_v3 as
 
            residence_census_tract,
 
-           coalesce(encounter_responses.flu_shot,fhir.vaccine) as flu_shot,
-           coalesce(encounter_responses.symptoms,fhir.symptoms) as symptoms,
+           encounter_responses.flu_shot,
+           encounter_responses.symptoms,
 
            sample.identifier as sample
 
@@ -501,7 +498,6 @@ create or replace view shipping.incidence_model_observation_v3 as
       left join warehouse.sample using (encounter_id)
       left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
       left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
-      left join shipping.fhir_encounter_details_v1 as fhir using (encounter_id)
       left join (
           select encounter_id, hierarchy->'tract' as residence_census_tract
           from warehouse.encounter_location
@@ -557,9 +553,5 @@ create or replace view shipping.observation_with_presence_absence_result_v2 as
 
 comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
-
-
-drop view shipping.metadata_for_augur_build_v3;
-
 
 commit;

@@ -48,7 +48,6 @@ create or replace view shipping.reportable_condition_v1 as
     order by encountered desc;
 
 
-drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v2 as
 
     select  sample as strain,
@@ -557,9 +556,5 @@ create or replace view shipping.observation_with_presence_absence_result_v2 as
 
 comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
-
-
-drop view shipping.metadata_for_augur_build_v3;
-
 
 commit;

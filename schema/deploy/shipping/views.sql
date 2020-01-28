@@ -48,17 +48,19 @@ create or replace view shipping.reportable_condition_v1 as
     order by encountered desc;
 
 
+drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v2 as
 
-    select  sample as strain,
-            encountered as date,
+    select sample as strain,
+            cast(encountered as date) as date,
             'seattle' as region,
             -- XXX TODO: Change to PUMA and neighborhoods
             residence_census_tract as location,
             'Seattle Flu Study' as authors,
-            case
-                when age_range_coarse <@ '[0 mon, 18 years)'::intervalrange then 'child'
-                else 'adult'
+            age_range_coarse,
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
             end as age_category,
             case
                 when site_type in ('childrensHospital', 'childrensClinic', 'childrensHospital', 'clinic', 'hospital', 'retrospective') then 'clinical'
@@ -558,3 +560,36 @@ comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
 
 commit;
+
+create or replace view shipping.metadata_for_augur_build_v3 as
+
+    select sample.identifier as strain,
+            coalesce(
+              encountered_date,
+              case
+                when date_or_null(sample.details->>'date') <= current_date
+                  then date_or_null(sample.details->>'date')
+              end
+            ) as date,
+            'seattle' as region,
+            -- XXX TODO: Change to PUMA and neighborhoods
+            residence_census_tract as location,
+            'Seattle Flu Study' as authors,
+            age_range_coarse,
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
+            end as age_category,
+            warehouse.site.details->>'category' as site_category,
+            residence_census_tract,
+            flu_shot,
+            sex
+
+      from warehouse.sample
+      left join shipping.incidence_model_observation_v2 on sample.identifier = incidence_model_observation_v2.sample
+      left join warehouse.site on site.identifier = incidence_model_observation_v2.site
+
+     where sample.identifier is not null;
+
+comment on view shipping.metadata_for_augur_build_v3 is
+		'View of metadata necessary for SFS augur build';
