@@ -47,6 +47,11 @@ def hierarchy_state(name):
 def fips_to_name(code):
     return states.at[code, 'name']
 
+def hierarchy_neighborhood(name):
+    replace_spaces  = partial(re.sub, r"\s+", "_")
+    replace_slashes = partial(re.sub, r"\/+", "_")
+    return replace_slashes(replace_spaces(name))
+
 
 # Download all geographies
 rule download:
@@ -123,13 +128,14 @@ rule import:
 rule hierarchy:
     message: "Creating tract hierarchy CSV file"
     input:
-        original = "data/2010_Census_Tract_to_2010_PUMA.txt"
+        puma = "data/2010_Census_Tract_to_2010_PUMA.txt",
+        neighborhood = "data/SeattleCensusBlocksandNeighborhoodCorrelationFile.xlsx"
     output:
         csv = temp("data/2010_Census_Tract_Hierarchy.csv")
     run:
-        hierarchies = (
+        puma_hierarchies = (
             pandas
-            .read_csv(input.original, dtype = object)
+            .read_csv(input.puma, dtype = object)
             .assign(
                 feature_identifier = lambda df: df.STATEFP + df.COUNTYFP + df.TRACTCE,
                 puma  = lambda df: df.STATEFP + df.PUMA5CE,
@@ -137,7 +143,17 @@ rule hierarchy:
                 country = "united_states"
             )
         )
-        hierarchies[['feature_identifier', 'puma', 'state', 'country']].to_csv(output.csv, index=False)
+        neighborhood_hierarchies = (
+            pandas
+            .read_excel(input.neighborhood, dtype = object)
+            .assign(
+                feature_identifier = lambda df: df.GEOID10.apply(lambda x: x[:-4]),
+                neighborhood_district = lambda df: df.NEIGHBORHOOD_DISTRICT_NAME.apply(lambda x: hierarchy_neighborhood(x))
+            )
+        )
+
+        hierarchies = puma_hierarchies.merge(neighborhood_hierarchies, on="feature_identifier", how="outer")
+        hierarchies[['feature_identifier', 'neighborhood_district', 'puma', 'state', 'country']].to_csv(output.csv, index=False)
 
 rule import_state:
     message: "Importing {wildcards.vintage} Census tracts into ID3C for {wildcards.state_fips_code}"
