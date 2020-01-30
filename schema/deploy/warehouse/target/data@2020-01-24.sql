@@ -18,8 +18,6 @@ insert into warehouse.organism (lineage, identifiers, details)
         ('Human_coronavirus.NL63',  'NCBITAXON => 277944',      null),
         ('Human_coronavirus.229E',  'NCBITAXON => 11137',       null),
         ('Human_coronavirus.OC43',  'NCBITAXON => 31631',       null),
-        ('Human_coronavirus.2019_nCoV',
-                                    'NCBITAXON => 2697049',     '{"report_to_public_health": true}'),
         ('Human_metapneumovirus',   'NCBITAXON => 162145',      null),
         ('Human_parainfluenza',     null,                       null),
         ('Human_parainfluenza.1',   'NCBITAXON => 12730',       null),

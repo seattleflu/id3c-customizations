@@ -55,3 +55,4 @@ warehouse/target/data [warehouse/target/data@2020-01-15c] 2020-01-21T17:21:50Z T
 
 shipping/views [shipping/views@2020-01-21] 2020-01-22T23:40:54Z Kairsten Fay <kfay@fredhutch.org> # Update shipping.metadata_for_augur_build_v2 columns and add new version
 @2020-01-24 2020-01-21T23:28:05Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 24 Jan 2020
+warehouse/target/data [warehouse/target/data@2020-01-24] 2020-01-30T21:24:28Z Thomas Sibley <tsibley@fredhutch.org> # Add organism for 2019-nCoV
