@@ -25,7 +25,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 2
+REVISION = 3
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -205,7 +205,12 @@ def create_patient(record: dict) -> tuple:
         postal_code = record['home_zipcode_2'])
 
     if not patient_id:
-        return None, None
+        # Some piece of information was missing, so we couldn't generate a
+        # hash.  Fallback to treating this individual as always unique by using
+        # the REDCap record id.
+        patient_id = generate_hash(f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}")
+
+    LOG.debug(f"Generated individual identifier {patient_id}")
 
     patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)

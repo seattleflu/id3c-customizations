@@ -38,7 +38,7 @@ REQUIRED_INSTRUMENTS = [
 # REDCap DET records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all REDCap DET records,
 # this revision number should be incremented.
-REVISION = 2
+REVISION = 3
 
 
 @redcap_det.command_for_project(
@@ -142,7 +142,12 @@ def create_patient(record: dict) -> tuple:
         postal_code = participant_zipcode(record))
 
     if not patient_id:
-        return None, None
+        # Some piece of information was missing, so we couldn't generate a
+        # hash.  Fallback to treating this individual as always unique by using
+        # the REDCap record id.
+        patient_id = generate_hash(f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}")
+
+    LOG.debug(f"Generated individual identifier {patient_id}")
 
     patient_identifier = create_identifier(f"{SFS}/individual",patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
@@ -183,8 +188,7 @@ def participant_zipcode(redcap_record: dict) -> str:
         address = determine_dorm_address(redcap_record['uw_dorm'])
         return address['zipcode']
 
-    LOG.warning(f"Could not extract zipcode from redcap record, using 'project_id-record_id' «{PROJECT_ID}-{redcap_record['record_id']}» instead")
-    return str(PROJECT_ID) + '-' + redcap_record['record_id']
+    return None
 
 
 def determine_vaccine_date(vaccine_year: str, vaccine_month: str) -> Optional[str]:
