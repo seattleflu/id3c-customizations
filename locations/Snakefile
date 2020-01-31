@@ -131,7 +131,7 @@ rule hierarchy:
         puma = "data/2010_Census_Tract_to_2010_PUMA.txt",
         neighborhood = "data/SeattleCensusBlocksandNeighborhoodCorrelationFile.xlsx"
     output:
-        csv = temp("data/2010_Census_Tract_Hierarchy.csv")
+        csv = "data/2010_Census_Tract_Hierarchy.csv"
     run:
         puma_hierarchies = (
             pandas
