@@ -57,3 +57,5 @@ shipping/views [shipping/views@2020-01-21] 2020-01-22T23:40:54Z Kairsten Fay <kf
 @2020-01-24 2020-01-21T23:28:05Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 24 Jan 2020
 warehouse/target/data [warehouse/target/data@2020-01-24] 2020-01-30T21:24:28Z Thomas Sibley <tsibley@fredhutch.org> # Add organism for 2019-nCoV
 @2020-01-30 2020-01-30T22:30:30Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 30 Jan 2020
+
+warehouse/site/data [warehouse/site/data@2020-01-30] 2020-01-31T08:01:08Z Kairsten Fay <kfay@fredhutch.org> # Add new kiosk sites to warehouse

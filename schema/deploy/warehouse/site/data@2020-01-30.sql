@@ -5,7 +5,6 @@ begin;
 
 insert into warehouse.site(identifier, details)
     values
-        ('CapitolHillLightRailStation',             '{"category": "community",  "type": "publicSpace"}'),
         ('ChildrensHospitalBellevue',               '{"category": "clinic",     "type": "clinic"}'),
         ('ChildrensHospitalSeattle',                '{"category": "clinic",     "type": "clinic"}'),
         ('ChildrensSeaMar',                         '{"category": "clinic",     "type": "clinic"}'),
@@ -37,7 +36,6 @@ insert into warehouse.site(identifier, details)
         ('UWSeaMar',                                '{"category": "clinic",     "type": "clinic"}'),
         ('UWSuzzalloLibrary',                       '{"category": "community",  "type": "collegeCampus"}'),
         ('WestCampusChildCareCenter',               '{"category": "community",  "type": "childcare"}'),
-        ('WestlakeLightRailStation',                '{"category": "community",  "type": "publicSpace"}'),
         ('WestlakeMall',                            '{"category": "community",  "type": "publicSpace"}')
 
     on conflict (identifier) do update

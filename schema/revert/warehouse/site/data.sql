@@ -1,8 +1,11 @@
--- Revert seattleflu/id3c-customizations:warehouse/site/data from pg
+-- Deploy seattleflu/id3c-customizations:warehouse/site/data to pg
 -- requires: seattleflu/schema:warehouse/site
 
 begin;
 
--- No need to revert data.
+delete from warehouse.site
+  where identifier = 'CapitolHillLightRailStation'
+  or identifier = 'WestlakeLightRailStation'
+;
 
 commit;
