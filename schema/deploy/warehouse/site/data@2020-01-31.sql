@@ -41,7 +41,7 @@ insert into warehouse.site(identifier, details)
         ('WestlakeMall',                            '{"category": "community",  "type": "publicSpace"}')
 
     on conflict (identifier) do update
-        set details = EXCLUDED.details
+        set details = coalesce(site.details, '{}') || EXCLUDED.details
 ;
 
 commit;
