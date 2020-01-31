@@ -62,3 +62,4 @@ warehouse/site/data [warehouse/site/data@2020-01-30] 2020-01-31T08:01:08Z Kairst
 @2020-01-31 2020-01-31T08:05:32Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 31 Jan 2020
 
 warehouse/site/data [warehouse/site/data@2020-01-31] 2020-01-31T20:45:02Z Kairsten Fay <kfay@fredhutch.org> # Add swab_site from specimen manifest to site details
+@2020-01-31b 2020-01-31T23:56:06Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 31 Jan 2020
