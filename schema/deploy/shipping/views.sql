@@ -559,7 +559,6 @@ create or replace view shipping.observation_with_presence_absence_result_v2 as
 comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
 
-commit;
 
 create or replace view shipping.metadata_for_augur_build_v3 as
 
@@ -593,3 +592,6 @@ create or replace view shipping.metadata_for_augur_build_v3 as
 
 comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
+
+
+commit;
