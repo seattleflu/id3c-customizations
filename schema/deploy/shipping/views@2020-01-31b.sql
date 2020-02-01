@@ -594,7 +594,4 @@ comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
 
 
-drop view shipping.sample_with_best_available_site_details_v1;
-
-
 commit;

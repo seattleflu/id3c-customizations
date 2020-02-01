@@ -69,3 +69,5 @@ roles/idle-session-disconnector/grants 2020-02-05T21:24:27Z Kairsten Fay <kfay@f
 @2020-02-06 2020-02-07T00:23:48Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 6 Feb 2020
 warehouse/site/data [warehouse/site/data@2020-01-31] 2020-01-31T20:45:02Z Kairsten Fay <kfay@fredhutch.org> # Add swab_site from specimen manifest to site details
 @2020-01-31b 2020-01-31T23:56:06Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 31 Jan 2020
+
+shipping/views [shipping/views@2020-01-31b] 2020-01-31T23:58:50Z Kairsten Fay <kfay@fredhutch.org> # Add view to wrap up ugly queries for samples lacking encounter data

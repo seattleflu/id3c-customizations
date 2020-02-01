@@ -594,4 +594,69 @@ comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
 
 
+create or replace view shipping.sample_with_best_available_site_details_v1 as
+
+    with specimen_manifest_site_data as (
+        select distinct on (manifest_id)
+            sample_id,
+            trim(both ' ' from document->>'swab_site') as swab_site,
+            trim(both ' ' from document->>'sample_origin') as sample_origin
+        from
+            receiving.manifest,
+            jsonb_to_recordset(processing_log) as log(sample_id integer, timestamp date)
+        where sample_id is not null
+        order by manifest_id, timestamp desc
+    ),
+
+    site_details as (
+      select
+          site_id,
+          site.identifier as site,
+          site.details->>'type' as site_type,
+          site.details->>'category' as site_category,
+          coalesce(site.details->>'swab_site', site.details->>'sample_origin') as manifest_regex
+      from warehouse.site
+    ),
+
+    samples_with_manifest_site_data as (
+      select
+        sample_id,
+        site_id,
+
+        coalesce(
+          case
+              -- Environmental samples must be processed first, because they're
+              -- often taken at existing human swab sites
+              when manifest.sample_origin = 'es'
+                then 'environmental'
+              else manifest.swab_site
+          end,
+
+          manifest.sample_origin
+        ) as site_manifest_details,
+
+        site_id is not null as has_encounter_data
+
+        from warehouse.sample
+        left join warehouse.encounter using (encounter_id)
+        left join specimen_manifest_site_data as manifest using (sample_id)
+    )
+
+  select
+    sample_id,
+    sample.identifier as sample,
+    has_encounter_data,
+    coalesce(site.details->>'type', site_type) as best_available_site_type,
+    coalesce(site.details->>'category', site_category) as best_available_site_category
+
+  from warehouse.sample
+  left join samples_with_manifest_site_data using (sample_id)
+  left join site_details on (site_manifest_details similar to manifest_regex)
+  left join warehouse.site on (samples_with_manifest_site_data.site_id = site.site_id)
+  ;
+
+comment on view shipping.sample_with_best_available_site_details_v1 is
+    'Version 1 of view of warehoused samples and the best available site details important for metrics calculations';
+
+
 commit;
