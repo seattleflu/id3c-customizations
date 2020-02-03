@@ -150,6 +150,7 @@ rule hierarchy:
                 feature_identifier = lambda df: df.GEOID10.apply(lambda x: x[:-4]),
                 neighborhood_district = lambda df: df.NEIGHBORHOOD_DISTRICT_NAME.apply(lambda x: hierarchy_neighborhood(x))
             )
+            .drop_duplicates(subset="feature_identifier")
         )
 
         hierarchies = puma_hierarchies.merge(neighborhood_hierarchies, on="feature_identifier", how="outer")
