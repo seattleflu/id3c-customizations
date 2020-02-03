@@ -114,7 +114,7 @@ rule download_community_reporting_areas:
     shell:
         """
         curl -o data/cra/seattle_cra.geojson \
-             'https://gisdata.seattle.gov/server/rest/services/COS/CommunityReportingAreas/MapServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json'
+             'https://gisdata.seattle.gov/server/rest/services/COS/CommunityReportingAreas/MapServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson'
         """
 
 # Import locations
