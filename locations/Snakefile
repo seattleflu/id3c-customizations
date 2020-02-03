@@ -155,7 +155,7 @@ rule hierarchy:
         hierarchies = puma_hierarchies.merge(neighborhood_hierarchies, on="feature_identifier", how="outer")
         hierarchies[['feature_identifier', 'neighborhood_district', 'puma', 'state', 'country']].to_csv(output.csv, index=False)
 
-rule import_state:
+rule import_tract:
     message: "Importing {wildcards.vintage} Census tracts into ID3C for {wildcards.state_fips_code}"
     input:
         original   = ancient("data/tract/tl_{vintage}_{state_fips_code}_tract.zip"),
