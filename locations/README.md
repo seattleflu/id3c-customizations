@@ -8,7 +8,9 @@ Snakemake is used to fetch and import files.  There are two primary commands:
 
 * __download__: Fetches geospatial data from the US Census website.  This
   should be run as few times as possible, as the Census temporarily bans repeat
-  downloaders.  Similar, it should not be run in parallel.
+  downloaders.  Similar, it should not be run in parallel.  Using Snakemake's
+  `--max-jobs-per-second 0.5` option should help rate-limit downloads and avoid
+  being banned.
 
 * __import__: Imports locations from geospatial data into ID3C.  This expects
   that a clone of the ID3C source code is a sibling to the clone of this
