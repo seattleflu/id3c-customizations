@@ -35,7 +35,16 @@ def get_metadata_v1():
 
 @api_v2.route("/shipping/augur-build-metadata", methods = ['GET'])
 @authenticated_datastore_session_required
-def get_metadata_v2(session):
+def get_metadata_v2():
+    """
+    Mark old endpoint as 410 Gone
+    """
+    return "use /v3/shipping/augur-build-metadata instead", 410
+
+
+@api_v3.route("/shipping/augur-build-metadata", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_metadata_v3(session):
     """
     Export metadata needed for SFS augur build
     """

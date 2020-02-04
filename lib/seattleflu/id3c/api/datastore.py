@@ -34,7 +34,7 @@ def fetch_metadata_for_augur_build(session: DatabaseSession) -> Iterable[Tuple[s
     with session, session.cursor() as cursor:
         cursor.execute("""
             select row_to_json(r)::text
-            from shipping.metadata_for_augur_build_v2 as r
+            from shipping.metadata_for_augur_build_v3 as r
             """)
 
         yield from cursor
