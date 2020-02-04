@@ -10,6 +10,9 @@ LOG = logging.getLogger(__name__)
 api_v2 = Blueprint('api_v2', 'api_v2', url_prefix='/v2')
 blueprints.append(api_v2)
 
+api_v3 = Blueprint('api_v3', 'api_v3', url_prefix='/v3')
+blueprints.append(api_v3)
+
 @api_v1.route("/shipping/return-results/<barcode>", methods = ['GET'])
 @cross_origin(origins=[
     "https://seattleflu.org",
@@ -41,7 +44,20 @@ def get_metadata_v2(session):
     """
     LOG.debug("Exporting metadata for SFS augur build")
 
-    metadata = datastore.fetch_metadata_for_augur_build(session)
+    metadata = datastore.fetch_rows_from_table(session, ("shipping", "metadata_for_augur_build_v2"))
+
+    return Response((row[0] + '\n' for row in metadata), mimetype="application/x-ndjson")
+
+
+@api_v3.route("/shipping/augur-build-metadata", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_metadata_v3(session):
+    """
+    Export metadata needed for SFS augur build
+    """
+    LOG.debug("Exporting metadata for SFS augur build")
+
+    metadata = datastore.fetch_rows_from_table(session, ("shipping", "metadata_for_augur_build_v3"))
 
     return Response((row[0] + '\n' for row in metadata), mimetype="application/x-ndjson")
 

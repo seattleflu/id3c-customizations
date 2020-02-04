@@ -9,13 +9,11 @@ revoke all on all tables in schema receiving, warehouse, shipping from "augur-bu
 grant connect on database :"DBNAME" to "augur-build-exporter";
 
 grant usage
-    on schema shipping, warehouse
+    on schema shipping
     to "augur-build-exporter";
 
 grant select
-    on shipping.metadata_for_augur_build_v2,
-       shipping.genomic_sequences_for_augur_build_v1,
-       warehouse.tract
+    on shipping.metadata_for_augur_build_v2, shipping.genomic_sequences_for_augur_build_v1
     to "augur-build-exporter";
 
 commit;
