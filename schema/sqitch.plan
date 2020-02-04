@@ -71,3 +71,4 @@ warehouse/site/data [warehouse/site/data@2020-01-31] 2020-01-31T20:45:02Z Kairst
 @2020-01-31b 2020-01-31T23:56:06Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 31 Jan 2020
 
 shipping/views [shipping/views@2020-01-31b] 2020-01-31T23:58:50Z Kairsten Fay <kfay@fredhutch.org> # Add view to wrap up ugly queries for samples lacking encounter data
+@2020-02-03 2020-02-04T00:22:24Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 3 Feb 2020
