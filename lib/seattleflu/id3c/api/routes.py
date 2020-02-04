@@ -41,7 +41,7 @@ def get_metadata_v2(session):
     """
     LOG.debug("Exporting metadata for SFS augur build")
 
-    metadata = datastore.fetch_metadata_for_augur_build(session)
+    metadata = datastore.fetch_rows_from_table(session, ("shipping", "metadata_for_augur_build_v2"))
 
     return Response((row[0] + '\n' for row in metadata), mimetype="application/x-ndjson")
 

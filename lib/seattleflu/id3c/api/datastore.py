@@ -1,7 +1,33 @@
 from typing import Any, Iterable, Tuple
+from psycopg2.sql import SQL, Identifier
 from id3c.db.session import DatabaseSession
 from id3c.api.datastore import catch_permission_denied
 from id3c.api.utils import export
+
+@export
+@catch_permission_denied
+def fetch_rows_from_table(session: DatabaseSession,
+                          qualified_table: Tuple) -> Iterable[Tuple[str]]:
+    """
+    Exports all rows in a given *qualified_table* and yields them as JSON (one
+    per line) in a generative fashion.
+
+    *qualified_table* should be a tuple of (schema, table). All identifiers will
+    be properly quoted by this method.
+    """
+    assert len(qualified_table) == 2, \
+        "A schema and table name must be included in the qualified table tuple"
+
+    table = SQL(".").join(map(Identifier, qualified_table))
+
+    with session, session.cursor() as cursor:
+        cursor.execute(SQL("""
+            select row_to_json(r)::text
+            from {} as r
+            """).format(table))
+
+        yield from cursor
+
 
 @export
 @catch_permission_denied
@@ -23,21 +49,6 @@ def fetch_barcode_results(session: DatabaseSession,
         results = barcode_result._asdict()
 
     return results
-
-
-@export
-@catch_permission_denied
-def fetch_metadata_for_augur_build(session: DatabaseSession) -> Iterable[Tuple[str]]:
-    """
-    Export metadata for augur build from shipping view
-    """
-    with session, session.cursor() as cursor:
-        cursor.execute("""
-            select row_to_json(r)::text
-            from shipping.metadata_for_augur_build_v2 as r
-            """)
-
-        yield from cursor
 
 
 @export
