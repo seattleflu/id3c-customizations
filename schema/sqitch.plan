@@ -66,3 +66,4 @@ roles/augur-build-exporter/grants [roles/augur-build-exporter/grants@2020-01-31]
 
 roles/idle-session-disconnector/create 2020-02-05T20:18:31Z Kairsten Fay <kfay@fredhutch.org> # Role for disconnecting idle database sessions
 roles/idle-session-disconnector/grants 2020-02-05T21:24:27Z Kairsten Fay <kfay@fredhutch.org> # Grants to idle-session-disconnector
+@2020-02-06 2020-02-07T00:23:48Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 6 Feb 2020
