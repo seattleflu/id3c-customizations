@@ -220,15 +220,8 @@ def create_specimen(redcap_record: dict, patient_reference: dict) -> tuple:
     specimen_resource = create_specimen_resource(
         [specimen_identifier], patient_reference, specimen_type
     )
-    full_url = generate_full_url_uuid()
-    specimen_entry = create_resource_entry(specimen_resource, full_url)
-    specimen_reference = create_reference(
-        reference_type = "Specimen",
-        reference = full_url
-    )
 
-
-    return specimen_entry, specimen_reference
+    return create_entry_and_reference(specimen_resource, "Specimen")
 
 
 def get_sfs_barcode(redcap_record: dict) -> str:
@@ -790,18 +783,8 @@ def create_encounter(encounter_id: str,
         diagnosis = symptom_references,
         contained = symptom_resources
     )
-    full_url = generate_full_url_uuid()
-    encounter_resource_entry = create_resource_entry(
-        resource = encounter_resource,
-        full_url = full_url
-    )
 
-    encounter_reference = create_reference(
-        reference_type = 'Encounter',
-        reference = full_url
-    )
-
-    return encounter_resource_entry, encounter_reference
+    return create_entry_and_reference(encounter_resource, "Encounter")
 
 
 def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
