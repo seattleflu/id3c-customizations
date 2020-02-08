@@ -767,12 +767,10 @@ def create_encounter(encounter_id: str,
         value = encounter_id
     )
 
-    encounter_class_codeable = create_codeable_concept(
+    encounter_class = create_coding(
         system = 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
         code = 'FLD'
     )
-
-    encounter_class = encounter_class_codeable['coding'][0]
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
