@@ -25,7 +25,7 @@ with open("data/omitted-states.txt", encoding = "UTF-8") as file:
 
 states = (
     pandas
-    .read_csv("data/states.txt", sep = "|", dtype = object)
+    .read_csv("data/states.txt", sep = "|", dtype = 'string')
     .rename(columns = {
         "STATE": "fips_code",
         "STUSAB": "usps_code",

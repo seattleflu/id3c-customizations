@@ -63,7 +63,7 @@ def parse_uw(uw_filename, output):
 
     read_uw = partial(
         read,
-        dtype = {'tract_identifier': 'str'},
+        dtype = {'tract_identifier': 'string'},
         parse_dates = ['Collection.Date', 'LabDtTm'],
         na_values = ['NA', '', 'Unknown', 'NULL'],
     )
@@ -138,7 +138,7 @@ def create_unique_identifier(df: pd.DataFrame):
     #   -trs, 2 Dec 2019
 
     df['identifier'] = (df['labMRN'] + df['LabAccNum'] + \
-                        df['encountered'].astype(str)
+                        df['encountered'].astype('string')
                         ).str.lower()
     return df.drop_duplicates(subset="identifier")
 
@@ -189,7 +189,7 @@ def parse_sch(sch_filename, output):
     All clinical records parsed are output to stdout as newline-delimited JSON
     records.  You will likely want to redirect stdout to a file.
     """
-    dtypes = {'census_tract': 'str'}
+    dtypes = {'census_tract': 'string'}
     clinical_records = pd.read_csv(sch_filename, dtype=dtypes)
     clinical_records = trim_whitespace(clinical_records)
     clinical_records = add_provenance(clinical_records, sch_filename)
@@ -255,7 +255,7 @@ def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
     modified DataFrame.
     """
     df["identifier"] = (
-        df["individual"] + df["encountered"].astype(str)
+        df["individual"] + df["encountered"].astype('string')
         ).str.lower()
 
     return df
@@ -329,7 +329,7 @@ def add_kp_manifest_data(df: pd.DataFrame, manifest_filename: str) -> pd.DataFra
     given clinical records DataFrame *df*
     """
     barcode = 'Barcode ID (Sample ID)'
-    dtypes = {barcode: str}
+    dtypes = {barcode: 'string'}
 
     manifest_data = pd.read_excel(manifest_filename, sheet_name='KP', dtype=dtypes)
 
