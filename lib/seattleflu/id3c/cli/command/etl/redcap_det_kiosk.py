@@ -866,12 +866,15 @@ def determine_insurance_type(insurance_reseponses: list) -> Optional[list]:
 
 def create_questionnaire_response_entry(redcap_record: dict,
                                         patient_reference: dict,
-                                        encounter_reference: dict) -> dict:
+                                        encounter_reference: dict) -> Optional[dict]:
     """
     Ceeate a questionnaire response entry based on given *redcap_record* and
     link to *patient_refernece* and *encounter_reference*
     """
     questionnaire_items = determine_all_questionnaire_items(redcap_record)
+
+    if not questionnaire_items:
+        return None
 
     questionnaire_response_resource = create_questionnaire_response_resource(
         patient_reference = patient_reference,
