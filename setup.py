@@ -56,7 +56,7 @@ setup(
     python_requires = ">=3.6",
 
     install_requires = [
-        "id3c >=2019.1",
+        "id3c >=2020.1",
         "click >=7.0",
         "regex",
         "requests",
@@ -66,7 +66,7 @@ setup(
 
     extras_require = {
         "locations": [
-            "pandas",
+            "pandas >=1.0.1,<2",
             "snakemake",
         ],
     },

@@ -351,8 +351,8 @@ def create_identifiers(df: pd.DataFrame) -> pd.DataFrame:
     given DataFrame *df*.
     Contains some hard-coded values that may need to be updated in the future.
     """
-    df['individual'] = 'sch/year-1/childcare/' + df['study_id'].astype('str')
-    df['identifier'] = df['individual'] + '/' + df['week'].astype('str')
+    df['individual'] = 'sch/year-1/childcare/' + df['study_id'].astype('string')
+    df['identifier'] = df['individual'] + '/' + df['week'].astype('string')
 
     return df
 

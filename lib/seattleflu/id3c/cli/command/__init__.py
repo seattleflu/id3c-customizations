@@ -42,22 +42,12 @@ def age_ceiling(age: float, max_age=85) -> float:
 
 def trim_whitespace(df: pd.DataFrame) -> pd.DataFrame:
     """ Trims leading and trailing whitespace from strings in *df* """
-    str_columns = df.columns[every_value_is_str_or_na(df)]
-
-    # Guard against AttributeErrors from entirely empty non-object dtype columns
-    str_columns = list(df[str_columns].select_dtypes(include='object'))
+    # Guard against AttributeErrors from entirely empty non-string dtype columns
+    str_columns: List[str] = list(df[str_columns].select_dtypes(include='string'))
 
     df[str_columns] = df[str_columns].apply(lambda column: column.str.strip())
 
     return df
-
-
-def every_value_is_str_or_na(df: pd.DataFrame):
-    """
-    Evaluates whether every value in the columns of a given DataFrame *df* is
-    either a string or NA.
-    """
-    return df.applymap(lambda col: isinstance(col, str) or pd.isna(col)).all()
 
 
 def barcode_quality_control(clinical_records: pd.DataFrame, output: str) -> None:
