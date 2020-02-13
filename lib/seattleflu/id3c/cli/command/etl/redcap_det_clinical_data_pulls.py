@@ -243,14 +243,14 @@ def create_questionnaire_response(record: dict, patient_reference: dict, encount
     if not response_items:
         return None
 
-    qeustionnaire_response_resource = create_questionnaire_response_resource(
+    questionnaire_response_resource = create_questionnaire_response_resource(
         patient_reference   = patient_reference,
         encounter_reference = encounter_reference,
         items               = response_items
     )
 
     return create_resource_entry(
-        resource = qeustionnaire_response_resource,
+        resource = questionnaire_response_resource,
         full_url = generate_full_url_uuid()
     )
 
