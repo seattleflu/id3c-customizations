@@ -17,7 +17,7 @@ from functools import partial
 from math import ceil
 from id3c.db.session import DatabaseSession
 from id3c.cli import cli
-from id3c.cli.command import dump_ndjson
+from id3c.cli.io.pandas import dump_ndjson
 from . import (
     add_provenance,
     age_ceiling,
