@@ -17,12 +17,6 @@ vintages = [
 
 
 # Static states data
-with open("data/omitted-states.txt", encoding = "UTF-8") as file:
-    omitted_states = list(
-        filter(lambda line: line and not line.startswith("#"),
-            map(str.rstrip,
-                file)))
-
 states = (
     pandas
     .read_csv("data/states.txt", sep = "|", dtype = 'string')
@@ -33,8 +27,17 @@ states = (
         "STATENS": "gnisid",
     })
     .set_index("fips_code", drop = False)
-    .drop(omitted_states)
 )
+
+states_with_tracts = states.drop([
+    "74", # U.S. Minor Outlying Islands — No tract shapefiles available‽
+])
+
+states_with_pumas = states.drop([
+    "60", # American Samoa
+    "69", # Northern Mariana Islands
+    "74", # U.S. Minor Outlying Islands
+])
 
 def hierarchy_state(name):
     replace_spaces     = partial(re.sub, r"\s+", "_")
@@ -44,14 +47,24 @@ def hierarchy_state(name):
 def fips_to_name(code):
     return states.at[code, 'name']
 
+def hierarchy_neighborhood(name):
+    replace_spaces  = partial(re.sub, r"\s+", "_")
+    replace_slashes = partial(re.sub, r"\/+", "_")
+    return replace_slashes(replace_spaces(name))
 
-# Download 2016 Census tracts + tract cartographic boundaries for all states.
+
+# Download all geographies
 rule download:
-    message: f"Downloaded Census tracts + cartographic boundaries for all states"
+    message: f"Downloaded Census geographies and cartographic boundaries for all states"
     input:
-        expand("data/tract/tl_{vintage}_{state.fips_code}_tract.zip",      vintage = vintages, state = states.itertuples()),
-        expand("data/tract/cb_{vintage}_{state.fips_code}_tract_500k.zip", vintage = vintages, state = states.itertuples())
+        expand("data/tract/tl_{vintage}_{state.fips_code}_tract.zip",      vintage = vintages, state = states_with_tracts.itertuples()),
+        expand("data/tract/cb_{vintage}_{state.fips_code}_tract_500k.zip", vintage = vintages, state = states_with_tracts.itertuples()),
+        expand("data/puma/tl_{vintage}_{state.fips_code}_puma10.zip",      vintage = vintages, state = states_with_pumas.itertuples()),
+        expand("data/puma/cb_{vintage}_{state.fips_code}_puma10_500k.zip", vintage = vintages, state = states_with_pumas.itertuples()),
+        "data/cra/seattle_cra.geojson",
 
+
+# Download 2016 Census tracts + tract cartographic boundaries
 rule download_state_tracts:
     message: "Downloading {wildcards.vintage} Census tracts for {wildcards.state_fips_code}"
     output:
@@ -73,17 +86,82 @@ rule download_state_tracts_boundaries:
         """
 
 
+# Download 2016-vintage PUMAs + cartographic boundaries
+rule download_state_pumas:
+    message: "Downloading {wildcards.vintage} Census PUMAs for {wildcards.state_fips_code}"
+    output:
+        "data/puma/tl_{vintage}_{state_fips_code}_puma10.zip"
+    shell:
+        """
+        wget -P data/puma/ \
+             -N https://www2.census.gov/geo/tiger/TIGER{wildcards.vintage:q}/PUMA/tl_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_puma10.zip
+        """
+
+rule download_state_pumas_boundaries:
+    message: "Downloading {wildcards.vintage} Census PUMA cartographic boundaries for {wildcards.state_fips_code}"
+    output:
+        "data/puma/cb_{vintage}_{state_fips_code}_puma10_500k.zip"
+    shell:
+        """
+        wget -P data/puma/ \
+             -N https://www2.census.gov/geo/tiger/GENZ{wildcards.vintage:q}/shp/cb_{wildcards.vintage:q}_{wildcards.state_fips_code:q}_puma10_500k.zip
+        """
+
+rule download_community_reporting_areas:
+    message: "Downloading Community reporting areas(CRAs) for Seattle"
+    output:
+        "data/cra/seattle_cra.geojson"
+    shell:
+        """
+        curl -o data/cra/seattle_cra.geojson \
+             'https://gisdata.seattle.gov/server/rest/services/COS/CommunityReportingAreas/MapServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson'
+        """
+
 # Import locations
 rule import:
-    message: "Importing Census tracts into ID3C"
+    message: "Importing geographies into ID3C"
     input:
-        expand("log/import/{vintage}_{state.fips_code}_tract", vintage = vintages, state = states.itertuples())
+        expand("log/import/{vintage}_{state.fips_code}_tract", vintage = vintages, state = states_with_tracts.itertuples()),
+        expand("log/import/{vintage}_{state.fips_code}_puma", vintage = vintages, state = states_with_pumas.itertuples()),
+        "log/import/seattle_neighborhood_district"
 
-rule import_state:
+rule hierarchy:
+    message: "Creating tract hierarchy CSV file"
+    input:
+        puma = "data/2010_Census_Tract_to_2010_PUMA.txt",
+        neighborhood = "data/SeattleCensusBlocksandNeighborhoodCorrelationFile.xlsx"
+    output:
+        csv = "data/2010_Census_Tract_Hierarchy.csv"
+    run:
+        puma_hierarchies = (
+            pandas
+            .read_csv(input.puma, dtype = object)
+            .assign(
+                feature_identifier = lambda df: df.STATEFP + df.COUNTYFP + df.TRACTCE,
+                puma  = lambda df: df.STATEFP + df.PUMA5CE,
+                state = lambda df: df.STATEFP.apply(lambda x: hierarchy_state(fips_to_name(x))),
+                country = "united_states"
+            )
+        )
+        neighborhood_hierarchies = (
+            pandas
+            .read_excel(input.neighborhood, dtype = object)
+            .assign(
+                feature_identifier = lambda df: df.GEOID10.apply(lambda x: x[:-4]),
+                neighborhood_district = lambda df: df.NEIGHBORHOOD_DISTRICT_NAME.apply(lambda x: hierarchy_neighborhood(x))
+            )
+            .drop_duplicates(subset="feature_identifier")
+        )
+
+        hierarchies = puma_hierarchies.merge(neighborhood_hierarchies, on="feature_identifier", how="outer")
+        hierarchies[['feature_identifier', 'neighborhood_district', 'puma', 'state', 'country']].to_csv(output.csv, index=False)
+
+rule import_tract:
     message: "Importing {wildcards.vintage} Census tracts into ID3C for {wildcards.state_fips_code}"
     input:
         original   = ancient("data/tract/tl_{vintage}_{state_fips_code}_tract.zip"),
         simplified = ancient("data/tract/cb_{vintage}_{state_fips_code}_tract_500k.zip"),
+        hierarchy  = ancient(rules.hierarchy.output.csv)
     output:
         touch("log/import/{vintage}_{state_fips_code}_tract")
     run:
@@ -94,7 +172,58 @@ rule import_state:
                 --scale tract \
                 --identifier-from GEOID \
                 --hierarchy 'country=>united_states,state=>'{state_name:q} \
+                --hierarchy-by-feature {input.hierarchy} \
                 --point-from INTPTLON INTPTLAT \
                 --simplified-polygons {input.simplified:q} \
                 --if-exists update
         """)
+
+rule import_puma:
+    message: "Importing {wildcards.vintage} Census PUMAs into ID3C for {wildcards.state_fips_code}"
+    input:
+        original   = ancient("data/puma/tl_{vintage}_{state_fips_code}_puma10.zip"),
+        simplified = ancient("data/puma/cb_{vintage}_{state_fips_code}_puma10_500k.zip"),
+    output:
+        touch("log/import/{vintage}_{state_fips_code}_puma")
+    run:
+        state_name = hierarchy_state(fips_to_name(wildcards.state_fips_code))
+        shell("""
+            {id3c:q} location import \
+                {input.original:q} \
+                --scale puma \
+                --identifier-from GEOID10 \
+                --hierarchy 'country=>united_states,state=>'{state_name:q} \
+                --simplified-polygons {input.simplified:q} \
+                --if-exists update
+        """)
+
+rule cra_to_neighborhood_district:
+    message: "Combining Community reporting areas(CRAs) features into neighborhood district features"
+    input:
+        geojson = ancient(rules.download_community_reporting_areas.output)
+    output:
+        geojson = "data/neighborhood_district/seattle_neighborhood_district.geojson"
+    shell:
+        """
+        ogr2ogr \
+            -f GeoJSON \
+            {output.geojson} {input.geojson} \
+            -dialect sqlite \
+            -sql "SELECT replace(replace(NEIGHDIST,' ','_'), '/', '_') as NEIGHDIST, ST_Union(geometry) as geometry FROM seattle_cra GROUP BY CRA_GRP"
+        """
+
+rule import_neighborhood_district:
+    message: "Importing Seattle neighborhood districts into ID3C"
+    input:
+        geojson = ancient(rules.cra_to_neighborhood_district.output.geojson)
+    output:
+        touch("log/import/seattle_neighborhood_district")
+    shell:
+        """
+        {id3c:q} location import \
+            {input.geojson:q} \
+            --scale neighborhood_district \
+            --identifier-from NEIGHDIST \
+            --hierarchy 'country=>united_states,state=>washington,city=>seattle' \
+            --if-exists update
+        """
