@@ -165,7 +165,7 @@ def create_encounter(db: DatabaseSession,
 
     encounter_date = record["collection_date"]
     # This matches how our clinical parse_uw generates encounter id
-    encounter_id = generate_hash(f"{record['mrn']}{record['accession_no']}{encounter_date}")
+    encounter_id = generate_hash(f"{record['mrn']}{record['accession_no']}{encounter_date}".lower())
     encounter_identifier = create_identifier(f"{SFS}/encounter", encounter_id)
     encounter_class = create_coding(
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
