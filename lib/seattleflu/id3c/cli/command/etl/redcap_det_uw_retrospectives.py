@@ -81,7 +81,7 @@ def create_patient(record: dict) -> Optional[tuple]:
     gender = map_sex(record["sex"])
 
     # This matches how clinical parse_uw creates individual identifier
-    patient_id = generate_hash(record["personid"])
+    patient_id = generate_hash(record["personid"].lower())
 
     patient_identifier = create_identifier(f"{SFS}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
