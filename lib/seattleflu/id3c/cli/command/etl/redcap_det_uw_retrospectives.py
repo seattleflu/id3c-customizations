@@ -1,5 +1,6 @@
 """
-Process REDCAP DETs that are specific to the Clinical Data Pulls Project.
+Process REDCAP DETs that are specific to UW retrospective samples from
+the Clinical Data Pulls Project.
 """
 import logging
 from collections import defaultdict
@@ -24,14 +25,14 @@ PROJECT_ID = 19915
 REVISION = 1
 
 @redcap_det.command_for_project(
-    "clinical-data-pulls",
+    "uw-retrospectives",
     redcap_url = REDCAP_URL,
     project_id = PROJECT_ID,
     revision = REVISION,
     include_incomplete = True,
     help = __doc__)
 
-def redcap_det_clinical_data_pulls(*,
+def redcap_det_uw_retrospectives(*,
                                    db: DatabaseSession,
                                    cache: TTLCache,
                                    det: dict,
