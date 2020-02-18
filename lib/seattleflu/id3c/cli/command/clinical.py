@@ -95,6 +95,7 @@ def parse_uw(uw_filename, output):
 
     # Normalize barcode to strings and lowercase
     clinical_records['barcode'] = clinical_records['barcode'].str.lower()
+    clinical_records['individual'] = clinical_records['individual'].str.lower()
 
     barcode_quality_control(clinical_records, output)
 
