@@ -75,15 +75,13 @@ def redcap_det_uw_retrospectives(*,
 
 def create_patient(record: dict) -> Optional[tuple]:
     """ Returns a FHIR Patient resource entry and reference. """
-    if not record["sex"]:
+    if not record["sex"] or not record["personid"]:
         return None, None
 
     gender = map_sex(record["sex"])
 
-    # We do not get patient name or birthday for the Clinical Data Pulls
-    # Treat this individual as always unique by using the REDCap record id,
-    # which is the barcode in this project.
-    patient_id = generate_hash(f"{REDCAP_URL}{PROJECT_ID}/{record['barcode']}")
+    # This matches how clinical parse_uw creates individual identifier
+    patient_id = generate_hash(record["personid"])
 
     patient_identifier = create_identifier(f"{SFS}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender)
