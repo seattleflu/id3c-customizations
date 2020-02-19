@@ -69,3 +69,4 @@ roles/idle-session-disconnector/grants 2020-02-05T21:24:27Z Kairsten Fay <kfay@f
 @2020-02-06 2020-02-07T00:23:48Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 6 Feb 2020
 
 warehouse/site/data [warehouse/site/data@2020-02-06] 2020-02-19T01:17:07Z Kairsten Fay <kfay@fredhutch.org> # Add new kiosk site, SCHSeaMar, to warehouse
+@2020-02-18 2020-02-19T01:24:57Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 18 Feb 2020
