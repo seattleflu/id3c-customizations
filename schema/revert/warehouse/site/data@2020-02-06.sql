@@ -4,7 +4,8 @@
 begin;
 
 delete from warehouse.site
-  where identifier = 'SCHSeaMar'
+  where identifier = 'CapitolHillLightRailStation'
+  or identifier = 'WestlakeLightRailStation'
 ;
 
 commit;

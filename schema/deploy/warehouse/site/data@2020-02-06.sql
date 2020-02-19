@@ -26,7 +26,6 @@ insert into warehouse.site(identifier, details)
         ('RetrospectiveHarborview',                 '{"category": "hospital",   "type": "retrospective"}'),
         ('RetrospectiveNorthwest',                  '{"category": "hospital",   "type": "retrospective"}'),
         ('RetrospectiveUWMedicalCenter',            '{"category": "hospital",   "type": "retrospective"}'),
-        ('SCHSeaMar',                               '{"category": "clinic",     "type": "clinic"}'),
         ('SeaTacDomestic',                          '{"category": "community",  "type": "publicSpace"}'),
         ('SeaTacInternational',                     '{"category": "community",  "type": "publicSpace"}'),
         ('SeattleCenter',                           '{"category": "community",  "type": "publicSpace"}'),
