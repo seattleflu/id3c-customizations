@@ -495,8 +495,8 @@ def determine_site_name(redcap_record: dict) -> Optional[str]:
     """
     Given a *redcap_record*, determine the site name for the encounter.
 
-    Will error if there is more than one site name found or if the site
-    name is not in expected values.
+    Raises a :class:`UnknownSiteError` if more than one site name found or if
+    the site name is not in expected values.
     """
     potential_site_names = find_selected_options('site_identifier_', redcap_record)
     if not potential_site_names:
