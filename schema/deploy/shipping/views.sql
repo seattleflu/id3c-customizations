@@ -594,11 +594,12 @@ comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
 
 
-create or replace view shipping.sample_with_best_available_site_details_v1 as
+create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 
-    with specimen_manifest_site_data as (
+    with specimen_manifest_data as (
         select distinct on (sample_id)
             sample_id,
+            date_or_null(document->>'date') as collection_date,
             trim(both ' ' from document->>'swab_site') as swab_site,
             trim(both ' ' from document->>'sample_origin') as sample_origin
         from
@@ -618,10 +619,11 @@ create or replace view shipping.sample_with_best_available_site_details_v1 as
       from warehouse.site
     ),
 
-    samples_with_manifest_site_data as (
+    samples_with_manifest_data as (
       select
         sample_id,
         site_id,
+        coalesce(encountered::date, collection_date) as best_available_encounter_date,
 
         coalesce(
           case
@@ -639,25 +641,33 @@ create or replace view shipping.sample_with_best_available_site_details_v1 as
 
         from warehouse.sample
         left join warehouse.encounter using (encounter_id)
-        left join specimen_manifest_site_data as manifest using (sample_id)
+        left join specimen_manifest_data as manifest using (sample_id)
     )
 
   select
     sample_id,
     sample.identifier as sample,
     has_encounter_data,
+    best_available_encounter_date,
+
+    case
+      when best_available_encounter_date < '2019-10-01'::date then 'Y1'
+      when best_available_encounter_date < '2020-10-01'::date then 'Y2'
+      else null
+    end as season,
+
     coalesce(site.details->>'type', site_type) as best_available_site_type,
     coalesce(site.details->>'category', site_category) as best_available_site_category
 
   from warehouse.sample
-  left join samples_with_manifest_site_data using (sample_id)
+  left join samples_with_manifest_data using (sample_id)
   left join site_details on (site_manifest_details similar to manifest_regex)
-  left join warehouse.site on (samples_with_manifest_site_data.site_id = site.site_id)
+  left join warehouse.site on (samples_with_manifest_data.site_id = site.site_id)
   where sample.identifier is not null
   ;
 
-comment on view shipping.sample_with_best_available_site_details_v1 is
-    'Version 1 of view of warehoused samples and the best available site details important for metrics calculations';
+comment on view shipping.sample_with_best_available_encounter_data_v1 is
+    'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
 
 
 commit;
