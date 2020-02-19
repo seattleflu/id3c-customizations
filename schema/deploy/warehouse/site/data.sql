@@ -38,6 +38,7 @@ insert into warehouse.site(identifier, details)
             "sample_origin": "nwh_retro"}'),
         ('RetrospectiveUWMedicalCenter',            '{"category": "hospital",   "type": "retrospective",
             "sample_origin": "uwmc_retro"}'),
+        ('SCHSeaMar',                               '{"category": "clinic",     "type": "clinic"}'),
         ('SeaTacDomestic',                          '{"category": "community",  "type": "publicSpace",
             "swab_site": "seatac_airport"}'),
         ('SeaTacInternational',                     '{"category": "community",  "type": "publicSpace"}'),
