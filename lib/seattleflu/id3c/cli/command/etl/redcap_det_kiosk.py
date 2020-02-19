@@ -508,10 +508,13 @@ def determine_site_name(redcap_record: dict) -> Optional[str]:
 
     site = potential_site_names[0]
 
+    # Handle our special SeaMar edge case that relies on staff organization
+    if site == 'SeaMar':
+        return distinguish_seamar_affiliation(redcap_record)
+
     site_name_map = {
         'UW HUB': 'HUB',
         'UW Suzzallo Library': 'UWSuzzalloLibrary',
-        'SeaMar': 'UWSeaMar',
         'UW Hall Health': 'UWHallHealth',
         "Seattle Children's: Seattle Children's campus site": 'ChildrensHospitalSeattle',
         "Seattle Children's: Seattle outpatient clinic": 'ChildrensHospitalSeattle',
@@ -530,6 +533,20 @@ def determine_site_name(redcap_record: dict) -> Optional[str]:
         raise UnknownSiteError(f"Unknown site name «{site}»")
 
     return site_name_map[site]
+
+
+def distinguish_seamar_affiliation(redcap_record: dict) -> Optional[str]:
+    """
+    Returns the appropriate "SeaMar" site in the warehouse depending on the
+    kiosk employee's staff group.
+    """
+    if redcap_record['staff_org'] == 'UW/FH':
+        return 'UWSeaMar'
+
+    elif redcap_record['staff_org'] == 'SCH':
+        return 'SCHSeaMar'
+
+    return None
 
 
 def determine_shelter_address(shelter_name: str) -> dict:
