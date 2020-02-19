@@ -653,6 +653,7 @@ create or replace view shipping.sample_with_best_available_site_details_v1 as
   left join samples_with_manifest_site_data using (sample_id)
   left join site_details on (site_manifest_details similar to manifest_regex)
   left join warehouse.site on (samples_with_manifest_site_data.site_id = site.site_id)
+  where sample.identifier is not null
   ;
 
 comment on view shipping.sample_with_best_available_site_details_v1 is
