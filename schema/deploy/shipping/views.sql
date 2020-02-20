@@ -597,16 +597,13 @@ comment on view shipping.metadata_for_augur_build_v3 is
 create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 
     with specimen_manifest_data as (
-        select distinct on (sample_id)
+        select
             sample_id,
-            date_or_null(document->>'date') as collection_date,
-            trim(both ' ' from document->>'swab_site') as swab_site,
-            trim(both ' ' from document->>'sample_origin') as sample_origin
+            date_or_null(details->>'date') as collection_date,
+            trim(both ' ' from details->>'swab_site') as swab_site,
+            trim(both ' ' from details->>'sample_origin') as sample_origin
         from
-            receiving.manifest,
-            jsonb_to_recordset(processing_log) as log(sample_id integer, timestamp date)
-        where sample_id is not null
-        order by sample_id, timestamp desc
+            warehouse.sample
     ),
 
     site_details as (
