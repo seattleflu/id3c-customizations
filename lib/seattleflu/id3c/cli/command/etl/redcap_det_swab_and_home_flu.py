@@ -131,10 +131,10 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
             housing_type = 'residence'
 
         address = {
-            'street': record['home_street'],
+            'street': record['home_street'] or record['home_street_st'],
             'secondary': None,
-            'city': record['homecity_other'],
-            'state': record['home_state'],
+            'city': record['homecity_other'] or record['homecity_other_st'],
+            'state': record['home_state'] or record['home_state_st'],
             'zipcode': record['home_zipcode_2'],
         }
 
@@ -221,7 +221,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
     def grab_symptom_keys(key: str) -> Optional[Match[str]]:
         if record[key] != '':
-            return re.match('symptoms(_child)?___[0-9]{1,3}$', key)
+            return re.match('symptoms___[0-9]{1,3}$', key)
         else:
             return None
 
@@ -259,19 +259,26 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         code = "HH"
     )
 
-    if not record.get('enrollment_date_time'):
-        return None, None
+    encounter_date = record['enrollment_date']
 
-    # YYYY-MM-DD HH:MM in REDCap
-    encounter_date = record['enrollment_date_time'].split()[0]
+    if not encounter_date:
+        return None, None
 
     non_tracts = list(filter(non_tract_locations, locations))
     non_tract_references = list(map(build_locations_list, non_tracts))
-    # Site for all swab 'n send Encounters is 'swabNSend'
+
+    # Site depends on study type
+    if record['study_type'] == 'Home Flu Test':
+        site = 'self-test'
+    elif record['study_type'] == 'Swab & Send':
+        site = 'swabNSend'
+    else:
+        assert False, f"Found unknown study type «{record['study_type']}»"
+
     site_reference = {
         "location": create_reference(
             reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'swabNSend')
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", site)
         )
     }
     non_tract_references.append(site_reference)
@@ -349,12 +356,12 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         barcode = record['return_utm_barcode'] or record['pre_scan_barcode']
 
         if not barcode:
-            barcode = record['utm_tube_barcode_2']
-            reentered_barcode = record['reenter_barcode']
+            barcode = record['utm_tube_barcode_2'] or record['utm_tube_barcode_2_st']
+            reentered_barcode = record['reenter_barcode'] or record['reenter_barcode_st']
 
-            if record['barcode_confirm'] == "No":
+            if record['barcode_confirm'] or record['barcode_confirm_st'] == "No":
                 #TODO: Figure out why 'corrected_barcode' doesn't always exist?
-                barcode = record.get('corrected_barcode')
+                barcode = record['corrected_barcode'] or record['corrected_barcode_st']
 
         return barcode
 
