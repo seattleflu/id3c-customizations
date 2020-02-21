@@ -77,3 +77,4 @@ warehouse/target/data [warehouse/target/data@2020-02-06] 2020-02-20T17:41:10Z Jo
 @2020-02-20 2020-02-20T18:03:11Z Jover Lee <joverlee@fredhutch.org> # Schema as of 20 Feb 2020
 
 warehouse/site/data [warehouse/site/data@2020-02-20] 2020-02-21T19:49:28Z Kairsten Fay <kfay@fredhutch.org> # Update site details for self-test and swabNSend
+@2020-02-21 2020-02-21T19:55:54Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 21 Feb 2020
