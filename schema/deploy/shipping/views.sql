@@ -653,6 +653,7 @@ create or replace view shipping.sample_with_best_available_encounter_data_v1 as
       else null
     end as season,
 
+    coalesce(site.site_id, site_details.site_id) as best_available_site_id,
     coalesce(site.identifier, site_details.site) as best_available_site,
     coalesce(site.details->>'type', site_type) as best_available_site_type,
     coalesce(site.details->>'category', site_category) as best_available_site_category
