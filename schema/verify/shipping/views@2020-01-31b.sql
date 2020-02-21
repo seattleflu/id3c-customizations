@@ -69,9 +69,4 @@ select 1/(count(*) = 1)::int
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.metadata_for_augur_build_v3');
 
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.sample_with_best_available_encounter_data_v1');
-
 rollback;
