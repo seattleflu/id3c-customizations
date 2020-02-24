@@ -13,12 +13,9 @@ grant usage
     to "augur-build-exporter";
 
 grant select
-    on shipping.metadata_for_augur_build_v4,
-       shipping.metadata_for_augur_build_v3,
-       shipping.metadata_for_augur_build_v2,
+    on shipping.metadata_for_augur_build_v2,
        shipping.genomic_sequences_for_augur_build_v1,
-       warehouse.puma,
-       warehouse.neighborhood_district
+       warehouse.tract
     to "augur-build-exporter";
 
 commit;
