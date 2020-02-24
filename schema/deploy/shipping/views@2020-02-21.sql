@@ -669,10 +669,4 @@ comment on view shipping.sample_with_best_available_encounter_data_v1 is
     'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
 
 
-revoke all
-    on shipping.incidence_model_observation_v4
-  from "incidence-modeler";
-drop view shipping.incidence_model_observation_v4;
-
-
 commit;

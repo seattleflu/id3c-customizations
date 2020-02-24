@@ -80,3 +80,4 @@ warehouse/site/data [warehouse/site/data@2020-02-20] 2020-02-21T19:49:28Z Kairst
 @2020-02-21 2020-02-21T19:55:54Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 21 Feb 2020
 
 warehouse/views [warehouse/views@2020-02-06] 2020-02-18T22:20:31Z Jover Lee <joverlee@fredhutch.org> # Add PUMA and neighborhood scale location views
+shipping/views [shipping/views@2020-02-21] 2020-02-24T19:03:29Z Jover Lee <joverlee@fredhutch.org> # Add incidence model view v4 with PUMA and neighborhood district
