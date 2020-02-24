@@ -749,6 +749,5 @@ grant select
    on shipping.incidence_model_observation_v4
    to "incidence-modeler";
 
-drop view shipping.metadata_for_augur_build_v4;
 
 commit;
