@@ -38,7 +38,7 @@ REQUIRED_INSTRUMENTS = [
 # REDCap DET records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all REDCap DET records,
 # this revision number should be incremented.
-REVISION = 3
+REVISION = 4
 
 
 @redcap_det.command_for_project(
@@ -507,7 +507,7 @@ def determine_site_name(redcap_record: dict) -> Optional[str]:
         'SeaMar': 'UWSeaMar',
         'UW Hall Health': 'UWHallHealth',
         "Seattle Children's: Seattle Children's campus site": 'ChildrensHospitalSeattle',
-        "Seattle Children's: Seattle outpatient clinic": 'ChildrensHospitalSeattle',
+        "Seattle Children's: Seattle outpatient clinic": 'ChildrensHospitalSeattleOutpatientClinic',
         'Fred Hutch': 'FredHutchLobby',
         'Harborview Lobby': 'HarborviewLobby',
         'Columbia Center': 'ColumbiaCenter',
