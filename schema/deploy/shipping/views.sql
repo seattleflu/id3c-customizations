@@ -669,4 +669,118 @@ comment on view shipping.sample_with_best_available_encounter_data_v1 is
     'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
 
 
+create or replace view shipping.incidence_model_observation_v4 as
+
+    select encounter.identifier as encounter,
+
+           to_char((encountered at time zone 'US/Pacific')::date, 'IYYY-"W"IW') as encountered_week,
+
+           site.details->>'type' as site_type,
+           site.details->>'category' as site_category,
+
+           individual.identifier as individual,
+           individual.sex,
+
+           age_bin_fine_v2.range as age_range_fine,
+           age_in_years(lower(age_bin_fine_v2.range)) as age_range_fine_lower,
+           age_in_years(upper(age_bin_fine_v2.range)) as age_range_fine_upper,
+
+           age_bin_coarse_v2.range as age_range_coarse,
+           age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
+           age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
+
+           residence_puma,
+           residence_neighborhood_district,
+
+           coalesce(encounter_responses.flu_shot,fhir.vaccine) as flu_shot,
+           coalesce(encounter_responses.symptoms,fhir.symptoms) as symptoms,
+
+           sample.identifier as sample
+
+      from warehouse.encounter
+      join warehouse.individual using (individual_id)
+      join warehouse.site using (site_id)
+      left join warehouse.sample using (encounter_id)
+      left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
+      left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
+      left join shipping.fhir_encounter_details_v1 as fhir using (encounter_id)
+      left join (
+          select
+            encounter_id,
+            tract.hierarchy->'puma' as residence_puma,
+            tract.hierarchy->'neighborhood_district' as residence_neighborhood_district
+          from warehouse.encounter_location
+          left join warehouse.location as address using (location_id)
+          left join warehouse.tract as tract on (address.hierarchy -> 'tract') = tract.identifier
+          where relation = 'residence'
+          or relation = 'lodging'
+        ) as residence using (encounter_id),
+
+      lateral (
+          -- XXX TODO: The data in this subquery will be modeled better in the
+          -- future and the verbosity of extracting data from the JSON details
+          -- document will go away.
+          --   -trs, 22 March 2019
+
+          select -- XXX FIXME: Remove use of nullif() when we're no longer
+                 -- dealing with raw response values.
+                 nullif(nullif(responses."FluShot"[1], 'doNotKnow'), 'dontKnow')::bool as flu_shot,
+
+                 -- XXX FIXME: Remove duplicate value collapsing when we're no
+                 -- longer affected by this known Audere data quality issue.
+                 array_distinct(responses."Symptoms") as symptoms
+
+            from jsonb_to_record(encounter.details->'responses')
+              as responses (
+                  "FluShot" text[],
+                  "Symptoms" text[]))
+        as encounter_responses
+
+     order by encountered;
+
+comment on view shipping.incidence_model_observation_v4 is
+    'Version 4 of view of warehoused encounters and important questionnaire responses for modeling and viz teams';
+
+revoke all
+    on shipping.incidence_model_observation_v4
+  from "incidence-modeler";
+
+grant select
+   on shipping.incidence_model_observation_v4
+   to "incidence-modeler";
+
+
+create or replace view shipping.metadata_for_augur_build_v4 as
+
+    select sample.identifier as strain,
+            coalesce(
+              encountered,
+              case
+                when date_or_null(sample.details->>'date') <= current_date
+                  then date_or_null(sample.details->>'date')
+              end
+            ) as date,
+            'Seattle' as region,
+            coalesce(residence_neighborhood_district, residence_puma) as location,
+            'Seattle Flu Study' as authors,
+            age_range_coarse,
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
+            end as age_category,
+            site_category,
+            flu_shot,
+            sex
+
+      from warehouse.sample
+      join warehouse.consensus_genome using (sample_id)
+      left join warehouse.encounter using (encounter_id)
+      left join shipping.incidence_model_observation_v4 on sample.identifier = incidence_model_observation_v4.sample
+
+     where sample.identifier is not null and consensus_genome_id is not null;
+
+comment on view shipping.metadata_for_augur_build_v4 is
+		'View of metadata necessary for SFS augur build';
+
+
 commit;

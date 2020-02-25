@@ -21,17 +21,5 @@ create or replace view warehouse.tract as
 comment on view warehouse.tract is
     'View of all tract-scale locations; for convenience when joining';
 
-create or replace view warehouse.puma as
-    select * from warehouse.location where scale = 'puma';
-
-comment on view warehouse.puma is
-    'View of all PUMA-scale locations; for convenience when joining';
-
-create or replace view warehouse.neighborhood_district as
-    select * from warehouse.location where scale = 'neighborhood_district';
-
-comment on view warehouse.neighborhood_district is
-    'View of all neighborhood-district-scale locations; for convenience when joining';
-
 
 commit;
