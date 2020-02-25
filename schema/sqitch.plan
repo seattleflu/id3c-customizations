@@ -81,3 +81,5 @@ warehouse/site/data [warehouse/site/data@2020-02-20] 2020-02-21T19:49:28Z Kairst
 
 warehouse/target/data [warehouse/target/data@2020-02-21] 2020-02-27T21:40:44Z Jover Lee <joverlee@fredhutch.org> # Add Cepheid target
 @2020-02-27 2020-02-27T21:50:07Z Jover Lee <joverlee@fredhutch.org> # Schema as of 27 Feb 2020
+
+warehouse/site/data [warehouse/site/data@2020-02-21] 2020-02-25T22:07:52Z Kairsten Fay <kfay@fredhutch.org> # Update site data
