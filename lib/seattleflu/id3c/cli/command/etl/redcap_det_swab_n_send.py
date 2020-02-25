@@ -288,17 +288,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         contained = contained
     )
 
-    full_url = generate_full_url_uuid()
-    encounter_resource_entry = create_resource_entry(
-        resource = encounter_resource,
-        full_url = full_url
-    )
-    encounter_reference = create_reference(
-        reference_type = "Encounter",
-        reference = full_url
-    )
-
-    return encounter_resource_entry, encounter_reference
+    return create_entry_and_reference(encounter_resource, "Encounter")
 
 
 def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[dict]:
@@ -381,15 +371,7 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         [specimen_identifier], patient_reference, specimen_type, received_time, collected_time
     )
 
-    full_url = generate_full_url_uuid()
-
-    specimen_entry = create_resource_entry(specimen_resource, full_url)
-    specimen_reference = create_reference(
-        reference = full_url,
-        reference_type = "Specimen"
-    )
-
-    return specimen_entry, specimen_reference
+    return create_entry_and_reference(specimen_resource, "Specimen")
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict,

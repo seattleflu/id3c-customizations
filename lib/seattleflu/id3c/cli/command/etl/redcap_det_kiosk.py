@@ -220,15 +220,8 @@ def create_specimen(redcap_record: dict, patient_reference: dict) -> tuple:
     specimen_resource = create_specimen_resource(
         [specimen_identifier], patient_reference, specimen_type
     )
-    full_url = generate_full_url_uuid()
-    specimen_entry = create_resource_entry(specimen_resource, full_url)
-    specimen_reference = create_reference(
-        reference_type = "Specimen",
-        reference = full_url
-    )
 
-
-    return specimen_entry, specimen_reference
+    return create_entry_and_reference(specimen_resource, "Specimen")
 
 
 def get_sfs_barcode(redcap_record: dict) -> str:
@@ -774,12 +767,10 @@ def create_encounter(encounter_id: str,
         value = encounter_id
     )
 
-    encounter_class_codeable = create_codeable_concept(
+    encounter_class = create_coding(
         system = 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
         code = 'FLD'
     )
-
-    encounter_class = encounter_class_codeable['coding'][0]
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
@@ -790,18 +781,8 @@ def create_encounter(encounter_id: str,
         diagnosis = symptom_references,
         contained = symptom_resources
     )
-    full_url = generate_full_url_uuid()
-    encounter_resource_entry = create_resource_entry(
-        resource = encounter_resource,
-        full_url = full_url
-    )
 
-    encounter_reference = create_reference(
-        reference_type = 'Encounter',
-        reference = full_url
-    )
-
-    return encounter_resource_entry, encounter_reference
+    return create_entry_and_reference(encounter_resource, "Encounter")
 
 
 def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
@@ -885,12 +866,15 @@ def determine_insurance_type(insurance_reseponses: list) -> Optional[list]:
 
 def create_questionnaire_response_entry(redcap_record: dict,
                                         patient_reference: dict,
-                                        encounter_reference: dict) -> dict:
+                                        encounter_reference: dict) -> Optional[dict]:
     """
     Ceeate a questionnaire response entry based on given *redcap_record* and
     link to *patient_refernece* and *encounter_reference*
     """
     questionnaire_items = determine_all_questionnaire_items(redcap_record)
+
+    if not questionnaire_items:
+        return None
 
     questionnaire_response_resource = create_questionnaire_response_resource(
         patient_reference = patient_reference,
