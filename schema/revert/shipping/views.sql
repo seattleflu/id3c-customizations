@@ -749,6 +749,45 @@ grant select
    on shipping.incidence_model_observation_v4
    to "incidence-modeler";
 
-drop view shipping.metadata_for_augur_build_v4;
+
+create or replace view shipping.metadata_for_augur_build_v4 as
+
+    select sample.identifier as strain,
+            coalesce(
+              encountered,
+              case
+                when date_or_null(sample.details->>'date') <= current_date
+                  then date_or_null(sample.details->>'date')
+              end
+            ) as date,
+            'Seattle' as region,
+            coalesce(residence_neighborhood_district, residence_puma) as location,
+            'Seattle Flu Study' as authors,
+            age_range_coarse,
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
+            end as age_category,
+            site_category,
+            flu_shot,
+            sex
+
+      from warehouse.sample
+      join warehouse.consensus_genome using (sample_id)
+      left join warehouse.encounter using (encounter_id)
+      left join shipping.incidence_model_observation_v4 on sample.identifier = incidence_model_observation_v4.sample
+
+     where sample.identifier is not null and consensus_genome_id is not null;
+
+comment on view shipping.metadata_for_augur_build_v4 is
+		'View of metadata necessary for SFS augur build';
+
+
+revoke all
+    on shipping.incidence_model_observation_v5
+  from "incidence-modeler";
+
+drop view shipping.incidence_model_observation_v5;
+
 
 commit;

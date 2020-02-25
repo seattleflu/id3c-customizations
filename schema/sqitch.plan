@@ -85,3 +85,4 @@ shipping/views [shipping/views@2020-02-21] 2020-02-24T19:03:29Z Jover Lee <jover
 shipping/views [shipping/views@2020-02-24] 2020-02-24T19:31:05Z Jover Lee <joverlee@fredhutch.org> # Add augur build metadata view v4 to export neighborhood or PUMA
 roles/augur-build-exporter/grants [roles/augur-build-exporter/grants@2020-02-24] 2020-02-24T19:48:06Z Jover Lee <joverlee@fredhutch.org> # Update grants to augur-build-exporter for v4
 @2020-02-24-b 2020-02-24T19:51:04Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 24 Feb 2020
+shipping/views [shipping/views@2020-02-24-b] 2020-02-25T18:49:47Z Kairsten Fay <kfay@fredhutch.org> # Add incidence model view v5 with all samples

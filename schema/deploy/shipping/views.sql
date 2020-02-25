@@ -783,4 +783,78 @@ comment on view shipping.metadata_for_augur_build_v4 is
 		'View of metadata necessary for SFS augur build';
 
 
+create or replace view shipping.incidence_model_observation_v5 as
+
+    select encounter.identifier as encounter,
+
+           to_char((coalesce(encountered at time zone 'US/Pacific')::date, best_available_encounter_date), 'IYYY-"W"IW') as encountered_week,
+
+           coalesce(site.details->>'type', best_available_site_type) as best_available_site_type,
+           coalesce(site.details->>'category', best_available_site_category) as best_available_site_category,
+
+           individual.identifier as individual,
+           individual.sex,
+
+           age_bin_coarse_v2.range as age_range_coarse,
+           age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
+           age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
+
+           residence_census_tract,
+
+           coalesce(encounter_responses.flu_shot,fhir.vaccine) as flu_shot,
+           coalesce(encounter_responses.symptoms,fhir.symptoms) as symptoms,
+
+           sample.identifier as sample
+
+      from warehouse.sample
+      left join warehouse.encounter using (encounter_id)
+      left join warehouse.individual using (individual_id)
+      left join warehouse.site using (site_id)
+      left join shipping.sample_with_best_available_encounter_data_v1 using (sample_id)
+      left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
+      left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
+      left join shipping.fhir_encounter_details_v1 as fhir using (encounter_id)
+      left join (
+          select encounter_id, hierarchy->'tract' as residence_census_tract
+          from warehouse.encounter_location
+          left join warehouse.location using (location_id)
+          where relation = 'residence'
+          or relation = 'lodging'
+        ) as residence using (encounter_id),
+
+      lateral (
+          -- XXX TODO: The data in this subquery will be modeled better in the
+          -- future and the verbosity of extracting data from the JSON details
+          -- document will go away.
+          --   -trs, 22 March 2019
+
+          select -- XXX FIXME: Remove use of nullif() when we're no longer
+                 -- dealing with raw response values.
+                 nullif(nullif(responses."FluShot"[1], 'doNotKnow'), 'dontKnow')::bool as flu_shot,
+
+                 -- XXX FIXME: Remove duplicate value collapsing when we're no
+                 -- longer affected by this known Audere data quality issue.
+                 array_distinct(responses."Symptoms") as symptoms
+
+            from jsonb_to_record(encounter.details->'responses')
+              as responses (
+                  "FluShot" text[],
+                  "Symptoms" text[]))
+        as encounter_responses
+
+     order by encountered
+     ;
+
+comment on view shipping.incidence_model_observation_v5 is
+    'Version 5 of view of warehoused encounters and important questionnaire responses for modeling and viz teams';
+
+revoke all
+    on shipping.incidence_model_observation_v5
+  from "incidence-modeler";
+
+grant select
+   on shipping.incidence_model_observation_v5
+   to "incidence-modeler";
+
+
 commit;
