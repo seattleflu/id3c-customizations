@@ -139,10 +139,18 @@ create or replace view shipping.return_results_v1 as
              when count(present) > 0 then 'complete'
            end as status,
            -- We only return the top level organisms for results so we want to omit subtypes
-           array_agg(distinct subpath(organism, 0, 1)::text)
-            filter (where present and organism is not null)  as organisms_present,
-           array_agg(distinct subpath(organism, 0, 1)::text)
-            filter (where not present and organism is not null) as organisms_absent
+           array_agg(distinct
+             (case
+              when 'Influenza'::ltree @> organism then subpath(organism, 0, 2)::text
+              else subpath(organism, 0, 1)::text
+             end)
+           ) filter (where present and organism is not null)  as organisms_present,
+           array_agg(distinct
+             (case
+              when 'Influenza'::ltree @> organism then subpath(organism, 0, 2)::text
+              else subpath(organism, 0, 1)::text
+             end)
+           ) filter (where not present and organism is not null)  as organisms_absent
 
       from warehouse.identifier
       join warehouse.identifier_set using (identifier_set_id)
