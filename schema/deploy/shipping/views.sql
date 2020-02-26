@@ -149,11 +149,12 @@ create or replace view shipping.return_results_v1 as
       left join warehouse.sample on uuid::text = sample.collection_identifier
       left join shipping.presence_absence_result_v2 on sample.identifier = presence_absence_result_v2.sample
 
-    --These are all past and current collection identifier sets not including self-test
+    --These are all past and current collection identifier sets not including Y1 Flu@Home self-test
     where identifier_set.name in ('collections-seattleflu.org',
                                   'collections-kiosks',
                                   'collections-environmental',
                                   'collections-swab&send',
+                                  'collections-self-test',
                                   'collections-household-observation',
                                   'collections-household-intervention') and
           (organism is null or
