@@ -159,7 +159,7 @@ create or replace view shipping.return_results_v1 as
                                   'collections-household-intervention') and
           (organism is null or
           -- We only return results for these organisms, so omit all other presence/absence results
-          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapneumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[]) and
+          organism <@ '{"Influenza.A", "Influenza.B", "RSV"}'::ltree[]) and
           -- Limit to only Cepheid results
           (presence_absence_result_v2.details is null or presence_absence_result_v2.details @> '{"device":"Cepheid"}')
     group by barcode, sample_id
