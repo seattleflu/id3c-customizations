@@ -147,7 +147,7 @@ create or replace view shipping.return_results_v1 as
       from warehouse.identifier
       join warehouse.identifier_set using (identifier_set_id)
       left join warehouse.sample on uuid::text = sample.collection_identifier
-      left join shipping.presence_absence_result_v2 on sample.identifier = presence_absence_result_v2.sample
+      left join shipping.presence_absence_result_v1 on sample.identifier = presence_absence_result_v1.sample
 
     --These are all past and current collection identifier sets not including self-test
     where identifier_set.name in ('collections-seattleflu.org',
@@ -158,9 +158,7 @@ create or replace view shipping.return_results_v1 as
                                   'collections-household-intervention') and
           (organism is null or
           -- We only return results for these organisms, so omit all other presence/absence results
-          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapneumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[]) and
-          -- Limit to only Cepheid results
-          (presence_absence_result_v2.details is null or presence_absence_result_v2.details @> '{"device":"Cepheid"}')
+          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapneumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
     group by barcode, sample_id
     order by barcode;
 
@@ -596,79 +594,7 @@ comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
 
 
-create or replace view shipping.sample_with_best_available_encounter_data_v1 as
-
-    with specimen_manifest_data as (
-        select
-            sample_id,
-            date_or_null(details->>'date') as collection_date,
-            trim(both ' ' from details->>'swab_site') as swab_site,
-            trim(both ' ' from details->>'sample_origin') as sample_origin
-        from
-            warehouse.sample
-    ),
-
-    site_details as (
-      select
-          site_id,
-          site.identifier as site,
-          site.details->>'type' as site_type,
-          site.details->>'category' as site_category,
-          coalesce(site.details->>'swab_site', site.details->>'sample_origin') as manifest_regex
-      from warehouse.site
-    ),
-
-    samples_with_manifest_data as (
-      select
-        sample_id,
-        site_id,
-        coalesce(encountered::date, collection_date) as best_available_encounter_date,
-
-        coalesce(
-          case
-              -- Environmental samples must be processed first, because they're
-              -- often taken at existing human swab sites
-              when manifest.sample_origin = 'es'
-                then 'environmental'
-              else manifest.swab_site
-          end,
-
-          manifest.sample_origin
-        ) as site_manifest_details,
-
-        site_id is not null as has_encounter_data
-
-        from warehouse.sample
-        left join warehouse.encounter using (encounter_id)
-        left join specimen_manifest_data as manifest using (sample_id)
-    )
-
-  select
-    sample_id,
-    sample.identifier as sample,
-    has_encounter_data,
-    best_available_encounter_date,
-
-    case
-      when best_available_encounter_date < '2019-10-01'::date then 'Y1'
-      when best_available_encounter_date < '2020-10-01'::date then 'Y2'
-      else null
-    end as season,
-
-    coalesce(site.site_id, site_details.site_id) as best_available_site_id,
-    coalesce(site.identifier, site_details.site) as best_available_site,
-    coalesce(site.details->>'type', site_type) as best_available_site_type,
-    coalesce(site.details->>'category', site_category) as best_available_site_category
-
-  from warehouse.sample
-  left join samples_with_manifest_data using (sample_id)
-  left join site_details on (site_manifest_details similar to manifest_regex)
-  left join warehouse.site on (samples_with_manifest_data.site_id = site.site_id)
-  where sample.identifier is not null
-  ;
-
-comment on view shipping.sample_with_best_available_encounter_data_v1 is
-    'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
+drop view shipping.sample_with_best_available_encounter_data_v1;
 
 
 commit;
