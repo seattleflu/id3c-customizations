@@ -295,85 +295,100 @@ def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict
     create observation resources for each result following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/observation.html)
     """
-    # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
-    # 3.8.  Until then, there's no reasonable way to type this data structure
-    # better than Any.
-    #   -trs, 24 Oct 2019
-    observation_resource: Any = {
-        'resourceType': 'Observation',
-        'id': '',
-        'status': 'final',
-        'code': {
-            'coding': []
-        },
-        'valueBoolean': None,
-        'device': create_reference(
-            reference_type = 'Device',
-            identifier = create_identifier(
-                system = f'{SFS}/device',
-                value = 'Cepheid'
-            )
-        )
-    }
 
-    code_map = {
-        'Influenza A +': {
-            'system': 'http://snomed.info/sct',
-            'code': '181000124108',
-            'display': 'Influenza A virus present'
-        },
-        'Influenza B +': {
-            'system': 'http://snomed.info/sct',
-            'code': '441345003',
-            'display': 'Influenza B virus present'
-        },
-        'RSV +': {
-            'system': 'http://snomed.info/sct',
-            'code': '441278007',
-            'display': 'Respiratory syncytial virus untyped strain present'
-        },
-        'Inconclusive': {
-            'system': 'http://snomed.info/sct',
-            'code': '911000124104',
-            'display': 'Virus inconclusive'
+    def create_result_observation(id_index: int, result_type: str, result: bool) -> dict:
+        # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
+        # 3.8.  Until then, there's no reasonable way to type this data structure
+        # better than Any.
+        #   -trs, 24 Oct 2019
+        observation_resource: Any = {
+            'resourceType': 'Observation',
+            'id': '',
+            'status': 'final',
+            'code': {
+                'coding': []
+            },
+            'valueBoolean': None,
+            'device': create_reference(
+                reference_type = 'Device',
+                identifier = create_identifier(
+                    system = f'{SFS}/device',
+                    value = 'Cepheid'
+                )
+            )
         }
-    }
+
+        code_map = {
+            'Influenza A +': {
+                'system': 'http://snomed.info/sct',
+                'code': '181000124108',
+                'display': 'Influenza A virus present'
+            },
+            'Influenza B +': {
+                'system': 'http://snomed.info/sct',
+                'code': '441345003',
+                'display': 'Influenza B virus present'
+            },
+            'RSV +': {
+                'system': 'http://snomed.info/sct',
+                'code': '441278007',
+                'display': 'Respiratory syncytial virus untyped strain present'
+            },
+            'Inconclusive': {
+                'system': 'http://snomed.info/sct',
+                'code': '911000124104',
+                'display': 'Virus inconclusive'
+            }
+        }
+
+        observation_resource['id'] = 'result-' + str(index)
+        observation_resource['code']['coding'] = [code_map[result_type]]
+        observation_resource['valueBoolean'] = result
+        return observation_resource
 
     cepheid_results = find_selected_options('cepheid_results___', redcap_record)
-
-    # Create observation resources for all potential results in Cepheid test
-    diagnostic_results = {}
-    for index, result in enumerate(code_map):
-        new_observation = deepcopy(observation_resource)
-        new_observation['id'] = 'result-' + str(index+1)
-        new_observation['code']['coding'] = [code_map[result]]
-        diagnostic_results[result] = (new_observation)
+    potential_results = ['Influenza A +', 'Influenza B +', 'RSV +']
+    diagnostic_results = []
 
     # Mark all results as False if not positive for anything
     if "Not positive for anything" in cepheid_results:
-        for result in diagnostic_results:
-            diagnostic_results[result]['valueBoolean'] = False
+        for index, result_type in enumerate(potential_results):
+            observation = create_result_observation(
+                id_index = index + 1,
+                result_type = result_type,
+                result = False
+            )
+            diagnostic_results.append(observation)
 
-    # Mark inconclusive as True and all other results as False if inconclusive
+    # Mark inconclusive as True
     elif "Inconclusive" in cepheid_results:
-        for result in diagnostic_results:
-            if result == 'Inconclusive':
-                diagnostic_results[result]['valueBoolean'] = True
-            else:
-                diagnostic_results[result]['valueBoolean'] = False
+        observation = create_result_observation(
+            id_index = 1,
+            result_type = 'Inconclusive',
+            result = True
+        )
+        diagnostic_results.append(observation)
 
+    # Mark selected results as True, all others False
     else:
-        for result in diagnostic_results:
-            if result in cepheid_results:
-                diagnostic_results[result]['valueBoolean'] = True
-                cepheid_results.remove(result)
+        for index, result_type in enumerate(potential_results):
+            if result_type in cepheid_results:
+                result = True
+                cepheid_results.remove(result_type)
             else:
-                diagnostic_results[result]['valueBoolean'] = False
+                result = False
+
+            observation = create_result_observation(
+                id_index = index + 1,
+                result_type = result_type,
+                result = result
+            )
+            diagnostic_results.append(observation)
 
         if len(cepheid_results) != 0:
             raise UnknownCepheidResultError(f"Unknown Cepheid result «{cepheid_results}»")
 
-    return list(diagnostic_results.values())
+    return diagnostic_results
 
 
 def create_locations(encounter_locations: dict) -> tuple:
