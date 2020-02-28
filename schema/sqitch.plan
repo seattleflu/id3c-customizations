@@ -83,3 +83,4 @@ warehouse/target/data [warehouse/target/data@2020-02-21] 2020-02-27T21:40:44Z Jo
 @2020-02-27 2020-02-27T21:50:07Z Jover Lee <joverlee@fredhutch.org> # Schema as of 27 Feb 2020
 
 shipping/views [shipping/views@2020-02-21 seattleflu/schema:shipping/views@2020-02-25] 2020-02-26T00:44:44Z Jover Lee <joverlee@fredhutch.org> # Limit return of results to Cepheid results
+@2020-02-28 2020-02-28T22:26:03Z Jover Lee <joverlee@fredhutch.org> # Schema as of 28 Feb 2020
