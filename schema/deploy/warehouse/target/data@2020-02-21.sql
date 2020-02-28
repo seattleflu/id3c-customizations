@@ -117,10 +117,9 @@ with target_lineage (identifier, lineage) as (
         ('S. pneumoniae_APZTD4A',       'Streptococcus_pneumoniae'),
         ('S.pneumoniae',                'Streptococcus_pneumoniae'),
 
-        -- Targets reported by Ellume and Cepheid using SNOMED CT
+        -- Targets reported by Ellume using SNOMED CT
         ('http://snomed.info/id/181000124108', 'Influenza.A'),
-        ('http://snomed.info/id/441345003',    'Influenza.B'),
-        ('http://snomed.info/id/441278007',    'RSV')
+        ('http://snomed.info/id/441345003',    'Influenza.B')
 )
 insert into warehouse.target (identifier, organism_id, control)
 

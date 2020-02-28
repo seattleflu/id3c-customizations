@@ -78,3 +78,6 @@ warehouse/target/data [warehouse/target/data@2020-02-06] 2020-02-20T17:41:10Z Jo
 
 warehouse/site/data [warehouse/site/data@2020-02-20] 2020-02-21T19:49:28Z Kairsten Fay <kfay@fredhutch.org> # Update site details for self-test and swabNSend
 @2020-02-21 2020-02-21T19:55:54Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 21 Feb 2020
+
+warehouse/target/data [warehouse/target/data@2020-02-21] 2020-02-28T19:58:11Z Thomas Sibley <tsibley@fredhutch.org> # Link Cepheid RSV target to our RSV organism record
+@2020-02-28 2020-02-28T19:59:17Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 2020-02-28
