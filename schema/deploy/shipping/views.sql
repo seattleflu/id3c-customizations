@@ -138,19 +138,8 @@ create or replace view shipping.return_results_v1 as
              when sample_id is not null and count(present) = 0 then 'processing'
              when count(present) > 0 then 'complete'
            end as status,
-           -- We only return the top level organisms for results so we want to omit subtypes
-           array_agg(distinct
-             (case
-              when 'Influenza'::ltree @> organism then subpath(organism, 0, 2)::text
-              else subpath(organism, 0, 1)::text
-             end)
-           ) filter (where present and organism is not null)  as organisms_present,
-           array_agg(distinct
-             (case
-              when 'Influenza'::ltree @> organism then subpath(organism, 0, 2)::text
-              else subpath(organism, 0, 1)::text
-             end)
-           ) filter (where not present and organism is not null)  as organisms_absent
+           array_agg(distinct organism::text) filter (where present and organism is not null)  as organisms_present,
+           array_agg(distinct organism::text) filter (where not present and organism is not null)  as organisms_absent
 
       from warehouse.identifier
       join warehouse.identifier_set using (identifier_set_id)
@@ -167,7 +156,7 @@ create or replace view shipping.return_results_v1 as
                                   'collections-household-intervention') and
           (organism is null or
           -- We only return results for these organisms, so omit all other presence/absence results
-          organism <@ '{"Influenza.A", "Influenza.B", "RSV"}'::ltree[]) and
+          organism ? '{"Influenza.A", "Influenza.B", "RSV"}'::lquery[]) and
           -- Limit to only Cepheid results
           (presence_absence_result_v2.details is null or presence_absence_result_v2.details @> '{"device":"Cepheid"}')
     group by barcode, sample_id
