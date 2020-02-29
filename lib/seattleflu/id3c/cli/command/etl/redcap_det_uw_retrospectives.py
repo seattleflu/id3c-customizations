@@ -69,6 +69,7 @@ def redcap_det_uw_retrospectives(*,
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
+        source = f"{REDCAP_URL}{PROJECT_ID}/{redcap_record['barcode']}",
         entries = list(filter(None, resource_entries))
     )
 
