@@ -17,7 +17,7 @@ from functools import partial
 from math import ceil
 from id3c.db.session import DatabaseSession
 from id3c.cli import cli
-from id3c.cli.io.pandas import dump_ndjson
+from id3c.cli.io.pandas import dump_ndjson, load_file_as_dataframe
 from . import (
     add_provenance,
     age_ceiling,
@@ -190,8 +190,10 @@ def parse_sch(sch_filename, output):
     All clinical records parsed are output to stdout as newline-delimited JSON
     records.  You will likely want to redirect stdout to a file.
     """
-    dtypes = {'census_tract': 'string'}
-    clinical_records = pd.read_csv(sch_filename, dtype=dtypes)
+    clinical_records = load_file_as_dataframe(sch_filename) \
+                        .replace({"": None})
+    clinical_records['age'] = clinical_records['age'].astype('float')
+
     clinical_records = trim_whitespace(clinical_records)
     clinical_records = add_provenance(clinical_records, sch_filename)
     clinical_records = add_insurance(clinical_records)
