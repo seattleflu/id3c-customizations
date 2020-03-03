@@ -18,7 +18,8 @@ insert into warehouse.organism (lineage, identifiers, details)
         ('Human_coronavirus.NL63',  'NCBITAXON => 277944',      null),
         ('Human_coronavirus.229E',  'NCBITAXON => 11137',       null),
         ('Human_coronavirus.OC43',  'NCBITAXON => 31631',       null),
-        ('Human_coronavirus.2019',  'NCBITAXON => 2697049',     '{"report_to_public_health": true}'),
+        ('Human_coronavirus.2019_nCoV',
+                                    'NCBITAXON => 2697049',     '{"report_to_public_health": true}'),
         ('Human_metapneumovirus',   'NCBITAXON => 162145',      null),
         ('Human_parainfluenza',     null,                       null),
         ('Human_parainfluenza.1',   'NCBITAXON => 12730',       null),
@@ -48,9 +49,6 @@ insert into warehouse.organism (lineage, identifiers, details)
             details     = coalesce(organism.details, '{}')   || EXCLUDED.details
 ;
 
-delete from warehouse.organism
-    where lineage = 'Human_coronavirus.2019_nCoV';
-
 with target_lineage (identifier, lineage) as (
     values
         -- Targets reported by NWGC from Thermo Fisher's OpenArray cards
@@ -79,7 +77,6 @@ with target_lineage (identifier, lineage) as (
         ('HBoV',                        'Human_bocavirus'),
         ('CoV_229E_CoV_OC43',           'Human_coronavirus'),
         ('CoV_HKU1_CoV_NL63',           'Human_coronavirus'),
-        ('nCoV',                        'Human_coronavirus.2019'),
         ('CoV_HKU1',                    'Human_coronavirus.HKU1'),
         ('CoV_NL63',                    'Human_coronavirus.NL63'),
         ('CoV_229E',                    'Human_coronavirus.229E'),
