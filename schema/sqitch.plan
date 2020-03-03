@@ -89,3 +89,5 @@ warehouse/target/data [warehouse/target/data@2020-02-26] 2020-03-03T19:31:35Z Jo
 @2020-03-03 2020-03-03T22:46:29Z Jover Lee <joverlee@fredhutch.org> # Schema as of 03 March 2020
 warehouse/target/data [warehouse/target/data@2020-03-03] 2020-03-06T01:21:49Z Jover Lee <joverlee@fredhutch.org> # Add COVID-19 target and link to organism
 @2020-03-05 2020-03-06T01:34:53Z Jover Lee <joverlee@fredhutch.org> # Schema as of 05 March 2020
+
+shipping/views [shipping/views@2020-02-26] 2020-03-03T22:26:42Z Kairsten Fay <kfay@fredhutch.org> # Update RoR view for COVID-19
