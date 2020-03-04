@@ -84,6 +84,7 @@ def redcap_det_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, r
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
+        source = f"{REDCAP_URL}{PROJECT_ID}/{redcap_record['record_id']}",
         entries = list(filter(None, resource_entries))
     )
 

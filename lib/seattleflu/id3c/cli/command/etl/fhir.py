@@ -281,6 +281,7 @@ def create_questionnaire_response_item(question_id: str,
 
 def create_bundle_resource(bundle_id: str,
                            timestamp: str,
+                           source: str,
                            entries: List[dict]) -> dict:
     """
     Create bundle resource containing other resources following the FHIR format
@@ -290,6 +291,7 @@ def create_bundle_resource(bundle_id: str,
         "resourceType": "Bundle",
         "type": "collection",
         "id": bundle_id,
+        "meta": { "source": source },
         "timestamp": timestamp,
         "entry": entries
     })
