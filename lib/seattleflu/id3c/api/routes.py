@@ -19,8 +19,21 @@ blueprints.append(api_v3)
     "https://dev.seattleflu.org",
     "http://localhost:3000",
     "http://localhost:8080"])
+def get_barcode_results_v1(barcode=None):
+    """
+    Mark old endpoint as 410 Gone
+    """
+    return "use /v2/shipping/return-results/<barcode>", 410
+
+
+@api_v2.route("/shipping/return-results/<barcode>", methods = ['GET'])
+@cross_origin(origins=[
+    "https://seattleflu.org",
+    "https://dev.seattleflu.org",
+    "http://localhost:3000",
+    "http://localhost:8080"])
 @authenticated_datastore_session_required
-def get_barcode_results(barcode, session):
+def get_barcode_results_v2(barcode, session):
     """
     Export presence/absence results for a specific collection *barcode*
     """
