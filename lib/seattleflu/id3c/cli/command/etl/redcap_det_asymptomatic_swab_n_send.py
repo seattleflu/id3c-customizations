@@ -89,87 +89,35 @@ def redcap_det_asymptomatic_swab_n_send(*, db: DatabaseSession, cache: TTLCache,
 
 def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
     """ Creates a list of Location resource entries from a REDCap record. """
-    def uw_affiliation(record: dict) -> List[Dict[Any, Any]]:
-        uw_affiliation = record['uw_affiliation']
+    housing_type = 'residence'
 
-        student_responses = {
-            'Yes, I am an undergraduate student',
-            'Yes, I am a graduate/professional student',
-        }
+    address = {
+        'street': record['home_street'],
+        'secondary': None,
+        'city': record['homecity_other'],
+        'state': record['home_state'],
+        'zipcode': record['home_zipcode_2'],
+    }
 
-        employee_responses = {
-            'Yes, I am a graduate/professional student',
-            'Yes, I am a faculty member',
-            'Yes, I am a staff member/university employee',
-        }
+    lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
+    if not canonicalized_address:
+        return []  # TODO
 
-        if uw_affiliation and uw_affiliation not in {'No'}:
-            assert uw_affiliation in student_responses | employee_responses, \
-                f"Unknown UW affiliation answer: {uw_affiliation}"
+    tract_location = residence_census_tract(db, (lat, lng), housing_type)
+    # TODO what if tract_location is null?
+    tract_full_url = generate_full_url_uuid()
+    tract_entry = create_resource_entry(tract_location, tract_full_url)
 
-        uw_locations = []
-        if uw_affiliation in student_responses:
-            uw_locations.append(
-                create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "school"))
+    address_hash = generate_hash(canonicalized_address)
+    address_location = create_location(
+        f"{INTERNAL_SYSTEM}/location/address",
+        address_hash,
+        housing_type,
+        tract_full_url
+    )
+    address_entry = create_resource_entry(address_location, generate_full_url_uuid())
 
-        if uw_affiliation in employee_responses:
-            uw_locations.append(
-                create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "work"))
-
-        return uw_locations
-
-    def housing(db: DatabaseSession, cache: TTLCache, record: dict) -> tuple:
-        lodging_options = [
-            'Shelter',
-            'Assisted living facility',
-            'Skilled nursing center',
-            'No consistent primary residence'
-        ]
-
-        if record['housing_type'] in lodging_options:
-            housing_type = 'lodging'
-        else:
-            housing_type = 'residence'
-
-        address = {
-            'street': record['home_street'],
-            'secondary': None,
-            'city': record['homecity_other'],
-            'state': record['home_state'],
-            'zipcode': record['home_zipcode_2'],
-        }
-
-        lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
-        if not canonicalized_address:
-            return None, None  # TODO
-
-        tract_location = residence_census_tract(db, (lat, lng), housing_type)
-        # TODO what if tract_location is null?
-
-        tract_full_url = generate_full_url_uuid()
-        tract_entry = create_resource_entry(tract_location, tract_full_url)
-
-        address_hash = generate_hash(canonicalized_address)
-
-        address_location = create_location(
-            f"{INTERNAL_SYSTEM}/location/address",
-            address_hash,
-            housing_type,
-            tract_full_url
-        )
-
-        address_entry = create_resource_entry(address_location, generate_full_url_uuid())
-
-        return tract_entry, address_entry
-
-    locations = [*housing(db, cache, record)]
-
-    uw_location = uw_affiliation(record)
-    for location in uw_location:
-        if location:
-            locations.append(create_resource_entry(location, generate_full_url_uuid()))
-
-    return locations
+    return [tract_entry, address_entry]
 
 
 def create_location(system: str, value: str, location_type: str, parent: str=None) -> dict:
@@ -195,10 +143,10 @@ def create_location(system: str, value: str, location_type: str, parent: str=Non
 
 def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
-    gender = map_sex(record["sex_new"] or record["sex"])
+    gender = map_sex(record["sex"])
 
     patient_id = generate_patient_hash(
-        names       = (record['first_name_1'], record['last_name_1']),
+        names       = (record['participant_first_name'], record['participant_last_name']),
         gender      = gender,
         birth_date  = record['birthday'],
         postal_code = record['home_zipcode_2'])
@@ -222,12 +170,12 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
     def grab_symptom_keys(key: str) -> Optional[Match[str]]:
         if record[key] != '':
-            return re.match('symptoms(_child)?___[0-9]{1,3}$', key)
+            return re.match('symptoms___[0-9]{1,3}$', key)
         else:
             return None
 
     def build_conditions_list(symptom_key: str) -> dict:
-        return create_resource_condition(record, record[symptom_key], patient_reference)
+        return create_resource_condition(record[symptom_key], patient_reference)
 
     def build_diagnosis_list(symptom_key: str) -> Optional[dict]:
         mapped_symptom = map_symptom(record[symptom_key])
@@ -260,11 +208,9 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         code = "HH"
     )
 
-    if not record.get('enrollment_date_time'):
+    encounter_date = record['enrollment_date']
+    if not encounter_date:
         return None, None
-
-    # YYYY-MM-DD HH:MM in REDCap
-    encounter_date = record['enrollment_date_time'].split()[0]
 
     non_tracts = list(filter(non_tract_locations, locations))
     non_tract_references = list(map(build_locations_list, non_tracts))
@@ -290,16 +236,8 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     return create_entry_and_reference(encounter_resource, "Encounter")
 
 
-def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[dict]:
+def create_resource_condition(symptom_name: str, patient_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Condition resource. """
-    def severity(symptom_name: Optional[str]) -> Optional[str]:
-        if symptom_name:
-            category = re.search('fever|cough|ache|fatigue|sorethroat', symptom_name.lower())
-            if category:
-                return f"{category[0]}_severity"
-
-        return None
-
     mapped_symptom_name = map_symptom(symptom_name)
     if not mapped_symptom_name:
         return None
@@ -319,13 +257,8 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
                 }
             ]
         },
-        "onsetDateTime": record["symptom_duration"], # YYYY-MM-DD in REDCap
         "subject": patient_reference
     }
-
-    symptom_severity = severity(mapped_symptom_name)
-    if symptom_severity and record[symptom_severity]:
-        condition['severity'] = create_condition_severity_code(record[symptom_severity]) # TODO lowercase?
 
     return condition
 
@@ -340,10 +273,10 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         barcode = record['return_utm_barcode'] or record['pre_scan_barcode']
 
         if not barcode:
-            barcode = record['utm_tube_barcode_2']
+            barcode = record['utm_tube_barcode']
             reentered_barcode = record['reenter_barcode']
 
-            if record['barcode_confirm'] == "No":
+            if record['check_barcodes'] == "No":
                 #TODO: Figure out why 'corrected_barcode' doesn't always exist?
                 barcode = record.get('corrected_barcode')
 
@@ -362,8 +295,8 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     # YYYY-MM-DD in REDCap
     collected_time = record['collection_date'] or None
 
-    # YYYY-MM-DD HH:MM:SS in REDCap
-    received_time = record['samp_process_date'].split()[0] if record['samp_process_date'] else None
+    # YYYY-MM-DD
+    received_time = record['samp_process_date'] or None
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
@@ -401,15 +334,11 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         return questionnaire_item(record, question, category)
 
     coding_questions = [
-        'race',
-        # 'insurance',  # TODO address these non-essential coded questions later
-        # 'how_hear_sfs',
-        # 'poc_behaviors',
+        'race'
     ]
 
     boolean_questions = [
-        'ethnicity',
-        'barcode_confirm',
+        'hispanic',
         'travel_states',
         'travel_countries',
     ]
@@ -421,15 +350,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
     string_questions = [
         'education',
-        'doctor_3e8fae',
         'samp_process_date',
-        'house_members',
-        'shelter_members',
-        'where_sick',
-        'antiviral_0',
-        'acute_symptom_onset',
-        'doctor_1week',
-        'antiviral_1',
     ]
 
     question_categories = {
@@ -543,8 +464,8 @@ def vaccine(record: Any) -> Optional[dict]:
 
 def vaccine_date(record: dict) -> Optional[str]:
     """ Converts a vaccination date to 'YYYY' or 'YYYY-MM' format. """
-    year = record['vaccine_year_fc54b4']
-    month = record['vaccine_month_dfe1c1']
+    year = record['vaccine_year']
+    month = record['vaccine_1']
 
     if year == '' or year == 'Do not know':
         return None
