@@ -92,4 +92,4 @@ warehouse/target/data [warehouse/target/data@2020-03-03] 2020-03-06T01:21:49Z Jo
 
 shipping/views [shipping/views@2020-02-26] 2020-03-03T22:26:42Z Kairsten Fay <kfay@fredhutch.org> # Update RoR view for COVID-19
 roles/return-results-exporter/grants [roles/return-results-exporter/grants@2020-03-03] 2020-03-05T20:42:52Z Kairsten Fay <kfay@fredhutch.org> # Update return-results-exporter grants
-@2020-03-05 2020-03-05T18:45:54Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 2020 Mar 5
+@2020-03-05b 2020-03-06T06:23:55Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 05 Mar 2020
