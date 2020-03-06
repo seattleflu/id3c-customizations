@@ -17,6 +17,7 @@ blueprints.append(api_v3)
 @cross_origin(origins=[
     "https://seattleflu.org",
     "https://dev.seattleflu.org",
+    "http://localhost:3000",
     "http://localhost:8080"])
 @authenticated_datastore_session_required
 def get_barcode_results(barcode, session):
