@@ -39,7 +39,7 @@ def fetch_barcode_results(session: DatabaseSession,
     """
     barcode_result = session.fetch_row("""
         select barcode, status, organisms_present
-        from shipping.return_results_v1
+        from shipping.return_results_v2
         where barcode = %s
     """, (barcode,))
 
