@@ -165,6 +165,9 @@ def create_encounter(db: DatabaseSession,
         return None, None
 
     encounter_date = record["collection_date"]
+    if not encounter_date:
+        return None, None
+
     # This matches how our clinical parse_uw generates encounter id
     encounter_id = generate_hash(f"{record['mrn']}{record['accession_no']}{encounter_date}".lower())
     encounter_identifier = create_identifier(f"{SFS}/encounter", encounter_id)
