@@ -97,3 +97,4 @@ roles/return-results-exporter/grants [roles/return-results-exporter/grants@2020-
 
 roles/hcov19-visibility/create 2020-03-05T18:51:44Z Thomas Sibley <tsibley@fredhutch.org> # Create hcov19-visibility role for RLS
 policies [seattleflu/schema:warehouse/presence_absence seattleflu/schema:roles/reporter seattleflu/schema:roles/fhir-processor/create seattleflu/schema:roles/presence-absence-processor seattleflu/schema:shipping/views@2020-02-25 roles/reportable-condition-notifier/create roles/hcov19-visibility/create] 2020-03-05T06:57:10Z Thomas Sibley <tsibley@fredhutch.org> # Row-level security policies
+shipping/views [shipping/views@2020-03-05b roles/hcov19-visibility/create] 2020-03-07T21:35:31Z Thomas Sibley <tsibley@fredhutch.org> # Lock down views
