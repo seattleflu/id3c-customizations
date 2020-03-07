@@ -1,0 +1,78 @@
+#!/bin/bash
+set -euo pipefail
+
+main() {
+    assert-testable-data
+    testable-views | parallel --keep-order leak-test
+}
+
+assert-testable-data() {
+    psql -q --set=ON_ERROR_STOP=yes <<<"
+        do \$\$
+        begin
+            assert exists (
+                select
+                    presence_absence_id
+                from
+                    warehouse.presence_absence
+                    join warehouse.target using (target_id)
+                where
+                    target.identifier in ('nCoV', 'COVID-19')
+            ), 'No sensitive data to test with';
+        end
+        \$\$
+    "
+}
+
+testable-views() {
+    psql -qtAF $'\t' --set=ON_ERROR_STOP=yes <<<"
+        select
+            format('%I.%I', schemaname, viewname)
+        from
+            pg_views
+        where
+            schemaname in ('public', 'receiving', 'warehouse', 'shipping')
+        and
+            (schemaname, viewname) not in (
+                ('public', 'pg_stat_activity_nonsuperuser'),
+                ('warehouse', 'address'),
+                ('warehouse', 'tract')
+            )
+        order by
+            schemaname,
+            viewname
+    "
+}
+
+leak-test() {
+    local view="$1"
+
+    if dump-view "$view" | grep -qiE 'nCoV|COVID-19|Human_coronavirus[.]2019'; then
+        not-ok "$view"
+    else
+        ok "$view"
+    fi
+}
+
+dump-view() {
+    psql -qtA --set=ON_ERROR_STOP=yes <<<"
+        set role reporter;
+        \\copy (table $1) to pstdout
+    "
+}
+
+ok() {
+    local green='\e[32m' reset='\e[0m'
+    printf "${green}    ok %s${reset}\n" "$*"
+    return 0
+}
+
+not-ok() {
+    local red='\e[31m' reset='\e[0m'
+    printf "${red}not ok %s${reset}\n" "$*"
+    return 1
+}
+
+export -f leak-test dump-view ok not-ok
+
+main "$@"
