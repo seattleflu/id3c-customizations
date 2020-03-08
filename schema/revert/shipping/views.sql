@@ -98,6 +98,8 @@ comment on view shipping.genomic_sequences_for_augur_build_v1 is
     'View of genomic sequences for SFS augur build';
 
 
+alter view shipping.flu_assembly_jobs_v1 owner to current_user;
+
 create or replace view shipping.flu_assembly_jobs_v1 as
 
     select sample.identifier as sfs_uuid,
@@ -130,8 +132,6 @@ create or replace view shipping.flu_assembly_jobs_v1 as
 
 comment on view shipping.flu_assembly_jobs_v1 is
     'View of flu jobs that still need to be run through the assembly pipeline';
-
-alter view shipping.flu_assembly_jobs_v1 owner to current_user;
 
 
 create or replace view shipping.return_results_v1 as
