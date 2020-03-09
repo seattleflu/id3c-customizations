@@ -98,7 +98,10 @@ def notify(*, action: str):
                     LOG.info(f"No site found for presence_absence_id «{record.id}». " +
                         "Inferring site from manifest data.")
 
+                metabase_link = "https://backoffice.seattleflu.org/metabase/question/55"
+
                 if record.lineage == 'Human_coronavirus.2019':
+                    metabase_link = "https://backoffice.seattleflu.org/metabase/question/466"
                     url = SLACK_WEBHOOK_REPORTING_HCOV19
                 elif (record.site in childrens_sites or
                       record.sheet == 'SCH' or
@@ -109,7 +112,7 @@ def notify(*, action: str):
                 else:
                     url = SLACK_WEBHOOK_REPORTING_GENERAL
 
-                response = send_slack_post_request(record, url)
+                response = send_slack_post_request(record, url, metabase_link)
 
                 if response.status_code == 200:
                     mark_processed(db, record.id, {"status": "sent Slack notification"})
@@ -162,7 +165,7 @@ def get_childrens_sites(db) -> List:
     return [site.identifier for site in childrens_sites]
 
 
-def send_slack_post_request(record: Any, url: str) -> requests.Response:
+def send_slack_post_request(record: Any, url: str, metabase_link: str) -> requests.Response:
     """
     Sends a POST request to a channel-specific Slack webhook *url*. The payload
     of this POST request is composed using Slack blocks. These blocks provide
@@ -198,7 +201,7 @@ def send_slack_post_request(record: Any, url: str) -> requests.Response:
                 "type": "mrkdwn",
                 "text": dedent(f"""
                 :rotating_light: @channel {record.lineage} detected. \n
-                *<https://backoffice.seattleflu.org/metabase/question/55|Go to Metabase>*
+                *<{metabase_link}|Go to Metabase>*
                 """)
             }
         },
