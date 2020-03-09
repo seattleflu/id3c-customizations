@@ -101,3 +101,5 @@ roles/view-owner/grants [roles/view-owner/create seattleflu/schema:roles/reporte
 policies [seattleflu/schema:warehouse/presence_absence seattleflu/schema:roles/reporter seattleflu/schema:roles/fhir-processor/create seattleflu/schema:roles/presence-absence-processor seattleflu/schema:shipping/views@2020-02-25 roles/reportable-condition-notifier/create roles/hcov19-visibility/create roles/view-owner/create] 2020-03-05T06:57:10Z Thomas Sibley <tsibley@fredhutch.org> # Row-level security policies
 shipping/views [shipping/views@2020-03-05b roles/hcov19-visibility/create roles/view-owner/create] 2020-03-07T21:35:31Z Thomas Sibley <tsibley@fredhutch.org> # Lock down views
 @2020-03-07 2020-03-07T21:43:11Z Thomas Sibley <tsibley@fredhutch.org> # Schema as of 2020-03-07
+warehouse/target/data [warehouse/target/data@2020-03-07] 2020-03-09T17:37:02Z Thomas Sibley <tsibley@fredhutch.org> # Unmark hCoV-19 as reportable for now
+@2020-03-09 2020-03-09T17:48:08Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 9 March 2020
