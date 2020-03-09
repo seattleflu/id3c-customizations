@@ -6,6 +6,7 @@
 -- requires: seattleflu/schema:shipping/views@2020-02-25
 -- requires: roles/reportable-condition-notifier/create
 -- requires: roles/hcov19-visibility/create
+-- requires: roles/view-owner/create
 
 begin;
 
@@ -65,10 +66,10 @@ grant "hcov19-visibility" to
  *   -trs, 7 March 2020
  */
 alter view shipping.presence_absence_result_v1
-    owner to reporter;
+    owner to "view-owner";
 
 alter view shipping.presence_absence_result_v2
-    owner to reporter;
+    owner to "view-owner";
 
 /* Adjust ACLs on a core table.
  *

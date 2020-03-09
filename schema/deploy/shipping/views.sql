@@ -151,7 +151,7 @@ comment on view shipping.flu_assembly_jobs_v1 is
 
 -- Does not need HCoV-19 visibility and should filter it out
 -- anyway, but be safe.
-alter view shipping.flu_assembly_jobs_v1 owner to reporter;
+alter view shipping.flu_assembly_jobs_v1 owner to "view-owner";
 
 
 
