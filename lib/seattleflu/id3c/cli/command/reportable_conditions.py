@@ -67,6 +67,7 @@ def notify(*, action: str):
 
     SLACK_WEBHOOK_REPORTING_GENERAL = webhook("GENERAL")
     SLACK_WEBHOOK_REPORTING_CHILDRENS = webhook("CHILDRENS")
+    SLACK_WEBHOOK_REPORTING_HCOV19 = webhook("HCOV19")
 
     childrens_sites = get_childrens_sites(db)
 
@@ -97,13 +98,16 @@ def notify(*, action: str):
                     LOG.info(f"No site found for presence_absence_id «{record.id}». " +
                         "Inferring site from manifest data.")
 
-                url = SLACK_WEBHOOK_REPORTING_CHILDRENS \
-                    if (record.site in childrens_sites or
-                        record.sheet == 'SCH' or
-                        record.sample_origin == 'sch_retro' or
-                        record.swab_site == 'sch_ed' or
-                        record.swab_site == 'community_clinic') \
-                    else SLACK_WEBHOOK_REPORTING_GENERAL
+                if record.lineage == 'Human_coronavirus.2019':
+                    url = SLACK_WEBHOOK_REPORTING_HCOV19
+                elif (record.site in childrens_sites or
+                      record.sheet == 'SCH' or
+                      record.sample_origin == 'sch_retro' or
+                      record.swab_site == 'sch_ed' or
+                      record.swab_site == 'community_clinic'):
+                    url = SLACK_WEBHOOK_REPORTING_CHILDRENS
+                else:
+                    url = SLACK_WEBHOOK_REPORTING_GENERAL
 
                 response = send_slack_post_request(record, url)
 
