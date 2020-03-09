@@ -191,7 +191,7 @@ def parse_sch(sch_filename, output):
     records.  You will likely want to redirect stdout to a file.
     """
     clinical_records = load_file_as_dataframe(sch_filename) \
-                        .replace({"": None})
+                        .replace({"": None, "NA": None})
     clinical_records['age'] = clinical_records['age'].astype('float')
 
     clinical_records = trim_whitespace(clinical_records)
