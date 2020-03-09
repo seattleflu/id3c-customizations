@@ -86,8 +86,4 @@ grant select (presence_absence_id, received, processing_log)
     on receiving.presence_absence
     to reporter;
 
-grant select
-    on receiving.presence_absence
-    to "hcov19-visibility";
-
 commit;
