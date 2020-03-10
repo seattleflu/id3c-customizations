@@ -126,6 +126,7 @@ with target_lineage (identifier, lineage) as (
         ('http://snomed.info/id/441345003',    'Influenza.B'),
         ('http://snomed.info/id/441278007',    'RSV')
 )
+
 insert into warehouse.target (identifier, organism_id, control)
 
     select identifier, organism_id, false
