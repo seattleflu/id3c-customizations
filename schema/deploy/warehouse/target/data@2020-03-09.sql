@@ -18,7 +18,7 @@ insert into warehouse.organism (lineage, identifiers, details)
         ('Human_coronavirus.NL63',  'NCBITAXON => 277944',      null),
         ('Human_coronavirus.229E',  'NCBITAXON => 11137',       null),
         ('Human_coronavirus.OC43',  'NCBITAXON => 31631',       null),
-        ('Human_coronavirus.2019',  'NCBITAXON => 2697049',     '{"report_to_public_health": true}'),
+        ('Human_coronavirus.2019',  'NCBITAXON => 2697049',     '{"report_to_public_health": false}'),
         ('Human_metapneumovirus',   'NCBITAXON => 162145',      null),
         ('Human_parainfluenza',     null,                       null),
         ('Human_parainfluenza.1',   'NCBITAXON => 12730',       null),
@@ -126,7 +126,6 @@ with target_lineage (identifier, lineage) as (
         ('http://snomed.info/id/441345003',    'Influenza.B'),
         ('http://snomed.info/id/441278007',    'RSV')
 )
-
 insert into warehouse.target (identifier, organism_id, control)
 
     select identifier, organism_id, false

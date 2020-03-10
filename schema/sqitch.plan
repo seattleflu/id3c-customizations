@@ -104,3 +104,6 @@ shipping/views [shipping/views@2020-03-05b roles/hcov19-visibility/create roles/
 warehouse/target/data [warehouse/target/data@2020-03-07] 2020-03-09T17:37:02Z Thomas Sibley <tsibley@fredhutch.org> # Unmark hCoV-19 as reportable for now
 @2020-03-09 2020-03-09T17:48:08Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 9 March 2020
 policies [policies@2020-03-09] 2020-03-09T19:11:40Z Thomas Sibley <tsibley@fredhutch.org> # Allow hcov19-visibility to see receiving.presence_absence too
+
+warehouse/target/data [warehouse/target/data@2020-03-09] 2020-03-09T21:00:52Z Jover Lee <joverlee@fredhutch.org> # Mark hCoV-19 as reportable again
+@2020-03-09b 2020-03-09T21:09:59Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 9 March 2020
