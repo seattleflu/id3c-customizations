@@ -129,4 +129,5 @@ from . import (
     redcap_det_swab_and_home_flu,
     redcap_det_uw_retrospectives,
     redcap_det_asymptomatic_swab_n_send,
+    redcap_det_scan,
 )
