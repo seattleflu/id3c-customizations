@@ -44,6 +44,7 @@ REQUIRED_INSTRUMENTS = [
     redcap_url = REDCAP_URL,
     project_id = PROJECT_ID,
     required_instruments = REQUIRED_INSTRUMENTS,
+    raw_coded_values = True,
     revision = REVISION,
     help = __doc__)
 
@@ -61,12 +62,13 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.warning("Skipping enrollment with insufficient information to construct an encounter")
         return None
 
-    questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
 
     if not specimen_entry:
         LOG.warning("Skipping enrollment with insufficent information to construct a specimen")
         return None
+
+    questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
@@ -89,87 +91,62 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
 
 def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
     """ Creates a list of Location resource entries from a REDCap record. """
-    def uw_affiliation(record: dict) -> List[Dict[Any, Any]]:
-        uw_affiliation = record['uw_affiliation']
+    lodging_options = [
+        'shelter',
+        'afl',
+        'snf',
+        'none'
+    ]
 
-        student_responses = {
-            'Yes, I am an undergraduate student',
-            'Yes, I am a graduate/professional student',
-        }
+    if record['housing_type'] in lodging_options:
+        housing_type = 'lodging'
+    else:
+        housing_type = 'residence'
 
-        employee_responses = {
-            'Yes, I am a graduate/professional student',
-            'Yes, I am a faculty member',
-            'Yes, I am a staff member/university employee',
-        }
+    address = {
+        'street': record['home_street'],
+        'secondary': None,
+        'city': record['homecity_other'],
+        'state': record['home_state'],
+        'zipcode': record['home_zipcode_2'],
+    }
 
-        if uw_affiliation and uw_affiliation not in {'No'}:
-            assert uw_affiliation in student_responses | employee_responses, \
-                f"Unknown UW affiliation answer: {uw_affiliation}"
+    lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
+    if not canonicalized_address:
+        return []  # TODO
 
-        uw_locations = []
-        if uw_affiliation in student_responses:
-            uw_locations.append(
-                create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "school"))
+    tract_location = residence_census_tract(db, (lat, lng), housing_type)
+    # TODO what if tract_location is null?
+    tract_full_url = generate_full_url_uuid()
+    tract_entry = create_resource_entry(tract_location, tract_full_url)
 
-        if uw_affiliation in employee_responses:
-            uw_locations.append(
-                create_location(f"{INTERNAL_SYSTEM}/location/tract", UW_CENSUS_TRACT, "work"))
+    address_hash = generate_hash(canonicalized_address)
+    address_location = create_location(
+        f"{INTERNAL_SYSTEM}/location/address",
+        address_hash,
+        housing_type,
+        tract_full_url
+    )
+    address_entry = create_resource_entry(address_location, generate_full_url_uuid())
 
-        return uw_locations
+    return [tract_entry, address_entry]
 
-    def housing(db: DatabaseSession, cache: TTLCache, record: dict) -> tuple:
-        lodging_options = [
-            'Shelter',
-            'Assisted living facility',
-            'Skilled nursing center',
-            'No consistent primary residence'
-        ]
 
-        if record['housing_type'] in lodging_options:
-            housing_type = 'lodging'
-        else:
-            housing_type = 'residence'
+def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
+    housing_type: str) -> Optional[dict]:
+    """
+    Creates a new Location Resource for the census tract containing the given
+    *lat_lng* coordintes and associates it with the given *housing_type*.
+    """
+    location = location_lookup(db, lat_lng, 'tract')
 
-        address = {
-            'street': record['home_street'],
-            'secondary': None,
-            'city': record['homecity_other'],
-            'state': record['home_state'],
-            'zipcode': record['home_zipcode_2'],
-        }
-
-        lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
-        if not canonicalized_address:
-            return None, None  # TODO
-
-        tract_location = residence_census_tract(db, (lat, lng), housing_type)
-        # TODO what if tract_location is null?
-
-        tract_full_url = generate_full_url_uuid()
-        tract_entry = create_resource_entry(tract_location, tract_full_url)
-
-        address_hash = generate_hash(canonicalized_address)
-
-        address_location = create_location(
-            f"{INTERNAL_SYSTEM}/location/address",
-            address_hash,
-            housing_type,
-            tract_full_url
+    if location and location.identifier:
+        return create_location(
+            f"{INTERNAL_SYSTEM}/location/tract", location.identifier, housing_type
         )
-
-        address_entry = create_resource_entry(address_location, generate_full_url_uuid())
-
-        return tract_entry, address_entry
-
-    locations = [*housing(db, cache, record)]
-
-    uw_location = uw_affiliation(record)
-    for location in uw_location:
-        if location:
-            locations.append(create_resource_entry(location, generate_full_url_uuid()))
-
-    return locations
+    else:
+        LOG.warning("No census tract found for given location.")
+        return None
 
 
 def create_location(system: str, value: str, location_type: str, parent: str=None) -> dict:
@@ -195,10 +172,10 @@ def create_location(system: str, value: str, location_type: str, parent: str=Non
 
 def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
-    gender = map_sex(record["sex_new"] or record["sex"])
+    gender = map_sex(record['sex_new'])
 
     patient_id = generate_patient_hash(
-        names       = (record['first_name_1'], record['last_name_1']),
+        names       = (record['participant_first_name'], record['participant_last_name']),
         gender      = gender,
         birth_date  = record['birthday'],
         postal_code = record['home_zipcode_2'])
@@ -221,16 +198,16 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     """ Returns a FHIR Encounter resource entry and reference """
 
     def grab_symptom_keys(key: str) -> Optional[Match[str]]:
-        if record[key] != '':
-            return re.match('symptoms(_child)?___[0-9]{1,3}$', key)
+        if record[key] == '1':
+            return re.match('symptoms___[a-z]+$', key)
         else:
             return None
 
-    def build_conditions_list(symptom_key: str) -> dict:
-        return create_resource_condition(record, record[symptom_key], patient_reference)
+    def build_conditions_list(symptom: str) -> dict:
+        return create_resource_condition(record, symptom, patient_reference)
 
-    def build_diagnosis_list(symptom_key: str) -> Optional[dict]:
-        mapped_symptom = map_symptom(record[symptom_key])
+    def build_diagnosis_list(symptom: str) -> Optional[dict]:
+        mapped_symptom = map_symptom(symptom)
         if not mapped_symptom:
             return None
 
@@ -249,8 +226,9 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
             and resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/location/tract"
 
     symptom_keys = list(filter(grab_symptom_keys, record))
-    contained = list(filter(None, map(build_conditions_list, symptom_keys)))
-    diagnosis = list(filter(None, map(build_diagnosis_list, symptom_keys)))
+    symptoms = list(map(lambda x: x.replace('symptoms___', ''), symptom_keys))
+    contained = list(filter(None, map(build_conditions_list, symptoms)))
+    diagnosis = list(filter(None, map(build_diagnosis_list, symptoms)))
     encounter_identifier = create_identifier(
         system = f"{INTERNAL_SYSTEM}/encounter",
         value = f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}"
@@ -260,19 +238,18 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
         code = "HH"
     )
 
-    if not record.get('enrollment_date_time'):
+    # YYYY-MM-DD in REDCap
+    encounter_date = record['enrollment_date']
+    if not encounter_date:
         return None, None
-
-    # YYYY-MM-DD HH:MM in REDCap
-    encounter_date = record['enrollment_date_time'].split()[0]
 
     non_tracts = list(filter(non_tract_locations, locations))
     non_tract_references = list(map(build_locations_list, non_tracts))
-    # Site for all swab 'n send Encounters is 'swabNSend'
+    # Site for all SCAN Encounters is 'scan'
     site_reference = {
         "location": create_reference(
             reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'swabNSend')
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'scan')
         )
     }
     non_tract_references.append(site_reference)
@@ -292,14 +269,6 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
 def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Condition resource. """
-    def severity(symptom_name: Optional[str]) -> Optional[str]:
-        if symptom_name:
-            category = re.search('fever|cough|ache|fatigue|sorethroat', symptom_name.lower())
-            if category:
-                return f"{category[0]}_severity"
-
-        return None
-
     mapped_symptom_name = map_symptom(symptom_name)
     if not mapped_symptom_name:
         return None
@@ -322,10 +291,6 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
         "onsetDateTime": record["symptom_duration"], # YYYY-MM-DD in REDCap
         "subject": patient_reference
     }
-
-    symptom_severity = severity(mapped_symptom_name)
-    if symptom_severity and record[symptom_severity]:
-        condition['severity'] = create_condition_severity_code(record[symptom_severity]) # TODO lowercase?
 
     return condition
 
@@ -377,41 +342,54 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     encounter_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Questionnaire Response resource entry. """
 
-    def create_custom_coding_key(coded_question: str, record: dict) -> Optional[List]:
+    def combine_checkbox_answers(coded_question: str, record: dict) -> Optional[List]:
         """
-        Handles the 'race' edge case by combining "select all that apply"-type
+        Handles the combining "select all that apply"-type checkbox
         responses into one list.
+
+        Uses our in-house mapping for race.
         """
         coded_keys = list(filter(lambda r: grab_coding_keys(coded_question, r), record))
-        coded_names = list(map(lambda k: record[k], coded_keys))
+        coded_names = list(map(lambda k: k.replace(f"{coded_question}___", ""), coded_keys))
 
         if coded_question == 'race':
             return race(coded_names)
 
-        return None
+        return coded_names
 
     def grab_coding_keys(coded_question: str, key: str) -> Optional[Match[str]]:
-        if record[key] == '':
+        if record[key] == '0':
             return None
 
-        return re.match(f'{coded_question}___[0-9]+$', key)
+        return re.match(rf'{coded_question}___[\w]*$', key)
+
+
+    def combine_multiple_fields(field_prefix: str, record: dict) -> Optional[List]:
+        """
+        Handles the combining of multiple fields asking the same question such
+        as country and state traveled.
+        """
+        matching_fields = list(filter(lambda field: re.match(rf'^{field_prefix}[0-9]+$', field), record))
+        answered_fields = list(filter(lambda f: record[f] != '', matching_fields))
+
+        if not answered_fields:
+            return None
+
+        return list(map(lambda x: record[x], answered_fields))
 
 
     def build_questionnaire_items(question: str) -> Optional[dict]:
         return questionnaire_item(record, question, category)
 
     coding_questions = [
-        'race',
-        # 'insurance',  # TODO address these non-essential coded questions later
-        # 'how_hear_sfs',
-        # 'poc_behaviors',
+        'race'
     ]
 
     boolean_questions = [
         'ethnicity',
-        'barcode_confirm',
-        'travel_states',
-        'travel_countries',
+        'pregnant_yesno',
+        'travel_countries_phs',
+        'travel_states_phs',
     ]
 
     integer_questions = [
@@ -420,16 +398,23 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     ]
 
     string_questions = [
-        'education',
-        'doctor_3e8fae',
-        'samp_process_date',
+        'redcap_event_name',
+        'income',
+        'housing_type',
         'house_members',
-        'shelter_members',
-        'where_sick',
-        'antiviral_0',
-        'acute_symptom_onset',
-        'doctor_1week',
-        'antiviral_1',
+        'doctor',
+        'hospital_where',
+        'hospital_ed',
+        'smoke',
+        'chronic_illness',
+        'overall_risk',
+        'country',
+        'state',
+    ]
+
+    date_questions = [
+        'hospital_arrive',
+        'hospital_leave',
     ]
 
     question_categories = {
@@ -437,10 +422,22 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'valueBoolean': boolean_questions,
         'valueInteger': integer_questions,
         'valueString': string_questions,
+        'valueDate': date_questions,
     }
 
     # Do some pre-processing
-    record['race'] = create_custom_coding_key('race', record)
+    # Combine checkbox answers into one list
+    record['race'] = combine_checkbox_answers('race', record)
+    record['doctor'] = combine_checkbox_answers('doctor_3e8fae', record)
+    record['smoke'] = combine_checkbox_answers('smoke_9a005a', record)
+    record['chronic_illness'] = combine_checkbox_answers('chronic_illness', record)
+    record['overall_risk'] = combine_checkbox_answers('overall_risk', record)
+
+    # Combine all fields answering the same question
+    record['country'] = combine_multiple_fields('country', record)
+    record['state'] = combine_multiple_fields('state', record)
+
+    # Age Ceiling
     record['age'] = age_ceiling(int(record['age']))
     record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
 
@@ -450,11 +447,6 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         for item in category_items:
             if item:
                 items.append(item)
-
-    # Handle edge cases
-    vaccine_item = vaccine(record)
-    if vaccine_item:
-        items.append(vaccine_item)
 
     if items:
         questionnaire_reseponse_resource = create_questionnaire_response_resource(
@@ -479,7 +471,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
 
     def cast_to_string(string: str) -> Optional[str]:
         if string != '':
-            return string
+            return string.strip()
         return None
 
     def cast_to_integer(string: str) -> Optional[int]:
@@ -489,9 +481,9 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
             return None
 
     def cast_to_boolean(string: str) -> Optional[bool]:
-        if string == 'Yes':
+        if string == 'yes':
             return True
-        elif re.match(r'^No($|,[\w\s\'\.]*)$', string):  # Starts with "No", has optional comma and text
+        elif string == 'no':
             return False
         return None
 
@@ -514,6 +506,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         'valueInteger': cast_to_integer,
         'valueBoolean': cast_to_boolean,
         'valueString': cast_to_string,
+        'valueDate': cast_to_string,
     }
 
     answers = build_response_answers(response)
@@ -521,52 +514,3 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         return create_questionnaire_response_item(question_id, answers)
 
     return None
-
-
-def vaccine(record: Any) -> Optional[dict]:
-    """
-    For a given *record*, return a questionnaire response item with the vaccine
-    response(s) encoded.
-    """
-    vaccine_status = map_vaccine(record["vaccine"])
-    if vaccine_status is None:
-        return None
-
-    answers: List[Dict[str, Any]] = [{ 'valueBoolean': vaccine_status }]
-
-    date = vaccine_date(record)
-    if vaccine_status and date:
-        answers.append({ 'valueDate': date })
-
-    return create_questionnaire_response_item('vaccine', answers)
-
-
-def vaccine_date(record: dict) -> Optional[str]:
-    """ Converts a vaccination date to 'YYYY' or 'YYYY-MM' format. """
-    year = record['vaccine_year_fc54b4']
-    month = record['vaccine_month_dfe1c1']
-
-    if year == '' or year == 'Do not know':
-        return None
-
-    if month == 'Do not know':
-        return datetime.strptime(year, '%Y').strftime('%Y')
-
-    return datetime.strptime(f'{month} {year}', '%B %Y').strftime('%Y-%m')
-
-
-def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
-    housing_type: str) -> Optional[dict]:
-    """
-    Creates a new Location Resource for the census tract containing the given
-    *lat_lng* coordintes and associates it with the given *housing_type*.
-    """
-    location = location_lookup(db, lat_lng, 'tract')
-
-    if location and location.identifier:
-        return create_location(
-            f"{INTERNAL_SYSTEM}/location/tract", location.identifier, housing_type
-        )
-    else:
-        LOG.warning("No census tract found for given location.")
-        return None

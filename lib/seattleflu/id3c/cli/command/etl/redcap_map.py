@@ -10,19 +10,21 @@ def map_sex(sex_response: str) -> Optional[str]:
     (https://www.hl7.org/fhir/valueset-administrative-gender.html)
     """
     sex_map = {
-        'Male': 'male',
-        'Female': 'female',
-        'Indeterminate/other': 'other',
-        'Other (please specify)': 'other',
-        'Prefer not to say': 'unknown',
-        'Unknown': 'unknown',
+        'male': 'male',
+        'female': 'female',
+        'indeterminate/other': 'other',
+        'other (please specify)': 'other',
+        'other': 'other',
+        'prefer not to say': 'unknown',
+        'dont_say': 'unknown',
+        'unknown': 'unknown',
         '': 'unknown'
     }
 
-    if sex_response not in sex_map:
+    if sex_response.lower() not in sex_map:
         raise UnknownSexError(f"Unknown sex response «{sex_response}»")
 
-    return sex_map[sex_response]
+    return sex_map[sex_response.lower()]
 
 
 def map_vaccine(vaccine_response: str) -> Optional[bool]:
@@ -51,29 +53,39 @@ def map_symptom(symptom_name: str) -> Optional[str]:
     created by Audere from year 1 (2018-2019).
     """
     symptom_map = {
-        'Feeling feverish':                     'feelingFeverish',
-        'Headache':                             'headaches',
-        'Headaches':                            'headaches',
-        'Cough':                                'cough',
-        'Chills or shivering':                  'chillsOrShivering',
-        'Sweats':                               'sweats',
-        'Sore throat or itchy/scratchy throat': 'soreThroat',
-        'Nausea or vomiting':                   'nauseaOrVomiting',
-        'Runny or stuffy nose':                 'runnyOrStuffyNose',
-        'Runny / stuffy nose':                  'runnyOrStuffyNose',
-        'Feeling more tired than usual':        'fatigue',
-        'Muscle or body aches':                 'muscleOrBodyAches',
-        'Diarrhea':                             'diarrhea',
-        'Ear pain or ear discharge':            'earPainOrDischarge',
-        'Rash':                                 'rash',
-        'Increased trouble with breathing':     'increasedTroubleBreathing',
-        'None of the above':                    None
+        'feeling feverish':                     'feelingFeverish',
+        'fever':                                'feelingFeverish',
+        'headache':                             'headaches',
+        'headaches':                            'headaches',
+        'cough':                                'cough',
+        'chills':                               'chillsOrShivering',
+        'chills or shivering':                  'chillsOrShivering',
+        'sweats':                               'sweats',
+        'throat':                               'soreThroat',
+        'sore throat or itchy/scratchy throat': 'soreThroat',
+        'nausea':                               'nauseaOrVomiting',
+        'nausea or vomiting':                   'nauseaOrVomiting',
+        'nose':                                 'runnyOrStuffyNose',
+        'runny or stuffy nose':                 'runnyOrStuffyNose',
+        'runny / stuffy nose':                  'runnyOrStuffyNose',
+        'tired':                                'fatigue',
+        'feeling more tired than usual':        'fatigue',
+        'ache':                                 'muscleOrBodyAches',
+        'muscle or body aches':                 'muscleOrBodyAches',
+        'diarrhea':                             'diarrhea',
+        'ear':                                  'earPainOrDischarge',
+        'ear pain or ear discharge':            'earPainOrDischarge',
+        'rash':                                 'rash',
+        'breathe':                              'increasedTroubleBreathing',
+        'increased trouble with breathing':     'increasedTroubleBreathing',
+        'none':                                 None,
+        'none of the above':                    None
     }
 
-    if symptom_name not in symptom_map:
+    if symptom_name.lower() not in symptom_map:
         raise UnknownSymptomNameError(f"Unknown symptom name «{symptom_name}»")
 
-    return symptom_map[symptom_name]
+    return symptom_map[symptom_name.lower()]
 
 
 class UnknownSexError(ValueError):
