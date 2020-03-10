@@ -22,7 +22,7 @@ SFS = "https://seattleflu.org"
 REDCAP_URL = "https://redcap.iths.org/"
 PROJECT_ID = 19915
 
-REVISION = 1
+REVISION = 2
 
 @redcap_det.command_for_project(
     "uw-retrospectives",
@@ -58,6 +58,12 @@ def redcap_det_uw_retrospectives(*,
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
+    diagnostic_report_resource_entry = create_diagnostic_report(
+        redcap_record,
+        patient_reference,
+        specimen_reference
+    )
+
     resource_entries = [
         patient_entry,
         specimen_entry,
@@ -68,6 +74,9 @@ def redcap_det_uw_retrospectives(*,
 
     if location_entries:
         resource_entries.extend(location_entries)
+
+    if diagnostic_report_resource_entry:
+        resource_entries.append(diagnostic_report_resource_entry)
 
     return create_bundle_resource(
         bundle_id = str(uuid4()),
@@ -276,6 +285,187 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
         ))
 
     return questionnaire_items
+
+
+def create_diagnostic_report(redcap_record:dict,
+                             patient_reference: dict,
+                             specimen_reference: dict) -> Optional[dict]:
+    """
+    Create FHIR diagnostic report from given *redcap_record* and link to
+    specific *patient_reference* and *specimen_reference*
+    """
+    clinical_results = create_clinical_result_observation_resource(redcap_record)
+    if not clinical_results:
+        return None
+
+    diagnostic_result_references = []
+    for result in clinical_results:
+        reference = create_reference(
+            reference_type = 'Observation',
+            reference = '#' + result['id']
+        )
+        diagnostic_result_references.append(reference)
+
+    collection_datetime = redcap_record['collection_date']
+
+    diagnostic_code = create_codeable_concept(
+        system = 'http://loinc.org',
+        code = '85476-0',
+        display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
+    )
+
+    diagnostic_report_resource = create_diagnostic_report_resource(
+        datetime = collection_datetime,
+        diagnostic_code = diagnostic_code,
+        patient_reference  = patient_reference,
+        specimen_reference = specimen_reference,
+        result = diagnostic_result_references,
+        contained = clinical_results
+    )
+
+    return (create_resource_entry(
+        resource = diagnostic_report_resource,
+        full_url = generate_full_url_uuid()
+    ))
+
+
+def create_clinical_result_observation_resource(redcap_record: dict) -> Optional[List[dict]]:
+    """
+    Determine the clinical results based on responses in *redcap_record* and
+    create observation resources for each result following the FHIR format
+    (http://www.hl7.org/implement/standards/fhir/observation.html)
+    """
+    code_map = {
+        '1240581000000104': {
+            'system': 'http://snomed.info/sct',
+            'code': '1240581000000104',
+            'display': '2019-nCoV (novel coronavirus) detected',
+        },
+        '181000124108': {
+            'system': 'http://snomed.info/sct',
+            'code': '181000124108',
+            'display': 'Influenza A virus present',
+        },
+        '441345003': {
+            'system': 'http://snomed.info/sct',
+            'code': '441345003',
+            'display': 'Influenza B virus present',
+        },
+        '441278007': {
+            'system': 'http://snomed.info/sct',
+            'code': '441278007',
+            'display': 'Respiratory syncytial virus untyped strain present',
+        },
+        '441344004': {
+            'system': 'http://snomed.info/sct',
+            'code': '441344004',
+            'display': 'Human parainfluenza virus present',
+        },
+        '186747009': {
+            'system': 'http://snomed.info/sct',
+            'code': '186747009',
+            'display': 'Coronavirus infection',  # NOT clinical finding
+        },
+        '440925005': {
+            'system': 'http://snomed.info/sct',
+            'code': '440925005',
+            'display': 'Human rhinovirus present',
+        },
+        '440930009': {
+            'system': 'http://snomed.info/sct',
+            'code': '440930009',
+            'display': 'Human adenovirus present',
+        },
+    }
+
+    # Create intermediary, mapped clinical results using SNOMED codes.
+    # This is useful in removing duplicate tests (e.g. multiple tests run for
+    # Influenza A)
+    results = mapped_snomed_test_results(redcap_record)
+
+    # Create observation resources for all results in clinical tests
+    diagnostic_results: Any = {}
+
+    for index, finding in enumerate(results):
+        new_observation = observation_resource('clinical')
+        new_observation['id'] = 'result-' + str(index + 1)
+        new_observation['code']['coding'] = [code_map[finding]]
+        new_observation['valueBoolean'] = results[finding]
+        diagnostic_results[finding] = (new_observation)
+
+    return list(diagnostic_results.values()) or None
+
+
+def present(redcap_record: dict, test: str) -> Optional[bool]:
+    """
+    Returns a mapped boolean *test* result from a given *redcap_record*. A
+    return value of `None` means no test results are available.
+    """
+    result = redcap_record[test]
+
+    if not result or result.startswith('Reorder requested, '):
+        return None
+
+    test_result_map = {
+        'Positive': True,
+        'Negative': False,
+        'None detected.': False,
+        'Test not applicable': None,
+        'Canceled by practitioner': None,
+        'Duplicate request': None,
+    }
+
+    if result not in test_result_map:
+        raise Exception(f"Unknown test result value «{result}».")
+
+    return test_result_map[result]
+
+
+def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
+    """
+    Given a *redcap_record*, returns a dict of the mapped SNOMED clinical
+    finding code and the test result.
+    """
+    # I'm using a British version (1) of snomed for COVID-19 rather than the
+    # international verison, because it appears there is still no
+    # observation result for SARS-CoV-2 in the latest international edition
+    # (2).
+    #
+    # 1. https://snomedbrowser.com/Codes/Details/1240581000000104
+    # 2: https://www.snomed.org/news-and-events/articles/march-2020-interim-snomedct-release-COVID-19
+    #
+    # -- kfay, 11 Mar 2020
+    redcap_to_snomed_map = {
+        'ncvrt': '1240581000000104',
+        'revfla': '181000124108',
+        'fluapr': '181000124108',
+        'revflb': '441345003',
+        'flubpr': '441345003',
+        'revrsv': '441278007',
+        'revrhn': '440925005',
+        'revadv': '440930009',
+    }
+
+    results: Dict[str, bool] = {}
+
+    # Populate dict of tests administered during encounter by filtering out
+    # null results. Map the REDCap test variable to the snomed code. In the
+    # event of duplicate clinical findings, prioritize keeping positive results.
+    for test in redcap_to_snomed_map:
+        code = redcap_to_snomed_map[test]
+
+        # Skip updating results for tests already marked as positive
+        if results.get(code):
+            continue
+
+        result = present(redcap_record, test)
+        # Don't add empty results
+        if result is None:
+            continue
+
+        results[code] = result
+
+    return results
 
 
 class UnknownSampleOrigin(ValueError):
