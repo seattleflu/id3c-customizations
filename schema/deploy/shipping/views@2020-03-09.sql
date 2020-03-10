@@ -728,48 +728,4 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
-create or replace view shipping.hcov19_observation_v1 as
-
-    select
-        presence_absence.created::date as sample_tested_date,
-        present,
-        sample.details->>'sample_origin' as sample_manifest_origin,
-        best_available_encounter_date as encounter_date,
-        age_bin_fine.range as age_range_fine,
-        lower(age_bin_fine.range) as age_range_fine_lower,
-        upper(age_bin_fine.range) as age_range_fine_upper,
-        sex,
-        hierarchy->'puma' as puma,
-        best_available_site as site,
-        individual,
-        sample.identifier as sample,
-        best_available_site_type as site_type
-
-    from shipping.sample_with_best_available_encounter_data_v1
-    join warehouse.sample using (sample_id)
-    full outer join warehouse.encounter using (encounter_id)
-    left join warehouse.individual using (individual_id)
-    left join shipping.age_bin_fine on age_bin_fine.range @> ceiling(age_in_years(age))::int
-    left join warehouse.presence_absence using (sample_id)
-    left join warehouse.target using (target_id)
-    left join warehouse.organism using (organism_id)
-    left join warehouse.encounter_location using (encounter_id)
-    left join warehouse.location using (location_id)
-    where
-        lineage = 'Human_coronavirus.2019'
-        -- If no test results are available, select encounters on or after 1 March 2020
-        -- Because Mike said so
-        or (
-          lineage is null and
-          best_available_encounter_date >= '2020-03-01'::date
-        )
-        and (not control or control is null)
-        and sample.details->>'sample_origin' != 'es'
-    ;
-
-
-comment on view shipping.hcov19_observation_v1 is
-  'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
-
-
 commit;

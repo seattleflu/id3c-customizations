@@ -47,25 +47,7 @@ create or replace view shipping.reportable_condition_v1 as
 
     order by encountered desc;
 
-/* The shipping.reportable_condition_v1 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by
- * reportable-condition-notifier.  Revoke existing grants to every other role.
- *
- * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
- * in the future.  It's part of the broader bad interplay between views and
- * their grants.  I think it was a mistake to lump grants to each role in their
- * own change instead of scattering them amongst the changes that create/rework
- * tables and views and things that are granted on.  I made that choice
- * initially so that all grants for a role could be seen in a single
- * consolidated place, which would still be nice.  There's got to be a better
- * system for managing this (a single idempotent change script with all ACLs
- * that is always run after other changes? cleaner breaking up of sqitch
- * projects?), but I don't have time to think on it much now.  Luckily for us,
- * I think the core reporter role is unlikely to be reworked soon, but we
- * should be wary.
- *   -trs, 7 March 2020
- */
-revoke all on shipping.reportable_condition_v1 from reporter;
+grant select on shipping.reportable_condition_v1 to reporter;
 
 
 drop view shipping.metadata_for_augur_build_v2;
@@ -116,6 +98,8 @@ comment on view shipping.genomic_sequences_for_augur_build_v1 is
     'View of genomic sequences for SFS augur build';
 
 
+alter view shipping.flu_assembly_jobs_v1 owner to current_user;
+
 create or replace view shipping.flu_assembly_jobs_v1 as
 
     select sample.identifier as sfs_uuid,
@@ -148,11 +132,6 @@ create or replace view shipping.flu_assembly_jobs_v1 as
 
 comment on view shipping.flu_assembly_jobs_v1 is
     'View of flu jobs that still need to be run through the assembly pipeline';
-
--- Does not need HCoV-19 visibility and should filter it out
--- anyway, but be safe.
-alter view shipping.flu_assembly_jobs_v1 owner to "view-owner";
-
 
 
 create or replace view shipping.return_results_v1 as
@@ -726,50 +705,6 @@ create or replace view shipping.return_results_v2 as
 
 comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
-
-
-create or replace view shipping.hcov19_observation_v1 as
-
-    select
-        presence_absence.created::date as sample_tested_date,
-        present,
-        sample.details->>'sample_origin' as sample_manifest_origin,
-        best_available_encounter_date as encounter_date,
-        age_bin_fine.range as age_range_fine,
-        lower(age_bin_fine.range) as age_range_fine_lower,
-        upper(age_bin_fine.range) as age_range_fine_upper,
-        sex,
-        hierarchy->'puma' as puma,
-        best_available_site as site,
-        individual,
-        sample.identifier as sample,
-        best_available_site_type as site_type
-
-    from shipping.sample_with_best_available_encounter_data_v1
-    join warehouse.sample using (sample_id)
-    full outer join warehouse.encounter using (encounter_id)
-    left join warehouse.individual using (individual_id)
-    left join shipping.age_bin_fine on age_bin_fine.range @> ceiling(age_in_years(age))::int
-    left join warehouse.presence_absence using (sample_id)
-    left join warehouse.target using (target_id)
-    left join warehouse.organism using (organism_id)
-    left join warehouse.encounter_location using (encounter_id)
-    left join warehouse.location using (location_id)
-    where
-        lineage = 'Human_coronavirus.2019'
-        -- If no test results are available, select encounters on or after 1 March 2020
-        -- Because Mike said so
-        or (
-          lineage is null and
-          best_available_encounter_date >= '2020-03-01'::date
-        )
-        and (not control or control is null)
-        and sample.details->>'sample_origin' != 'es'
-    ;
-
-
-comment on view shipping.hcov19_observation_v1 is
-  'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
 
 commit;

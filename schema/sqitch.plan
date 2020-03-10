@@ -107,3 +107,5 @@ policies [policies@2020-03-09] 2020-03-09T19:11:40Z Thomas Sibley <tsibley@fredh
 
 warehouse/target/data [warehouse/target/data@2020-03-09] 2020-03-09T21:00:52Z Jover Lee <joverlee@fredhutch.org> # Mark hCoV-19 as reportable again
 @2020-03-09b 2020-03-09T21:09:59Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 9 March 2020
+
+shipping/views [shipping/views@2020-03-09] 2020-03-10T02:53:04Z Kairsten Fay <kfay@fredhutch.org> # Add view for hCoV-19 results
