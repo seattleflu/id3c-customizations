@@ -757,11 +757,11 @@ create or replace view shipping.hcov19_observation_v1 as
     left join warehouse.location using (location_id)
     where
         lineage = 'Human_coronavirus.2019'
-        -- If no test results are available, select encounters on or after 1 March 2020
-        -- Because Mike said so
+        -- If no test results are available, select encounters on or after 22 Feb 2020.
+        -- Date chosen because of this tweet: https://mobile.twitter.com/trvrb/status/1237395936193605633
         or (
           lineage is null and
-          best_available_encounter_date >= '2020-03-01'::date
+          best_available_encounter_date >= '2020-02-22'::date
         )
         and (not control or control is null)
         and sample.details->>'sample_origin' != 'es'
