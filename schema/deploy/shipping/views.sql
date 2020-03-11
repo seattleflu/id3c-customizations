@@ -768,6 +768,27 @@ create or replace view shipping.hcov19_observation_v1 as
     ;
 
 
+/* The shipping.hcov19_observation_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by
+ * reportable-condition-notifier.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.hcov19_observation_v1 from reporter;
+
+
 comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
