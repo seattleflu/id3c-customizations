@@ -402,10 +402,10 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'income',
         'housing_type',
         'house_members',
-        'doctor',
+        'doctor_3e8fae',
         'hospital_where',
         'hospital_ed',
-        'smoke',
+        'smoke_9a005a',
         'chronic_illness',
         'overall_risk_health',
         'overall_risk_setting',
@@ -429,13 +429,17 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
     # Do some pre-processing
     # Combine checkbox answers into one list
-    record['race'] = combine_checkbox_answers('race', record)
-    record['doctor'] = combine_checkbox_answers('doctor_3e8fae', record)
-    record['smoke'] = combine_checkbox_answers('smoke_9a005a', record)
-    record['chronic_illness'] = combine_checkbox_answers('chronic_illness', record)
-    record['overall_risk_health'] = combine_checkbox_answers('overall_risk_health', record)
-    record['overall_risk_setting'] = combine_checkbox_answers('overall_risk_setting', record)
-    record['longterm_type'] = combine_checkbox_answers('longterm_type', record)
+    checkbox_fields = [
+        'race',
+        'doctor_3e8fae',
+        'smoke_9a005a',
+        'chronic_illness',
+        'overall_risk_health',
+        'overall_risk_setting',
+        'longterm_type',
+    ]
+    for field in checkbox_fields:
+        record[field] = combine_checkbox_answers(field, record)
 
     # Combine all fields answering the same question
     record['country'] = combine_multiple_fields('country', record)
