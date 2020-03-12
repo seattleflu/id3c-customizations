@@ -407,7 +407,9 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'hospital_ed',
         'smoke',
         'chronic_illness',
-        'overall_risk',
+        'overall_risk_health',
+        'overall_risk_setting',
+        'longterm_type',
         'country',
         'state',
     ]
@@ -431,7 +433,9 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     record['doctor'] = combine_checkbox_answers('doctor_3e8fae', record)
     record['smoke'] = combine_checkbox_answers('smoke_9a005a', record)
     record['chronic_illness'] = combine_checkbox_answers('chronic_illness', record)
-    record['overall_risk'] = combine_checkbox_answers('overall_risk', record)
+    record['overall_risk_health'] = combine_checkbox_answers('overall_risk_health', record)
+    record['overall_risk_setting'] = combine_checkbox_answers('overall_risk_setting', record)
+    record['longterm_type'] = combine_checkbox_answers('longterm_type', record)
 
     # Combine all fields answering the same question
     record['country'] = combine_multiple_fields('country', record)
