@@ -187,11 +187,13 @@ def create_encounter(db: DatabaseSession,
     encounter_identifier = create_identifier(f"{SFS}/encounter", encounter_id)
 
     encounter_class = create_encounter_class(record)
+    encounter_status = create_encounter_status(record)
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class,
         encounter_date = encounter_date,
+        encounter_status = encounter_status,
         patient_reference = patient_reference,
         location_references = encounter_location_references,
         hospitalization = hospitalization
@@ -333,6 +335,30 @@ def create_encounter_class(redcap_record: dict) -> dict:
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
         code = encounter_class or 'AMB'
     )
+
+
+def create_encounter_status(redcap_record: dict) -> str:
+    """
+    Returns an Encounter.status code from a given *redcap_record*. Defaults to
+    'finished' if no encounter status is found.
+
+    This attribute is required by FHIR for an Encounter resource.
+    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.status)
+    """
+    status = redcap_record['encounter_status']
+    if not status:
+        return 'finished'
+
+    mapper = {
+        'ARRIVED': 'arrived',
+        'DISCHARGED': 'finished',
+        'LWBS': 'cancelled +',  # LWBS = left without being seen.
+    }
+
+    if status not in mapper:
+        raise Exception(f"Unknown encounter status «{status}».")
+
+    return mapper[status]
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
