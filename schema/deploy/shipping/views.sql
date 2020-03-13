@@ -816,8 +816,8 @@ create or replace view shipping.hcov19_observation_v1 as
 
 
 /* The shipping.hcov19_observation_v1 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by
- * reportable-condition-notifier.  Revoke existing grants to every other role.
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
  *
  * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
  * in the future.  It's part of the broader bad interplay between views and
@@ -834,6 +834,10 @@ create or replace view shipping.hcov19_observation_v1 as
  *   -trs, 7 March 2020
  */
 revoke all on shipping.hcov19_observation_v1 from reporter;
+
+grant select
+    on shipping.hcov19_observation_v1
+    to "hcov19-visibility";
 
 
 comment on view shipping.hcov19_observation_v1 is
