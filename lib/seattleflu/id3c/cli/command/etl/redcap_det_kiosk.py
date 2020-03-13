@@ -6,7 +6,6 @@ import re
 from uuid import uuid4
 from datetime import datetime
 from typing import Any, List, Optional, Tuple, Dict
-from copy import deepcopy
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.de_identify import generate_hash
@@ -317,7 +316,7 @@ def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict
     # Create observation resources for all potential results in Cepheid test
     diagnostic_results = {}
     for index, result in enumerate(code_map):
-        new_observation = deepcopy(observation_resource)
+        new_observation = observation_resource('Cepheid')
         new_observation['id'] = 'result-' + str(index+1)
         new_observation['code']['coding'] = [code_map[result]]
         diagnostic_results[result] = (new_observation)

@@ -447,19 +447,24 @@ def canonicalize_name(*parts: Iterable[str]) -> str:
 # 3.8.  Until then, there's no reasonable way to type this data structure
 # better than Any.
 #   -trs, 24 Oct 2019
-observation_resource: Any = {
-    'resourceType': 'Observation',
-    'id': '',
-    'status': 'final',
-    'code': {
-        'coding': []
-    },
-    'valueBoolean': None,
-    'device': create_reference(
-        reference_type = 'Device',
-        identifier = create_identifier(
-            system = f'{SFS}/device',
-            value = 'Cepheid'
+def observation_resource(device: str) -> Any:
+    """
+    Returns a minimally-filled FHIR Observation Resource with a given
+    *device* value.
+    """
+    return {
+        'resourceType': 'Observation',
+        'id': '',
+        'status': 'final',
+        'code': {
+            'coding': []
+        },
+        'valueBoolean': None,
+        'device': create_reference(
+            reference_type = 'Device',
+            identifier = create_identifier(
+                system = f'{SFS}/device',
+                value = device
+            )
         )
-    )
-}
+    }
