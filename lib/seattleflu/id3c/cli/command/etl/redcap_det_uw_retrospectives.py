@@ -185,10 +185,8 @@ def create_encounter(db: DatabaseSession,
     # This matches how our clinical parse_uw generates encounter id
     encounter_id = generate_hash(f"{record['mrn']}{record['accession_no']}{encounter_date}".lower())
     encounter_identifier = create_identifier(f"{SFS}/encounter", encounter_id)
-    encounter_class = create_coding(
-        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        code = "AMB"
-    )
+
+    encounter_class = create_encounter_class(record)
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
@@ -307,6 +305,34 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         raise Exception(f"Unknown discharge disposition value «{disposition}».")
 
     return mapper[disposition]
+
+
+def create_encounter_class(redcap_record: dict) -> dict:
+    """
+    Creates an Encounter.class coding from a given *redcap_record*. If no
+    encounter class is given, defaults to the coding for `AMB`.
+
+    This attribute is required by FHIR for an Encounter resource.
+    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.class)
+    """
+    encounter_class = redcap_record['patient_class']
+
+    mapper = {
+        "OP": "AMB",
+        "IP": "IMP",
+        "LIM": "IMP",
+        "OBS": "IMP",
+        "ED": "EMER",  # can also code as "AMB"
+    }
+
+    if encounter_class and encounter_class not in mapper:
+        raise Exception(f"Unknown encounter class «{encounter_class}».")
+
+    # Default to 'AMB' if encounter_class not defined
+    return create_coding(
+        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        code = encounter_class or 'AMB'
+    )
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
