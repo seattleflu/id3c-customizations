@@ -291,7 +291,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
 
     clinical_records['FluShot'] = clinical_records['fluvaxdt'].notna()
 
-    column_map = {  # Missing census_tract
+    column_map = {
         "enrollid": "individual",
         "enrolldate": "encountered",
         "barcode": "barcode",
@@ -301,6 +301,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
         "hispanic": "HispanicLatino",
         "symptom": "Symptoms",
         "FluShot": "FluShot",
+        "censustract": "census_tract",
         "_provenance": "_provenance",
     }
     clinical_records = clinical_records.rename(columns=column_map)
