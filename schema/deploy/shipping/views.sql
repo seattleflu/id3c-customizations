@@ -730,42 +730,89 @@ comment on view shipping.return_results_v2 is
 
 create or replace view shipping.hcov19_observation_v1 as
 
-    select
-        presence_absence.created::date as sample_tested_date,
-        present,
-        sample.details->>'sample_origin' as sample_manifest_origin,
-        best_available_encounter_date as encounter_date,
-        age_bin_fine.range as age_range_fine,
-        lower(age_bin_fine.range) as age_range_fine_lower,
-        upper(age_bin_fine.range) as age_range_fine_upper,
-        sex,
-        hierarchy->'puma' as puma,
-        best_available_site as site,
-        individual,
-        sample.identifier as sample,
-        best_available_site_type as site_type
+    with hcov19_presence_absence as (
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample_id,
+            pa.created::date as hcov19_result_received,
+            pa.present as hcov19_present
+        from
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+        where
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and not control
+        order by
+            sample_id,
+            present desc nulls last -- t → f → null
+    )
 
-    from shipping.sample_with_best_available_encounter_data_v1
-    join warehouse.sample using (sample_id)
-    full outer join warehouse.encounter using (encounter_id)
-    left join warehouse.individual using (individual_id)
-    left join shipping.age_bin_fine on age_bin_fine.range @> ceiling(age_in_years(age))::int
-    left join warehouse.presence_absence using (sample_id)
-    left join warehouse.target using (target_id)
-    left join warehouse.organism using (organism_id)
-    left join warehouse.encounter_location using (encounter_id)
-    left join warehouse.location using (location_id)
+    select
+        sample_id,
+        sample.identifier as sample,
+
+        -- Lab testing-related columns
+        hcov19_result_received,
+        hcov19_present,
+
+        -- Encounter-related columns
+        encounter_id,
+        best_available_encounter_date as encountered,
+        to_char(best_available_encounter_date, 'IYYY-"W"IW') as encountered_week,
+
+        best_available_site as site,
+        best_available_site_type as site_type,
+
+        location.hierarchy->'puma' as puma,
+
+        -- Individual-related columns
+        individual_id,
+        age_bin_fine_v2.range as age_range_fine,
+        lower(age_bin_fine_v2.range) as age_range_fine_lower,
+        upper(age_bin_fine_v2.range) as age_range_fine_upper,
+        sex,
+
+        -- Misc cruft
+        sample.details->>'sample_origin' as manifest_origin
+
+        /* XXX TODO
+         *   → symptoms (Mike says can be JSON blob)
+         *   → symptom onset (date)
+         *   → race, SES, housing, etc
+         */
+    from
+        warehouse.sample
+        left join shipping.sample_with_best_available_encounter_data_v1 using (sample_id)
+        left join warehouse.encounter using (encounter_id)
+        left join warehouse.individual using (individual_id)
+        left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
+        left join warehouse.primary_encounter_location using (encounter_id)
+        left join warehouse.location using (location_id)
+        left join hcov19_presence_absence using (sample_id)
     where
-        lineage = 'Human_coronavirus.2019'
-        -- If no test results are available, select encounters on or after 22 Feb 2020.
-        -- Date chosen because of this tweet: https://mobile.twitter.com/trvrb/status/1237395936193605633
-        or (
-          lineage is null and
-          best_available_encounter_date >= '2020-02-22'::date
-        )
-        and (not control or control is null)
-        and sample.details->>'sample_origin' != 'es'
-    ;
+        /* All tested samples plus samples and encounters after 22 Feb 2020, as
+         * we presume those _will be_ tested.  This criteria comes from Mike
+         * Famulare:
+         *
+         *   https://seattle-flu-study.slack.com/archives/GU24NGD18/p1583684258051000
+         *
+         * Note that when comparing some row-valued X, the expressions "X is
+         * not null" and "X is distinct from null" behave differently.  We want
+         * the latter.
+         */
+        (hcov19_presence_absence is distinct from null or best_available_encounter_date >= '2020-02-22')
+
+        /* Exclude environmental swabs.
+         *
+         * Note that the standard index on details which supports containment
+         * (@>) can't/won't be used by the planner because of both the negated
+         * condition ("not … @>") and coupled "is null" check.  If this
+         * condition is slow, we could directly index
+         * details->>'sample_origin'.
+         */
+        and (sample.details is null or sample.details->>'sample_origin' != 'es')
+;
 
 
 /* The shipping.hcov19_observation_v1 view needs hCoV-19 visibility, so
