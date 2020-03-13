@@ -151,6 +151,7 @@ def create_encounter_resource(encounter_identifier: List[dict],
                               location_references: List[dict],
                               diagnosis: List[dict] = None,
                               contained: List[dict] = None,
+                              encounter_status = 'finished',
                               hospitalization: dict = None) -> dict:
     """
     Create encounter resource following the FHIR format
@@ -160,7 +161,7 @@ def create_encounter_resource(encounter_identifier: List[dict],
         "resourceType": "Encounter",
         "class": encounter_class,
         "identifier": encounter_identifier,
-        "status": "finished",
+        "status": encounter_status,
         "period": {
             "start": encounter_date,
             "end": encounter_date,
