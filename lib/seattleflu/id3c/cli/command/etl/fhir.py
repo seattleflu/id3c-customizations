@@ -4,7 +4,7 @@ REDCap DET ETL shared functions to create FHIR documents
 import logging
 import regex
 from itertools import filterfalse
-from typing import Iterable, NamedTuple, Optional, List
+from typing import Iterable, NamedTuple, Optional, List, Any
 from uuid import uuid4
 from datetime import datetime
 from id3c.cli.command.de_identify import generate_hash
@@ -12,6 +12,7 @@ from id3c.cli.command.de_identify import generate_hash
 
 LOG = logging.getLogger(__name__)
 
+SFS = "https://seattleflu.org"
 
 # CREATE FHIR RESOURCES
 def create_reference(reference_type: str = None,
@@ -440,3 +441,25 @@ def canonicalize_name(*parts: Iterable[str]) -> str:
         return collapse_whitespace(remove_non_word_chars(part)).strip().upper()
 
     return " ".join(map(canonicalize, parts))
+
+
+# XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
+# 3.8.  Until then, there's no reasonable way to type this data structure
+# better than Any.
+#   -trs, 24 Oct 2019
+observation_resource: Any = {
+    'resourceType': 'Observation',
+    'id': '',
+    'status': 'final',
+    'code': {
+        'coding': []
+    },
+    'valueBoolean': None,
+    'device': create_reference(
+        reference_type = 'Device',
+        identifier = create_identifier(
+            system = f'{SFS}/device',
+            value = 'Cepheid'
+        )
+    )
+}
