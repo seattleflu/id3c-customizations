@@ -176,6 +176,8 @@ def create_encounter(db: DatabaseSession,
     if not encounter_location_references:
         return None, None
 
+    hospitalization = create_encounter_hospitalization(record)
+
     encounter_date = record["collection_date"]
     if not encounter_date:
         return None, None
@@ -193,7 +195,8 @@ def create_encounter(db: DatabaseSession,
         encounter_class = encounter_class,
         encounter_date = encounter_date,
         patient_reference = patient_reference,
-        location_references = encounter_location_references
+        location_references = encounter_location_references,
+        hospitalization = hospitalization
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
@@ -249,6 +252,61 @@ def find_sample_origin_by_barcode(db: DatabaseSession, barcode: str) -> Optional
         return None
 
     return sample.sample_origin
+
+
+def create_encounter_hospitalization(redcap_record: dict) -> Optional[Dict[str, Dict]]:
+    """
+    Returns an Encounter.hospitalization entry created from a given *redcap_record*.
+    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.hospitalization)
+    """
+    disposition = discharge_disposition(redcap_record)
+
+    # For now, dischargeDisposition is the only info we store in
+    # Encounter.hospitalization. If this info isn't available, skip creating
+    # this resource entry.
+    if not disposition:
+        return None
+
+    return {
+        "dischargeDisposition": create_codeable_concept(
+            system = 'http://hl7.org/fhir/ValueSet/encounter-discharge-disposition',
+            code = disposition,
+        )
+    }
+
+
+def discharge_disposition(redcap_record: dict) -> Optional[str]:
+    """
+    Given a *redcap_record*, returns the mapped FHIR
+    Encounter.hospitalization.dischargeDisposition code
+    (https://www.hl7.org/fhir/valueset-encounter-discharge-disposition.html)
+    """
+    disposition = redcap_record['discharge_disposition']
+    if not disposition:
+        return None
+
+    if disposition.startswith('Disch/Trans/Planned IP Readm'):
+        # This feels like sensitive information. Don't code the entire string.
+        return 'other-hcf'
+
+    mapper = {
+        'HOME/SELF CARE': 'home',
+        'HOME HEALTH CARE': 'home',
+        'Transfer to Hospital': 'other-hcf',
+        'ICF- INTERMEDIATE CARE FACILITY': 'other-hcf',
+        'AGAINST MEDICAL ADVICE': 'aadvice',
+        'Expired': 'exp',
+        'Disch/Trans to a distinct Psych Unit/Hospital': 'psy',
+        'Disch/Trans to a distinct Rehab Unit/Hospital': 'rehab',
+        'SNF-SKILLED NURSING FACILITY': 'snf',
+        'DISCH/TRANS TO COURT/LAW ENFORCEMENT': 'oth',
+        'Other Institution - Not Defined Elsewhere': 'oth',
+    }
+
+    if disposition not in mapper:
+        raise Exception(f"Unknown discharge disposition value «{disposition}».")
+
+    return mapper[disposition]
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
