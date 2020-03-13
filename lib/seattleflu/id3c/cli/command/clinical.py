@@ -266,7 +266,9 @@ def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
 
 @clinical.command("parse-kp")
 @click.argument("kp_filename", metavar = "<KP Clinical Data filename>")
-@click.argument("kp_specimen_manifest_filename", metavar = "<KP Specimen Manifest filename>")
+@click.argument("kp_specimen_manifest_filename",
+    metavar = "<KP Specimen Manifest filename(s)>",
+    nargs   = -1)
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
 
@@ -327,21 +329,27 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
     dump_ndjson(clinical_records)
 
 
-def add_kp_manifest_data(df: pd.DataFrame, manifest_filename: str) -> pd.DataFrame:
+def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple) -> pd.DataFrame:
     """
-    Join the specimen manifest data from the given *manifest_filename* with the
+    Join the specimen manifest data from the given *manifest_filenames* with the
     given clinical records DataFrame *df*
     """
-    barcode = 'Barcode ID (Sample ID)'
-    dtypes = {barcode: 'string'}
+    manifest_data = pd.DataFrame()
+    dtypes = {
+        'sample_id': 'string',
+        'kp_id': 'string'
+    }
 
-    manifest_data = pd.read_excel(manifest_filename, sheet_name='KP', dtype=dtypes)
+    for filename in manifest_filenames:
+        manifest = pd.read_excel(filename, sheet_name = 'aliquoting', dtypes = dtypes)
+        manifest_data = manifest_data.append(manifest)
 
+    manifest_data.dropna(subset = ['kp_id'], inplace = True)
     regex = re.compile(r"^KP-([0-9]{6,})-[0-9]$", re.IGNORECASE)
     manifest_data.kp_id = manifest_data.kp_id.apply(lambda x: regex.sub('WA\\1', x))
 
     rename_map = {
-        barcode: 'barcode',
+        'sample_id': 'barcode',
         'kp_id': 'enrollid',
     }
 
