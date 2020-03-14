@@ -37,6 +37,9 @@ def redcap_det_uw_retrospectives(*,
                                    cache: TTLCache,
                                    det: dict,
                                    redcap_record: dict) -> Optional[dict]:
+    # Guard against uppercase barcodes
+    redcap_record['barcode'] = redcap_record['barcode'].lower()
+
     patient_entry, patient_reference = create_patient(redcap_record)
 
     if not patient_entry:
