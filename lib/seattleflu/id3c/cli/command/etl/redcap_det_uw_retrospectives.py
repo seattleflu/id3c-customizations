@@ -61,7 +61,8 @@ def redcap_det_uw_retrospectives(*,
     diagnostic_report_resource_entry = create_diagnostic_report(
         redcap_record,
         patient_reference,
-        specimen_reference
+        specimen_reference,
+        create_clinical_result_observation_resource
     )
 
     resource_entries = [
@@ -395,48 +396,6 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
         ))
 
     return questionnaire_items
-
-
-def create_diagnostic_report(redcap_record:dict,
-                             patient_reference: dict,
-                             specimen_reference: dict) -> Optional[dict]:
-    """
-    Create FHIR diagnostic report from given *redcap_record* and link to
-    specific *patient_reference* and *specimen_reference*
-    """
-    clinical_results = create_clinical_result_observation_resource(redcap_record)
-    if not clinical_results:
-        return None
-
-    diagnostic_result_references = []
-    for result in clinical_results:
-        reference = create_reference(
-            reference_type = 'Observation',
-            reference = '#' + result['id']
-        )
-        diagnostic_result_references.append(reference)
-
-    collection_datetime = redcap_record['collection_date']
-
-    diagnostic_code = create_codeable_concept(
-        system = 'http://loinc.org',
-        code = '85476-0',
-        display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
-    )
-
-    diagnostic_report_resource = create_diagnostic_report_resource(
-        datetime = collection_datetime,
-        diagnostic_code = diagnostic_code,
-        patient_reference  = patient_reference,
-        specimen_reference = specimen_reference,
-        result = diagnostic_result_references,
-        contained = clinical_results
-    )
-
-    return (create_resource_entry(
-        resource = diagnostic_report_resource,
-        full_url = generate_full_url_uuid()
-    ))
 
 
 def create_clinical_result_observation_resource(redcap_record: dict) -> Optional[List[dict]]:

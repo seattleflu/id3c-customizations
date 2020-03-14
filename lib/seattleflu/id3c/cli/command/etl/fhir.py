@@ -4,7 +4,7 @@ REDCap DET ETL shared functions to create FHIR documents
 import logging
 import regex
 from itertools import filterfalse
-from typing import Iterable, NamedTuple, Optional, List, Any
+from typing import Iterable, NamedTuple, Optional, List, Any, Callable
 from uuid import uuid4
 from datetime import datetime
 from id3c.cli.command.de_identify import generate_hash
@@ -49,6 +49,53 @@ def create_patient_resource(patient_identifier: List[dict], gender: str) -> dict
         "identifier": patient_identifier,
         "gender": gender
     })
+
+
+def create_diagnostic_report(redcap_record:dict,
+                             patient_reference: dict,
+                             specimen_reference: dict,
+                             create_device_result_observation_resource: Callable) -> Optional[dict]:
+    """
+    Create FHIR diagnostic report from given *redcap_record*. Attaches
+    observation resources to it using the given, device-specific
+    *create_device_result_observation_resource* function.
+
+    Links the generated diagnostic report to a specific *patient_reference* and
+    *specimen_reference*.
+    """
+    clinical_results = create_device_result_observation_resource(redcap_record)
+    if not clinical_results:
+        return None
+
+    diagnostic_result_references = []
+    for result in clinical_results:
+        reference = create_reference(
+            reference_type = 'Observation',
+            reference = '#' + result['id']
+        )
+        diagnostic_result_references.append(reference)
+
+    collection_datetime = redcap_record['collection_date']
+
+    diagnostic_code = create_codeable_concept(
+        system = 'http://loinc.org',
+        code = '85476-0',
+        display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
+    )
+
+    diagnostic_report_resource = create_diagnostic_report_resource(
+        datetime = collection_datetime,
+        diagnostic_code = diagnostic_code,
+        patient_reference  = patient_reference,
+        specimen_reference = specimen_reference,
+        result = diagnostic_result_references,
+        contained = clinical_results
+    )
+
+    return (create_resource_entry(
+        resource = diagnostic_report_resource,
+        full_url = generate_full_url_uuid()
+    ))
 
 
 def create_diagnostic_report_resource(datetime: str,

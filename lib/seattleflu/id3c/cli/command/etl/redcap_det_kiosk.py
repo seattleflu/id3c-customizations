@@ -73,7 +73,8 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
         diagnostic_report_resource_entry = create_diagnostic_report(
             redcap_record,
             patient_reference,
-            specimen_reference
+            specimen_reference,
+            create_cepheid_result_observation_resource
         )
 
     encounter_locations = determine_encounter_locations(db, cache, redcap_record)
@@ -237,49 +238,6 @@ def get_sfs_barcode(redcap_record: dict) -> str:
         barcode = redcap_record['sfs_barcode_manual']
 
     return barcode
-
-
-def create_diagnostic_report(redcap_record:dict,
-                             patient_reference: dict,
-                             specimen_reference: dict) -> dict:
-    """
-    Create FHIR diagnostic report from given *redcap_record* and link to
-    specific *patient_reference* and *specimen_reference*
-    """
-    cepheid_results = create_cepheid_result_observation_resource(redcap_record)
-
-    diagnostic_result_references = []
-
-    for result in cepheid_results:
-        reference = create_reference(
-            reference_type = 'Observation',
-            reference = '#' + result['id']
-        )
-        diagnostic_result_references.append(reference)
-
-    # Intentionally only capture date, not time.  collection_date is reported
-    # as "YYYY-MM-DD HH:MM:SS".
-    collection_datetime = redcap_record['collection_date'].split()[0]
-
-    diagnostic_code = create_codeable_concept(
-        system = 'http://loinc.org',
-        code = '85476-0',
-        display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
-    )
-
-    diagnostic_report_resource = create_diagnostic_report_resource(
-        datetime = collection_datetime,
-        diagnostic_code = diagnostic_code,
-        patient_reference  = patient_reference,
-        specimen_reference = specimen_reference,
-        result = diagnostic_result_references,
-        contained = cepheid_results
-    )
-
-    return (create_resource_entry(
-        resource = diagnostic_report_resource,
-        full_url = generate_full_url_uuid()
-    ))
 
 
 def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict]:
