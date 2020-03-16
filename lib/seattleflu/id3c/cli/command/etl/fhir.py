@@ -54,14 +54,18 @@ def create_patient_resource(patient_identifier: List[dict], gender: str) -> dict
 def create_diagnostic_report(redcap_record:dict,
                              patient_reference: dict,
                              specimen_reference: dict,
+                             diagnostic_code: dict,
                              create_device_result_observation_resource: Callable) -> Optional[dict]:
     """
-    Create FHIR diagnostic report from given *redcap_record*. Attaches
-    observation resources to it using the given, device-specific
-    *create_device_result_observation_resource* function.
+    Create FHIR diagnostic report from given *redcap_record*.
 
     Links the generated diagnostic report to a specific *patient_reference* and
     *specimen_reference*.
+
+    Device-specific modifications are made with the given *diagnostic_code*
+    codeable concept for the diagnostic report and the
+    *create_device_result_observation_resource* function which attaches
+    observation resources to the diagnostic report.
     """
     clinical_results = create_device_result_observation_resource(redcap_record)
     if not clinical_results:
@@ -76,12 +80,6 @@ def create_diagnostic_report(redcap_record:dict,
         diagnostic_result_references.append(reference)
 
     collection_datetime = redcap_record['collection_date']
-
-    diagnostic_code = create_codeable_concept(
-        system = 'http://loinc.org',
-        code = '85476-0',
-        display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
-    )
 
     diagnostic_report_resource = create_diagnostic_report_resource(
         datetime = collection_datetime,

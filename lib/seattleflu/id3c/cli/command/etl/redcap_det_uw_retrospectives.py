@@ -58,10 +58,17 @@ def redcap_det_uw_retrospectives(*,
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
+    diagnostic_code = create_codeable_concept(
+        system = 'http://loinc.org',
+        code = '60566-7',
+        display = 'Respiratory pathogens DNA and RNA 12b panel NAA+probe (Unsp spec)'
+    )
+
     diagnostic_report_resource_entry = create_diagnostic_report(
         redcap_record,
         patient_reference,
         specimen_reference,
+        diagnostic_code,
         create_clinical_result_observation_resource
     )
 

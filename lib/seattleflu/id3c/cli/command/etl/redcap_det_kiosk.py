@@ -70,10 +70,18 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
     # to do the rapid flu test on site
     diagnostic_report_resource_entry = None
     if redcap_record['poc_yesno'] == 'Yes':
+
+        diagnostic_code = create_codeable_concept(
+            system = 'http://loinc.org',
+            code = '85476-0',
+            display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
+        )
+
         diagnostic_report_resource_entry = create_diagnostic_report(
             redcap_record,
             patient_reference,
             specimen_reference,
+            diagnostic_code,
             create_cepheid_result_observation_resource
         )
 
