@@ -341,7 +341,8 @@ def create_encounter_class(redcap_record: dict) -> dict:
 def create_encounter_status(redcap_record: dict) -> str:
     """
     Returns an Encounter.status code from a given *redcap_record*. Defaults to
-    'finished' if no encounter status is found.
+    'finished' if no encounter status is found, because we can assume this
+    UW Retrospective encounter was an outpatient encounter.
 
     This attribute is required by FHIR for an Encounter resource.
     (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.status)
