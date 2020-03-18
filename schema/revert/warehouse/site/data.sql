@@ -9,7 +9,9 @@ insert into warehouse.site(identifier, details)
             "swab_site": "%cap(it[ao]l)?_hill%"}'),
         ('ChildrensHospitalBellevue',               '{"category": "clinic",     "type": "clinic"}'),
         ('ChildrensHospitalSeattle',                '{"category": "clinic",     "type": "clinic",
-            "swab_site": "bal%_clinic|sch_ed"}'),
+            "swab_site": "sch_ed"}'),
+        ('ChildrensHospitalSeattleOutpatientClinic','{"category": "clinic",     "type": "clinic",
+            "swab_site": "ballard_clinic|community_clinic"}'),
         ('ChildrensSeaMar',                         '{"category": "clinic",     "type": "clinic"}'),
         ('ColumbiaCenter',                          '{"category": "community",  "type": "workplace",
             "swab_site": "columbia_center"}'),
@@ -42,7 +44,8 @@ insert into warehouse.site(identifier, details)
             "swab_site": "seatac_airport"}'),
         ('SeaTacInternational',                     '{"category": "community",  "type": "publicSpace"}'),
         ('SeattleCenter',                           '{"category": "community",  "type": "publicSpace"}'),
-        ('self-test',                               '{"category": "community",  "type": "self-test"}'),
+        ('self-test',                               '{"category": "community",  "type": "self-test",
+            "swab_site": "home_test"}'),
         ('StMartins',                               '{"category": "community",  "type": "shelter"}'),
         ('swabNSend',                               '{"category": "community",  "type": "swab-n-send",
             "swab_site": "swab_and_send"}'),
@@ -62,7 +65,7 @@ insert into warehouse.site(identifier, details)
 ;
 
 delete from warehouse.site
-  where identifier = 'ChildrensHospitalSeattleOutpatientClinic'
+    where identifier = 'SCAN'
 ;
 
 commit;
