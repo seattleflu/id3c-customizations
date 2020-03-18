@@ -40,7 +40,7 @@ REQUIRED_INSTRUMENTS = [
 
 
 @redcap_det.command_for_project(
-    "scan",
+    "scan-en",
     redcap_url = REDCAP_URL,
     project_id = PROJECT_ID,
     required_instruments = REQUIRED_INSTRUMENTS,
