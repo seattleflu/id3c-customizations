@@ -349,7 +349,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
         Uses our in-house mapping for race.
         """
-        regex = rf'{coded_question}___[\w]*$'
+        regex = rf'{re.escape(coded_question)}___[\w]*$'
         empty_value = '0'
         answered_checkboxes = list(filter(lambda f: filter_fields(f, regex, empty_value), record))
         # REDCap checkbox fields have format of {question}___{answer}
@@ -376,7 +376,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         Handles the combining of multiple fields asking the same question such
         as country and state traveled.
         """
-        regex = rf'^{field_prefix}[0-9]+$'
+        regex = rf'^{re.escape(field_prefix)}[0-9]+$'
         empty_value = ''
         answered_fields = list(filter(lambda f: filter_fields(f, regex, empty_value), record))
 
