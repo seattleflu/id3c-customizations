@@ -92,11 +92,7 @@ def notify(*, action: str):
                     LOG.info(f"No site found for presence_absence_id «{record.id}». " +
                         "Inferring site from manifest data.")
 
-                if record.lineage == 'Human_coronavirus.2019':
-                    metabase_link = "https://backoffice.seattleflu.org/metabase/question/466"
-                    url = SLACK_WEBHOOK_REPORTING_HCOV19
-
-                response = send_slack_post_request(record, url, metabase_link)
+                response = send_slack_post_request(record, SLACK_WEBHOOK_REPORTING_HCOV19)
 
                 if response.status_code == 200:
                     mark_processed(db, record.id, {"status": "sent Slack notification"})
@@ -138,7 +134,7 @@ def notify(*, action: str):
             db.rollback()
 
 
-def send_slack_post_request(record: Any, url: str, metabase_link: str) -> requests.Response:
+def send_slack_post_request(record: Any, url: str) -> requests.Response:
     """
     Sends a POST request to a channel-specific Slack webhook *url*. The payload
     of this POST request is composed using Slack blocks. These blocks provide
@@ -148,9 +144,12 @@ def send_slack_post_request(record: Any, url: str, metabase_link: str) -> reques
     containing minimal sample details.
     """
     data = {
-        "sample": record.barcode,
+        "sample_barcode": record.sample_barcode,
+        "collection_barcode": record.collection_barcode,
+        "clia_barcode": record.clia_barcode,
         "site": record.site,
-        "condition": record.lineage
+        "condition": record.lineage,
+        "language": record.language
     }
 
     if not record.site:
@@ -173,8 +172,7 @@ def send_slack_post_request(record: Any, url: str, metabase_link: str) -> reques
             "text": {
                 "type": "mrkdwn",
                 "text": dedent(f"""
-                :rotating_light: @channel {record.lineage} detected. \n
-                *<{metabase_link}|Go to Metabase>*
+                :rotating_light: @channel {record.lineage} detected.
                 """)
             }
         },
