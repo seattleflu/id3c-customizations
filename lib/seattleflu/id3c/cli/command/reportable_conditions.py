@@ -14,10 +14,8 @@ be defined as environment variables outside of this command.
 
 \b
 Environment variables required:
-    * SLACK_WEBHOOK_REPORTING_GENERAL: incoming webhook URL for sending Slack
-        messages to the Seattle Flu Study #reporting-general channel
-    * SLACK_WEBHOOK_REPORTING_CHILDRENS: incoming webhook URL for sending Slack
-        messages to the Seattle Flu STudy #reporting-childrens channel
+    * SLACK_WEBHOOK_REPORTING_HCOV19: incoming webhook URL for sending Slack
+        messages to the Seattle Flu Study #ncov-reporting channel
 """
 import os
 import json
@@ -65,11 +63,7 @@ def notify(*, action: str):
         return os.environ.get("SLACK_WEBHOOK_ALERTS_TEST") \
             or os.environ[f"SLACK_WEBHOOK_REPORTING_{suffix}"]
 
-    SLACK_WEBHOOK_REPORTING_GENERAL = webhook("GENERAL")
-    SLACK_WEBHOOK_REPORTING_CHILDRENS = webhook("CHILDRENS")
     SLACK_WEBHOOK_REPORTING_HCOV19 = webhook("HCOV19")
-
-    childrens_sites = get_childrens_sites(db)
 
     # Fetch and iterate over reportable condition records that aren't processed
     #
@@ -98,19 +92,9 @@ def notify(*, action: str):
                     LOG.info(f"No site found for presence_absence_id «{record.id}». " +
                         "Inferring site from manifest data.")
 
-                metabase_link = "https://backoffice.seattleflu.org/metabase/question/55"
-
                 if record.lineage == 'Human_coronavirus.2019':
                     metabase_link = "https://backoffice.seattleflu.org/metabase/question/466"
                     url = SLACK_WEBHOOK_REPORTING_HCOV19
-                elif (record.site in childrens_sites or
-                      record.sheet == 'SCH' or
-                      record.sample_origin == 'sch_retro' or
-                      record.swab_site == 'sch_ed' or
-                      record.swab_site == 'community_clinic'):
-                    url = SLACK_WEBHOOK_REPORTING_CHILDRENS
-                else:
-                    url = SLACK_WEBHOOK_REPORTING_GENERAL
 
                 response = send_slack_post_request(record, url, metabase_link)
 
@@ -152,17 +136,6 @@ def notify(*, action: str):
         else:
             LOG.info("Rolling back all changes; the database will not be modified")
             db.rollback()
-
-
-def get_childrens_sites(db) -> List:
-    """Gets all sites from the warehouse whose name contains 'Childrens'"""
-
-    childrens_sites = db.fetch_all("""
-        select identifier
-            from warehouse.site
-            where identifier like '%Childrens%'
-        """, )
-    return [site.identifier for site in childrens_sites]
 
 
 def send_slack_post_request(record: Any, url: str, metabase_link: str) -> requests.Response:
