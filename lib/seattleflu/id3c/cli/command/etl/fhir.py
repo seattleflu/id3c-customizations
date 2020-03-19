@@ -34,7 +34,9 @@ def create_reference(reference_type: str = None,
     return {k:v for k,v in reference_resource.items() if v is not None}
 
 
-def create_patient_resource(patient_identifier: List[dict], gender: str) -> dict:
+def create_patient_resource(patient_identifier: List[dict],
+                            gender: str,
+                            communication: Optional[List[dict]] = None) -> dict:
     """
     Create patient resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/patient.html)
@@ -44,11 +46,16 @@ def create_patient_resource(patient_identifier: List[dict], gender: str) -> dict
     assert gender in gender_codes, \
         f"Gender must be one of these gender codes: {gender_codes}"
 
-    return ({
+    patient_resource = {
         "resourceType": "Patient",
         "identifier": patient_identifier,
         "gender": gender
-    })
+    }
+
+    if communication:
+        patient_resource["communication"] = communication
+
+    return patient_resource
 
 
 def create_diagnostic_report(redcap_record:dict,

@@ -29,6 +29,7 @@ REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
 
 PROJECT_ID = 20759
+LANGUAGE_CODE = 'en'
 REQUIRED_INSTRUMENTS = [
     'screening',
     'shipping_information',
@@ -178,6 +179,15 @@ def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
     gender = map_sex(record['sex_new'])
 
+    language_codeable_concept = create_codeable_concept(
+        system = 'urn:ietf:bcp:47',
+        code = LANGUAGE_CODE
+    )
+    communication = [{
+        'language' : language_codeable_concept,
+        'preferred': True # Assumes that the project language is the patient's preferred language
+    }]
+
     patient_id = generate_patient_hash(
         names       = (record['participant_first_name'], record['participant_last_name']),
         gender      = gender,
@@ -193,7 +203,7 @@ def create_patient(record: dict) -> tuple:
     LOG.debug(f"Generated individual identifier {patient_id}")
 
     patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual", patient_id)
-    patient_resource = create_patient_resource([patient_identifier], gender)
+    patient_resource = create_patient_resource([patient_identifier], gender, communication)
 
     return create_entry_and_reference(patient_resource, "Patient")
 
