@@ -433,16 +433,6 @@ def create_clinical_result_observation_resource(redcap_record: dict) -> Optional
             'code': '441278007',
             'display': 'Respiratory syncytial virus untyped strain present',
         },
-        '441344004': {
-            'system': 'http://snomed.info/sct',
-            'code': '441344004',
-            'display': 'Human parainfluenza virus present',
-        },
-        '186747009': {
-            'system': 'http://snomed.info/sct',
-            'code': '186747009',
-            'display': 'Coronavirus infection',  # NOT clinical finding
-        },
         '440925005': {
             'system': 'http://snomed.info/sct',
             'code': '440925005',
