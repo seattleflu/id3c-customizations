@@ -341,7 +341,7 @@ def create_encounter_class(redcap_record: dict) -> dict:
     # Default to 'AMB' if encounter_class not defined
     return create_coding(
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        code = encounter_class or 'AMB'
+        code = mapper.get(encounter_class, 'AMB')
     )
 
 
