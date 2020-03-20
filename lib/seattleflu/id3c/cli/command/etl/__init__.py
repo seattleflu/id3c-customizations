@@ -104,9 +104,6 @@ def race(races: Optional[Any]) -> list:
 
     assert set(race_map.keys()) == set(map(str.lower, race_map.keys()))
 
-    def standardize_whitespace(string):
-        return re.sub(r"\s+", " ", string.strip())
-
     def standardize_race(race):
         try:
             return race_map[standardize_whitespace(race).lower()]
@@ -114,6 +111,13 @@ def race(races: Optional[Any]) -> list:
             raise UnknownRaceError(f"Unknown race name «{race}»") from None
 
     return list(map(standardize_race, races))
+
+
+def standardize_whitespace(string: str) -> str:
+    """
+    Removes leading, trailing, and repeat whitespace from a given *string*.
+    """
+    return re.sub(r"\s+", " ", string.strip())
 
 
 class UnknownRaceError(ValueError):
