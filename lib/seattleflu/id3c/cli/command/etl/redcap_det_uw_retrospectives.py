@@ -13,6 +13,7 @@ from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from seattleflu.id3c.cli.command import age_ceiling
+from . import standardize_whitespace
 from .fhir import *
 from .redcap_map import *
 
@@ -298,23 +299,25 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         return 'other-hcf'
 
     mapper = {
-        'HOME/SELF CARE': 'home',
-        'HOME HEALTH CARE': 'home',
-        'Transfer to Hospital': 'other-hcf',
-        'ICF- INTERMEDIATE CARE FACILITY': 'other-hcf',
-        'AGAINST MEDICAL ADVICE': 'aadvice',
-        'Expired': 'exp',
-        'Disch/Trans to a distinct Psych Unit/Hospital': 'psy',
-        'Disch/Trans to a distinct Rehab Unit/Hospital': 'rehab',
-        'SNF-SKILLED NURSING FACILITY': 'snf',
-        'DISCH/TRANS TO COURT/LAW ENFORCEMENT': 'oth',
-        'Other Institution - Not Defined Elsewhere': 'oth',
+        'home/self care': 'home',
+        'home health care': 'home',
+        'transfer to hospital': 'other-hcf',
+        'icf- intermediate care facility': 'other-hcf',
+        'against medical advice': 'aadvice',
+        'expired': 'exp',
+        'disch/trans to a distinct psych unit/hospital': 'psy',
+        'disch/trans to a distinct rehab unit/hospital': 'rehab',
+        'snf-skilled nursing facility': 'snf',
+        'disch/trans to court/law enforcement': 'oth',
+        'other institution - not defined elsewhere': 'oth',
     }
 
-    if disposition not in mapper:
-        raise Exception(f"Unknown discharge disposition value «{disposition}».")
+    standardized_disposition = standardize_whitespace(disposition.lower())
 
-    return mapper[disposition]
+    if standardized_disposition not in mapper:
+        raise Exception(f"Unknown discharge disposition value «{standardized_disposition}».")
+
+    return mapper[standardized_disposition]
 
 
 def create_encounter_class(redcap_record: dict) -> dict:
@@ -325,23 +328,25 @@ def create_encounter_class(redcap_record: dict) -> dict:
     This attribute is required by FHIR for an Encounter resource.
     (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.class)
     """
-    encounter_class = redcap_record['patient_class']
+    encounter_class = redcap_record.get('patient_class', '')
 
     mapper = {
-        "OP": "AMB",
-        "IP": "IMP",
-        "LIM": "IMP",
-        "OBS": "IMP",
-        "ED": "EMER",  # can also code as "AMB"
+        "op": "AMB",
+        "ip": "IMP",
+        "lim": "IMP",
+        "obs": "IMP",
+        "ed": "EMER",  # can also code as "AMB"
     }
 
-    if encounter_class and encounter_class not in mapper:
+    standardized_encounter_class = standardize_whitespace(encounter_class.lower())
+
+    if standardized_encounter_class and standardized_encounter_class not in mapper:
         raise Exception(f"Unknown encounter class «{encounter_class}».")
 
     # Default to 'AMB' if encounter_class not defined
     return create_coding(
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        code = mapper.get(encounter_class, 'AMB')
+        code = mapper.get(standardized_encounter_class, 'AMB')
     )
 
 
@@ -359,15 +364,17 @@ def create_encounter_status(redcap_record: dict) -> str:
         return 'finished'
 
     mapper = {
-        'ARRIVED': 'arrived',
-        'DISCHARGED': 'finished',
-        'LWBS': 'cancelled',  # LWBS = left without being seen.
+        'arrived': 'arrived',
+        'discharged': 'finished',
+        'lwbs': 'cancelled',  # LWBS = left without being seen.
     }
 
-    if status not in mapper:
-        raise Exception(f"Unknown encounter status «{status}».")
+    standardized_status = standardize_whitespace(status.lower())
 
-    return mapper[status]
+    if standardized_status not in mapper:
+        raise Exception(f"Unknown encounter status «{standardized_status}».")
+
+    return mapper[standardized_status]
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
