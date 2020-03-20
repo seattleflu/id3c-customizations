@@ -361,7 +361,7 @@ def create_encounter_status(redcap_record: dict) -> str:
     mapper = {
         'ARRIVED': 'arrived',
         'DISCHARGED': 'finished',
-        'LWBS': 'cancelled +',  # LWBS = left without being seen.
+        'LWBS': 'cancelled',  # LWBS = left without being seen.
     }
 
     if status not in mapper:
