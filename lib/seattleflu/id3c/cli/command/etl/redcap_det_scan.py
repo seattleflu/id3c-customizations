@@ -95,6 +95,10 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         'shelter',
         'afl',
         'snf',
+        'ltc',
+        'be',
+        'pst',
+        'cf',
         'none'
     ]
 
