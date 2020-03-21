@@ -850,11 +850,8 @@ create or replace view shipping.scan_return_results_v1 as
         -- Collapse potentially multiple hCoV-19 results
         select distinct on (sample_id)
             sample_id,
-            pa.present as hcov19_present,
-            presence_absence_id, -- todo debug
-            target.identifier as target,  -- todo debug
-            lineage,  -- todo debug
-            present  -- todo debug
+            presence_absence_id,
+            pa.present as hcov19_present
         from
             warehouse.presence_absence as pa
             join warehouse.target using (target_id)
@@ -885,25 +882,19 @@ create or replace view shipping.scan_return_results_v1 as
         left join warehouse.sample on uuid::text = sample.collection_identifier
         left join warehouse.encounter using (encounter_id)
       where
-        identifier_set.name in('collections-scan', 'collections-swab&send') -- todo
+        identifier_set.name in('collections-scan')
       order by encountered, barcode
     )
 
     select
-        sample_id,  -- todo debug
         qrcode,
         collect_ts,
-        hcov19_present,  -- todo debug
-        presence_absence_id, -- todo debug
-        target,  -- todo debug
-        lineage,  -- todo debug
-        present,  -- todo debug
         case
             when sample_id is null then 'not-received'
             when sample_id is not null and presence_absence_id is null then 'pending'
-            when present is true then 'positive'
-            when present is false then 'negative'
-            when presence_absence_id is not null and present is null then 'inconclusive'
+            when hcov19_present is true then 'positive'
+            when hcov19_present is false then 'negative'
+            when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
         end as status_code
     from
       scan_barcodes
