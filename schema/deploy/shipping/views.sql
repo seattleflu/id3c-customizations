@@ -848,7 +848,7 @@ create or replace view shipping.scan_return_results_v1 as
     select distinct on (barcode, lineage)
         sample_id,
         barcode as qrcode,
-        encountered as collect_ts,
+        encountered::date as collect_ts,
         case
             when sample_id is null then 'not-received'
             when sample_id is not null and presence_absence_id is null then 'pending'
