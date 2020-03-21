@@ -845,43 +845,69 @@ comment on view shipping.hcov19_observation_v1 is
 
 
 create or replace view shipping.scan_return_results_v1 as
-    select distinct on (barcode, lineage)
+
+    with hcov19_presence_absence as (
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample_id,
+            pa.present as hcov19_present,
+            presence_absence_id, -- todo debug
+            target.identifier as target,  -- todo debug
+            lineage,  -- todo debug
+            present  -- todo debug
+        from
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+        where
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and not control
+        /*
+          Keep only the most recent push. According to Lea, samples are only
+          retested if there is a failed result. A positive, negative, or
+          indeterminate result would not be retested.
+
+          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
+        */
+        order by
+            sample_id, presence_absence_id desc
+    ),
+
+    scan_barcodes as (
+      select
         sample_id,
         barcode as qrcode,
-        encountered::date as collect_ts,
+        encountered::date as collect_ts
+
+      from
+        warehouse.identifier
+        join warehouse.identifier_set using (identifier_set_id)
+        left join warehouse.sample on uuid::text = sample.collection_identifier
+        left join warehouse.encounter using (encounter_id)
+      where
+        identifier_set.name in('collections-scan', 'collections-swab&send') -- todo
+      order by encountered, barcode
+    )
+
+    select
+        sample_id,  -- todo debug
+        qrcode,
+        collect_ts,
+        hcov19_present,  -- todo debug
+        presence_absence_id, -- todo debug
+        target,  -- todo debug
+        lineage,  -- todo debug
+        present,  -- todo debug
         case
             when sample_id is null then 'not-received'
             when sample_id is not null and presence_absence_id is null then 'pending'
             when present is true then 'positive'
             when present is false then 'negative'
             when presence_absence_id is not null and present is null then 'inconclusive'
-        end as status_code,
-        presence_absence_id, -- todo debug
-        target.identifier,  -- todo debug
-        lineage,  -- todo debug
-        present  -- todo debug
-
-    from warehouse.identifier
-    join warehouse.identifier_set using (identifier_set_id)
-    left join warehouse.sample on uuid::text = sample.collection_identifier
-    left join warehouse.encounter using (encounter_id)
-    left join warehouse.presence_absence using (sample_id)
-    left join warehouse.target using (target_id)
-    left join warehouse.organism using (organism_id)
-
-    where identifier_set.name in('collections-scan', 'collections-swab&send') -- todo
-        and target.control is distinct from true
-        and (lineage is null or
-            lineage <@ '{"Human_coronavirus.2019"}'::ltree[])
-
-    /*
-      Keep only the most recent push. According to Lea, samples are only
-      retested if there is a failed result. A positive, negative, or
-      indeterminate result would not be retested.
-
-      https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-    */
-    order by barcode, lineage, presence_absence_id desc
+        end as status_code
+    from
+      scan_barcodes
+      left join hcov19_presence_absence using (sample_id)
     ;
 
 /* The shipping.scan_return_results_v1 view needs hCoV-19 visibility, so
