@@ -37,8 +37,6 @@ def redcap_det_uw_retrospectives(*,
                                    cache: TTLCache,
                                    det: dict,
                                    redcap_record: dict) -> Optional[dict]:
-    # Guard against uppercase barcodes
-    redcap_record['barcode'] = redcap_record['barcode'].lower()
 
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -223,13 +221,12 @@ def find_sample_origin_by_barcode(db: DatabaseSession, barcode: str) -> Optional
     """
     Given an SFS *barcode* return the `sample_origin` found in sample.details
     """
-    like_barcode = f"%{barcode}"
-
     sample = db.fetch_row("""
         select details ->> 'sample_origin' as sample_origin
         from warehouse.sample
-        where identifier like %s
-    """, (like_barcode,))
+        join warehouse.identifier on sample.identifier = identifier.uuid::text
+        where barcode = %s
+    """, (barcode,))
 
     if not sample:
         LOG.error(f"No sample with barcode «{barcode}» found.")
