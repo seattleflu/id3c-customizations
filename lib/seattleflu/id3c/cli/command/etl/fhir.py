@@ -202,6 +202,28 @@ def create_encounter_resource(encounter_identifier: List[dict],
     Create encounter resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/encounter.html)
     """
+    # XXX FIXME: We are currently using Encounter.period incorrectly, which
+    # became apparently only after we started using hospitalization data (from
+    # applicable retrospective data). An Encounter.period's start and end dates
+    # should reflect the time period covering the hospital admission and
+    # discharge.
+    #
+    # Currently, the FHIR ETL upserts an ID3C encounter (e.g. time of sample
+    # collectoin date) using the Encounter.period.start date. Ideally, the FHIR
+    # ETL would pull the encounter date (i.e. sample collection date) from
+    # Specimen.collection, but there are some organizational hurdles in the
+    # current code we'd have to address before being able to do so. For example,
+    # Encounters are processed before Specimens, and the two are only linked by
+    # Observations.
+    #
+    # kfay, 20 March 2020
+    period =  {
+        "start": encounter_date
+    }
+
+    if encounter_status == 'finished' or encounter_status == 'cancelled':
+        period['end'] = encounter_date
+
     encounter_resource = {
         "resourceType": "Encounter",
         "class": encounter_class,
