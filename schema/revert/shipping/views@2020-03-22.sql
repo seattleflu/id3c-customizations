@@ -13,7 +13,6 @@ begin;
 -- there needs to be a lag between view development and consumers being
 -- updated, copy the view definition into v2 and make changes there.
 
-drop view shipping.reportable_condition_v1;
 create or replace view shipping.reportable_condition_v1 as
 
     with reportable as (
@@ -845,90 +844,7 @@ comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
 
-create or replace view shipping.scan_return_results_v1 as
-
-    with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample_id,
-            presence_absence_id,
-            pa.present as hcov19_present
-        from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-        where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and not control
-        /*
-          Keep only the most recent push. According to Lea, samples are only
-          retested if there is a failed result. A positive, negative, or
-          indeterminate result would not be retested.
-
-          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-        */
-        order by
-            sample_id, presence_absence_id desc
-    ),
-
-    scan_barcodes as (
-      select
-        sample_id,
-        barcode as qrcode,
-        encountered::date as collect_ts
-
-      from
-        warehouse.identifier
-        join warehouse.identifier_set using (identifier_set_id)
-        left join warehouse.sample on uuid::text = sample.collection_identifier
-        left join warehouse.encounter using (encounter_id)
-      where
-        identifier_set.name in('collections-scan')
-      order by encountered, barcode
-    )
-
-    select
-        qrcode,
-        collect_ts,
-        case
-            when sample_id is null then 'not-received'
-            when sample_id is not null and presence_absence_id is null then 'pending'
-            when hcov19_present is true then 'positive'
-            when hcov19_present is false then 'negative'
-            when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
-        end as status_code
-    from
-      scan_barcodes
-      left join hcov19_presence_absence using (sample_id)
-    ;
-
-/* The shipping.scan_return_results_v1 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by those with
- * hcov19-visibility.  Revoke existing grants to every other role.
- *
- * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
- * in the future.  It's part of the broader bad interplay between views and
- * their grants.  I think it was a mistake to lump grants to each role in their
- * own change instead of scattering them amongst the changes that create/rework
- * tables and views and things that are granted on.  I made that choice
- * initially so that all grants for a role could be seen in a single
- * consolidated place, which would still be nice.  There's got to be a better
- * system for managing this (a single idempotent change script with all ACLs
- * that is always run after other changes? cleaner breaking up of sqitch
- * projects?), but I don't have time to think on it much now.  Luckily for us,
- * I think the core reporter role is unlikely to be reworked soon, but we
- * should be wary.
- *   -trs, 7 March 2020
- */
-revoke all on shipping.scan_return_results_v1 from reporter;
-
-grant select
-    on shipping.scan_return_results_v1
-    to "hcov19-visibility";
-
-
-comment on view shipping.scan_return_results_v1 is
-  'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
+drop view shipping.scan_return_results_v1;
 
 
 commit;
