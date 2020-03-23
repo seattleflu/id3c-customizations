@@ -6,7 +6,7 @@ begin;
 insert into warehouse.organism (lineage, identifiers, details)
     values
         ('Adenovirus',              'NCBITAXON => 10508',       null),
-        ('Bordetella_pertussis',    'NCBITAXON => 520',         null),
+        ('Bordetella_pertussis',    'NCBITAXON => 520',         '{"report_to_public_health": true}'),
         ('Chlamydophila_pneumoniae','NCBITAXON => 83558',       null),
         ('Enterovirus',             'NCBITAXON => 12059',       null),
         ('Enterovirus.D',           'NCBITAXON => 138951',      null),
@@ -34,8 +34,8 @@ insert into warehouse.organism (lineage, identifiers, details)
         ('Influenza.B.Vic',         null,                       null),
         ('Influenza.B.Yam',         null,                       null),
         ('Influenza.C',             'NCBITAXON => 11552',       null),
-        ('Measles',                 'NCBITAXON => 11234',       null),
-        ('Mumps',                   'NCBITAXON => 1979165',     null),
+        ('Measles',                 'NCBITAXON => 11234',       '{"report_to_public_health": true}'),
+        ('Mumps',                   'NCBITAXON => 1979165',     '{"report_to_public_health": true}'),
         ('Mycoplasma_pneumoniae',   'NCBITAXON => 2104',        null),
         ('RSV',                     'NCBITAXON => 11250',       null),
         ('RSV.A',                   'NCBITAXON => 208893',      null),

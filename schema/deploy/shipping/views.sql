@@ -13,6 +13,7 @@ begin;
 -- there needs to be a lag between view development and consumers being
 -- updated, copy the view definition into v2 and make changes there.
 
+drop view shipping.reportable_condition_v1;
 create or replace view shipping.reportable_condition_v1 as
 
     with reportable as (
@@ -25,25 +26,32 @@ create or replace view shipping.reportable_condition_v1 as
         presence_absence.presence_absence_id,
         organism.lineage::text,
         sample.identifier as sample,
-        barcode,
+        sample_id.barcode as sample_barcode,
+        collection_id.barcode as collection_barcode,
+        sample.details ->> 'clia_barcode' as clia_barcode,
         site.identifier as site,
         presence_absence.details->>'reporting_log' as reporting_log,
         sample.details->'_provenance'->>'workbook' as workbook,
         sample.details->'_provenance'->>'sheet' as sheet,
         sample.details->>'sample_origin' as sample_origin,
-        sample.details->>'swab_site' as swab_site
+        sample.details->>'swab_site' as swab_site,
+        encounter.details ->> 'language' as language
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
     join warehouse.organism using (organism_id)
     join warehouse.sample using (sample_id)
-    join warehouse.identifier on (
-        sample.identifier = cast(identifier.uuid as text))
+    join warehouse.identifier sample_id on (sample.identifier = cast(sample_id.uuid as text))
+    join warehouse.identifier collection_id on (sample.collection_identifier = cast(collection_id.uuid as text))
+    join warehouse.identifier_set collection_id_set on (collection_id.identifier_set_id = collection_id_set.identifier_set_id)
     left join warehouse.encounter using (encounter_id)
     left join warehouse.site using (site_id)
 
     where organism.lineage <@ (table reportable)
     and present
+    -- Only report on SCAN samples for now until we figure out how to handle date
+    -- cutoff of SFS samples
+    and collection_id_set.name = 'collections-scan'
 
     order by encountered desc;
 

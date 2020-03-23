@@ -116,3 +116,6 @@ warehouse/site/data [warehouse/site/data@2020-03-09] 2020-03-11T20:24:30Z Jover 
 
 shipping/views [shipping/views@2020-03-17] 2020-03-19T18:26:06Z Kairsten Fay <kfay@fredhutch.org> # Add SCAN return of results view
 @2020-03-22 2020-03-23T01:51:09Z Jover Lee <joverlee@fredhutch.org> # Schema as of 22 March 2020
+
+warehouse/target/data [warehouse/target/data@2020-03-22] 2020-03-23T20:10:28Z Jover Lee <joverlee@fredhutch.org> # Remove report_to_public_health for everything but hCoV
+shipping/views [shipping/views@2020-03-22] 2020-03-23T01:53:47Z Jover Lee <joverlee@fredhutch.org> # Update shipping.reportable_condition_v1
