@@ -31,8 +31,8 @@ INTERNAL_SYSTEM = "https://seattleflu.org"
 
 PROJECT_ID = 20759
 REQUIRED_INSTRUMENTS = [
-    'screening',
-    'shipping_information',
+    'consent_form',
+    'enrollment_questionnaire',
     'illness_questionnaire',
 ]
 
