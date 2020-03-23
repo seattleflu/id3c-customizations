@@ -482,8 +482,11 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
         'Negative': False,
         'None detected.': False,
         'Test not applicable': None,
+        'Inconclusive.': None, # XXX: Ingest this someday as present = null?
         'Canceled by practitioner': None,
+        'Cancel, order changed': None,
         'Duplicate request': None,
+        'Wrong test ordered by practitioner': None,
     }
 
     if result not in test_result_map:
@@ -530,7 +533,7 @@ def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
             continue
 
         result = present(redcap_record, test)
-        # Don't add empty results
+        # Don't add empty or inconclusive results
         if result is None:
             continue
 
