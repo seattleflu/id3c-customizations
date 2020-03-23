@@ -13,6 +13,7 @@ from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from seattleflu.id3c.cli.command import age_ceiling
+from . import standardize_whitespace
 from .fhir import *
 from .redcap_map import *
 
@@ -22,7 +23,7 @@ SFS = "https://seattleflu.org"
 REDCAP_URL = "https://redcap.iths.org/"
 PROJECT_ID = 19915
 
-REVISION = 1
+REVISION = 2
 
 @redcap_det.command_for_project(
     "uw-retrospectives",
@@ -56,6 +57,19 @@ def redcap_det_uw_retrospectives(*,
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
+    diagnostic_code = create_codeable_concept(
+        system = f'{SFS}/presence-absence-panel',
+        code = 'uw-retrospective'
+    )
+
+    diagnostic_report_resource_entry = create_diagnostic_report(
+        redcap_record,
+        patient_reference,
+        specimen_reference,
+        diagnostic_code,
+        create_clinical_result_observation_resource
+    )
+
     resource_entries = [
         patient_entry,
         specimen_entry,
@@ -66,6 +80,9 @@ def redcap_det_uw_retrospectives(*,
 
     if location_entries:
         resource_entries.extend(location_entries)
+
+    if diagnostic_report_resource_entry:
+        resource_entries.append(diagnostic_report_resource_entry)
 
     return create_bundle_resource(
         bundle_id = str(uuid4()),
@@ -165,6 +182,8 @@ def create_encounter(db: DatabaseSession,
     if not encounter_location_references:
         return None, None
 
+    hospitalization = create_encounter_hospitalization(record)
+
     encounter_date = record["collection_date"]
     if not encounter_date:
         return None, None
@@ -172,17 +191,18 @@ def create_encounter(db: DatabaseSession,
     # This matches how our clinical parse_uw generates encounter id
     encounter_id = generate_hash(f"{record['mrn']}{record['accession_no']}{encounter_date}".lower())
     encounter_identifier = create_identifier(f"{SFS}/encounter", encounter_id)
-    encounter_class = create_coding(
-        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        code = "AMB"
-    )
+
+    encounter_class = create_encounter_class(record)
+    encounter_status = create_encounter_status(record)
 
     encounter_resource = create_encounter_resource(
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class,
         encounter_date = encounter_date,
+        encounter_status = encounter_status,
         patient_reference = patient_reference,
-        location_references = encounter_location_references
+        location_references = encounter_location_references,
+        hospitalization = hospitalization
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
@@ -239,6 +259,120 @@ def find_sample_origin_by_barcode(db: DatabaseSession, barcode: str) -> Optional
     return sample.sample_origin
 
 
+def create_encounter_hospitalization(redcap_record: dict) -> Optional[Dict[str, Dict]]:
+    """
+    Returns an Encounter.hospitalization entry created from a given *redcap_record*.
+    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.hospitalization)
+    """
+    disposition = discharge_disposition(redcap_record)
+
+    # For now, dischargeDisposition is the only info we store in
+    # Encounter.hospitalization. If this info isn't available, skip creating
+    # this resource entry.
+    if not disposition:
+        return None
+
+    return {
+        "dischargeDisposition": create_codeable_concept(
+            system = 'http://hl7.org/fhir/ValueSet/encounter-discharge-disposition',
+            code = disposition,
+        )
+    }
+
+
+def discharge_disposition(redcap_record: dict) -> Optional[str]:
+    """
+    Given a *redcap_record*, returns the mapped FHIR
+    Encounter.hospitalization.dischargeDisposition code
+    (https://www.hl7.org/fhir/valueset-encounter-discharge-disposition.html)
+    """
+    disposition = redcap_record['discharge_disposition']
+    if not disposition:
+        return None
+
+    if disposition.startswith('Disch/Trans/Planned IP Readm'):
+        # This feels like sensitive information. Don't code the entire string.
+        return 'other-hcf'
+
+    mapper = {
+        'home/self care': 'home',
+        'home health care': 'home',
+        'transfer to hospital': 'other-hcf',
+        'icf- intermediate care facility': 'other-hcf',
+        'against medical advice': 'aadvice',
+        'expired': 'exp',
+        'disch/trans to a distinct psych unit/hospital': 'psy',
+        'disch/trans to a distinct rehab unit/hospital': 'rehab',
+        'snf-skilled nursing facility': 'snf',
+        'disch/trans to court/law enforcement': 'oth',
+        'other institution - not defined elsewhere': 'oth',
+    }
+
+    standardized_disposition = standardize_whitespace(disposition.lower())
+
+    if standardized_disposition not in mapper:
+        raise Exception(f"Unknown discharge disposition value «{standardized_disposition}».")
+
+    return mapper[standardized_disposition]
+
+
+def create_encounter_class(redcap_record: dict) -> dict:
+    """
+    Creates an Encounter.class coding from a given *redcap_record*. If no
+    encounter class is given, defaults to the coding for `AMB`.
+
+    This attribute is required by FHIR for an Encounter resource.
+    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.class)
+    """
+    encounter_class = redcap_record.get('patient_class', '')
+
+    mapper = {
+        "op": "AMB",
+        "ip": "IMP",
+        "lim": "IMP",
+        "obs": "IMP",
+        "ed": "EMER",  # can also code as "AMB"
+    }
+
+    standardized_encounter_class = standardize_whitespace(encounter_class.lower())
+
+    if standardized_encounter_class and standardized_encounter_class not in mapper:
+        raise Exception(f"Unknown encounter class «{encounter_class}».")
+
+    # Default to 'AMB' if encounter_class not defined
+    return create_coding(
+        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        code = mapper.get(standardized_encounter_class, 'AMB')
+    )
+
+
+def create_encounter_status(redcap_record: dict) -> str:
+    """
+    Returns an Encounter.status code from a given *redcap_record*. Defaults to
+    'finished' if no encounter status is found, because we can assume this
+    UW Retrospective encounter was an outpatient encounter.
+
+    This attribute is required by FHIR for an Encounter resource.
+    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.status)
+    """
+    status = redcap_record['encounter_status']
+    if not status:
+        return 'finished'
+
+    mapper = {
+        'arrived': 'arrived',
+        'discharged': 'finished',
+        'lwbs': 'cancelled',  # LWBS = left without being seen.
+    }
+
+    standardized_status = standardize_whitespace(status.lower())
+
+    if standardized_status not in mapper:
+        raise Exception(f"Unknown encounter status «{standardized_status}».")
+
+    return mapper[standardized_status]
+
+
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Questionnaire Response resource entry """
     response_items = determine_questionnaire_items(record)
@@ -273,6 +407,136 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
         ))
 
     return questionnaire_items
+
+
+def create_clinical_result_observation_resource(redcap_record: dict) -> Optional[List[dict]]:
+    """
+    Determine the clinical results based on responses in *redcap_record* and
+    create observation resources for each result following the FHIR format
+    (http://www.hl7.org/implement/standards/fhir/observation.html)
+    """
+    code_map = {
+        '1240581000000104': {
+            'system': 'http://snomed.info/sct',
+            'code': '1240581000000104',
+            'display': '2019-nCoV (novel coronavirus) detected',
+        },
+        '181000124108': {
+            'system': 'http://snomed.info/sct',
+            'code': '181000124108',
+            'display': 'Influenza A virus present',
+        },
+        '441345003': {
+            'system': 'http://snomed.info/sct',
+            'code': '441345003',
+            'display': 'Influenza B virus present',
+        },
+        '441278007': {
+            'system': 'http://snomed.info/sct',
+            'code': '441278007',
+            'display': 'Respiratory syncytial virus untyped strain present',
+        },
+        '440925005': {
+            'system': 'http://snomed.info/sct',
+            'code': '440925005',
+            'display': 'Human rhinovirus present',
+        },
+        '440930009': {
+            'system': 'http://snomed.info/sct',
+            'code': '440930009',
+            'display': 'Human adenovirus present',
+        },
+    }
+
+    # Create intermediary, mapped clinical results using SNOMED codes.
+    # This is useful in removing duplicate tests (e.g. multiple tests run for
+    # Influenza A)
+    results = mapped_snomed_test_results(redcap_record)
+
+    # Create observation resources for all results in clinical tests
+    diagnostic_results: Any = {}
+
+    for index, finding in enumerate(results):
+        new_observation = observation_resource('clinical')
+        new_observation['id'] = 'result-' + str(index + 1)
+        new_observation['code']['coding'] = [code_map[finding]]
+        new_observation['valueBoolean'] = results[finding]
+        diagnostic_results[finding] = (new_observation)
+
+    return list(diagnostic_results.values()) or None
+
+
+def present(redcap_record: dict, test: str) -> Optional[bool]:
+    """
+    Returns a mapped boolean *test* result from a given *redcap_record*. A
+    return value of `None` means no test results are available.
+    """
+    result = redcap_record[test]
+
+    if not result or result.startswith('Reorder requested, '):
+        return None
+
+    test_result_map = {
+        'Positive': True,
+        'Detected': True,
+        'Negative': False,
+        'None detected.': False,
+        'Test not applicable': None,
+        'Canceled by practitioner': None,
+        'Duplicate request': None,
+    }
+
+    if result not in test_result_map:
+        raise Exception(f"Unknown test result value «{result}».")
+
+    return test_result_map[result]
+
+
+def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
+    """
+    Given a *redcap_record*, returns a dict of the mapped SNOMED clinical
+    finding code and the test result.
+    """
+    # I'm using a British version (1) of snomed for COVID-19 rather than the
+    # international verison, because it appears there is still no
+    # observation result for SARS-CoV-2 in the latest international edition
+    # (2).
+    #
+    # 1. https://snomedbrowser.com/Codes/Details/1240581000000104
+    # 2: https://www.snomed.org/news-and-events/articles/march-2020-interim-snomedct-release-COVID-19
+    #
+    # -- kfay, 11 Mar 2020
+    redcap_to_snomed_map = {
+        'ncvrt': '1240581000000104',
+        'revfla': '181000124108',
+        'fluapr': '181000124108',
+        'revflb': '441345003',
+        'flubpr': '441345003',
+        'revrsv': '441278007',
+        'revrhn': '440925005',
+        'revadv': '440930009',
+    }
+
+    results: Dict[str, bool] = {}
+
+    # Populate dict of tests administered during encounter by filtering out
+    # null results. Map the REDCap test variable to the snomed code. In the
+    # event of duplicate clinical findings, prioritize keeping positive results.
+    for test in redcap_to_snomed_map:
+        code = redcap_to_snomed_map[test]
+
+        # Skip updating results for tests already marked as positive
+        if results.get(code):
+            continue
+
+        result = present(redcap_record, test)
+        # Don't add empty results
+        if result is None:
+            continue
+
+        results[code] = result
+
+    return results
 
 
 class UnknownSampleOrigin(ValueError):

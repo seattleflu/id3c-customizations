@@ -6,7 +6,6 @@ import re
 from uuid import uuid4
 from datetime import datetime
 from typing import Any, List, Optional, Tuple, Dict
-from copy import deepcopy
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.de_identify import generate_hash
@@ -71,10 +70,19 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
     # to do the rapid flu test on site
     diagnostic_report_resource_entry = None
     if redcap_record['poc_yesno'] == 'Yes':
+
+        diagnostic_code = create_codeable_concept(
+            system = 'http://loinc.org',
+            code = '85476-0',
+            display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
+        )
+
         diagnostic_report_resource_entry = create_diagnostic_report(
             redcap_record,
             patient_reference,
-            specimen_reference
+            specimen_reference,
+            diagnostic_code,
+            create_cepheid_result_observation_resource
         )
 
     encounter_locations = determine_encounter_locations(db, cache, redcap_record)
@@ -240,76 +248,12 @@ def get_sfs_barcode(redcap_record: dict) -> str:
     return barcode
 
 
-def create_diagnostic_report(redcap_record:dict,
-                             patient_reference: dict,
-                             specimen_reference: dict) -> dict:
-    """
-    Create FHIR diagnostic report from given *redcap_record* and link to
-    specific *patient_reference* and *specimen_reference*
-    """
-    cepheid_results = create_cepheid_result_observation_resource(redcap_record)
-
-    diagnostic_result_references = []
-
-    for result in cepheid_results:
-        reference = create_reference(
-            reference_type = 'Observation',
-            reference = '#' + result['id']
-        )
-        diagnostic_result_references.append(reference)
-
-    # Intentionally only capture date, not time.  collection_date is reported
-    # as "YYYY-MM-DD HH:MM:SS".
-    collection_datetime = redcap_record['collection_date'].split()[0]
-
-    diagnostic_code = create_codeable_concept(
-        system = 'http://loinc.org',
-        code = '85476-0',
-        display = 'FLUAV and FLUBV and RSV pnl NAA+probe (Upper resp)'
-    )
-
-    diagnostic_report_resource = create_diagnostic_report_resource(
-        datetime = collection_datetime,
-        diagnostic_code = diagnostic_code,
-        patient_reference  = patient_reference,
-        specimen_reference = specimen_reference,
-        result = diagnostic_result_references,
-        contained = cepheid_results
-    )
-
-    return (create_resource_entry(
-        resource = diagnostic_report_resource,
-        full_url = generate_full_url_uuid()
-    ))
-
-
 def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict]:
     """
     Determine the cepheid results based on responses in *redcap_record* and
     create observation resources for each result following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/observation.html)
     """
-    # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
-    # 3.8.  Until then, there's no reasonable way to type this data structure
-    # better than Any.
-    #   -trs, 24 Oct 2019
-    observation_resource: Any = {
-        'resourceType': 'Observation',
-        'id': '',
-        'status': 'final',
-        'code': {
-            'coding': []
-        },
-        'valueBoolean': None,
-        'device': create_reference(
-            reference_type = 'Device',
-            identifier = create_identifier(
-                system = f'{SFS}/device',
-                value = 'Cepheid'
-            )
-        )
-    }
-
     code_map = {
         'Influenza A +': {
             'system': 'http://snomed.info/sct',
@@ -338,7 +282,7 @@ def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict
     # Create observation resources for all potential results in Cepheid test
     diagnostic_results = {}
     for index, result in enumerate(code_map):
-        new_observation = deepcopy(observation_resource)
+        new_observation = observation_resource('Cepheid')
         new_observation['id'] = 'result-' + str(index+1)
         new_observation['code']['coding'] = [code_map[result]]
         diagnostic_results[result] = (new_observation)

@@ -4,7 +4,7 @@ REDCap DET ETL shared functions to create FHIR documents
 import logging
 import regex
 from itertools import filterfalse
-from typing import Iterable, NamedTuple, Optional, List
+from typing import Iterable, NamedTuple, Optional, List, Any, Callable
 from uuid import uuid4
 from datetime import datetime
 from id3c.cli.command.de_identify import generate_hash
@@ -12,6 +12,7 @@ from id3c.cli.command.de_identify import generate_hash
 
 LOG = logging.getLogger(__name__)
 
+SFS = "https://seattleflu.org"
 
 # CREATE FHIR RESOURCES
 def create_reference(reference_type: str = None,
@@ -48,6 +49,51 @@ def create_patient_resource(patient_identifier: List[dict], gender: str) -> dict
         "identifier": patient_identifier,
         "gender": gender
     })
+
+
+def create_diagnostic_report(redcap_record:dict,
+                             patient_reference: dict,
+                             specimen_reference: dict,
+                             diagnostic_code: dict,
+                             create_device_result_observation_resource: Callable) -> Optional[dict]:
+    """
+    Create FHIR diagnostic report from given *redcap_record*.
+
+    Links the generated diagnostic report to a specific *patient_reference* and
+    *specimen_reference*.
+
+    Device-specific modifications are made with the given *diagnostic_code*
+    codeable concept for the diagnostic report and the
+    *create_device_result_observation_resource* function which attaches
+    observation resources to the diagnostic report.
+    """
+    clinical_results = create_device_result_observation_resource(redcap_record)
+    if not clinical_results:
+        return None
+
+    diagnostic_result_references = []
+    for result in clinical_results:
+        reference = create_reference(
+            reference_type = 'Observation',
+            reference = '#' + result['id']
+        )
+        diagnostic_result_references.append(reference)
+
+    collection_datetime = redcap_record['collection_date']
+
+    diagnostic_report_resource = create_diagnostic_report_resource(
+        datetime = collection_datetime,
+        diagnostic_code = diagnostic_code,
+        patient_reference  = patient_reference,
+        specimen_reference = specimen_reference,
+        result = diagnostic_result_references,
+        contained = clinical_results
+    )
+
+    return (create_resource_entry(
+        resource = diagnostic_report_resource,
+        full_url = generate_full_url_uuid()
+    ))
 
 
 def create_diagnostic_report_resource(datetime: str,
@@ -149,20 +195,41 @@ def create_encounter_resource(encounter_identifier: List[dict],
                               patient_reference: dict,
                               location_references: List[dict],
                               diagnosis: List[dict] = None,
-                              contained: List[dict] = None) -> dict:
+                              contained: List[dict] = None,
+                              encounter_status = 'finished',
+                              hospitalization: dict = None) -> dict:
     """
     Create encounter resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/encounter.html)
     """
+    # XXX FIXME: We are currently using Encounter.period incorrectly, which
+    # became apparently only after we started using hospitalization data (from
+    # applicable retrospective data). An Encounter.period's start and end dates
+    # should reflect the time period covering the hospital admission and
+    # discharge.
+    #
+    # Currently, the FHIR ETL upserts an ID3C encounter (e.g. time of sample
+    # collectoin date) using the Encounter.period.start date. Ideally, the FHIR
+    # ETL would pull the encounter date (i.e. sample collection date) from
+    # Specimen.collection, but there are some organizational hurdles in the
+    # current code we'd have to address before being able to do so. For example,
+    # Encounters are processed before Specimens, and the two are only linked by
+    # Observations.
+    #
+    # kfay, 20 March 2020
+    period =  {
+        "start": encounter_date
+    }
+
+    if encounter_status == 'finished' or encounter_status == 'cancelled':
+        period['end'] = encounter_date
+
     encounter_resource = {
         "resourceType": "Encounter",
         "class": encounter_class,
         "identifier": encounter_identifier,
-        "status": "finished",
-        "period": {
-            "start": encounter_date,
-            "end": encounter_date,
-        },
+        "status": encounter_status,
+        "period": period,
         "subject": patient_reference,
     }
 
@@ -172,6 +239,8 @@ def create_encounter_resource(encounter_identifier: List[dict],
         encounter_resource["diagnosis"] = diagnosis
     if contained:
         encounter_resource["contained"] = contained
+    if hospitalization:
+        encounter_resource["hospitalization"] = hospitalization
 
     return encounter_resource
 
@@ -440,3 +509,30 @@ def canonicalize_name(*parts: Iterable[str]) -> str:
         return collapse_whitespace(remove_non_word_chars(part)).strip().upper()
 
     return " ".join(map(canonicalize, parts))
+
+
+# XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
+# 3.8.  Until then, there's no reasonable way to type this data structure
+# better than Any.
+#   -trs, 24 Oct 2019
+def observation_resource(device: str) -> Any:
+    """
+    Returns a minimally-filled FHIR Observation Resource with a given
+    *device* value.
+    """
+    return {
+        'resourceType': 'Observation',
+        'id': '',
+        'status': 'final',
+        'code': {
+            'coding': []
+        },
+        'valueBoolean': None,
+        'device': create_reference(
+            reference_type = 'Device',
+            identifier = create_identifier(
+                system = f'{SFS}/device',
+                value = device
+            )
+        )
+    }
