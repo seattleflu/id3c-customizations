@@ -33,7 +33,6 @@ PROJECT_ID = 20759
 REQUIRED_INSTRUMENTS = [
     'consent_form',
     'enrollment_questionnaire',
-    'illness_questionnaire',
 ]
 
 
