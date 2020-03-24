@@ -75,6 +75,10 @@ create or replace view shipping.reportable_condition_v1 as
  */
 revoke all on shipping.reportable_condition_v1 from reporter;
 
+grant select
+   on shipping.reportable_condition_v1
+   to "reportable-condition-notifier";
+
 
 drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v2 as
