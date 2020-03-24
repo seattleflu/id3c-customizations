@@ -80,6 +80,8 @@ with target_lineage (identifier, lineage) as (
         ('CoV_229E_CoV_OC43',           'Human_coronavirus'),
         ('CoV_HKU1_CoV_NL63',           'Human_coronavirus'),
         ('COVID-19',                    'Human_coronavirus.2019'),
+        ('COVID-19_Orf1b',              'Human_coronavirus.2019'),
+        ('COVID-19-S_gene',             'Human_coronavirus.2019'),
         ('nCoV',                        'Human_coronavirus.2019'),
         ('CoV_HKU1',                    'Human_coronavirus.HKU1'),
         ('CoV_NL63',                    'Human_coronavirus.NL63'),
