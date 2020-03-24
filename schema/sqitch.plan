@@ -125,3 +125,4 @@ shipping/views [shipping/views@2020-03-23] 2020-03-24T16:14:12Z Jover Lee <jover
 @2020-03-24 2020-03-24T16:23:16Z Jover Lee <joverlee@fredhutch.org> # Schema as of 24 March 2020
 
 shipping/views [shipping/views@2020-03-24] 2020-03-24T19:06:10Z Kairsten Fay <kfay@fredhutch.org> # Update hcov19_observation date and add result timestamp to SCAN RoR
+@2020-03-24b 2020-03-24T19:31:48Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 24 Mar 2020
