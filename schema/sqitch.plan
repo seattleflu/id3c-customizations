@@ -123,3 +123,5 @@ shipping/views [shipping/views@2020-03-22] 2020-03-23T01:53:47Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-03-23] 2020-03-24T16:14:12Z Jover Lee <joverlee@fredhutch.org> # Add grants to shipping.reportable_condition_v1
 @2020-03-24 2020-03-24T16:23:16Z Jover Lee <joverlee@fredhutch.org> # Schema as of 24 March 2020
+
+shipping/views [shipping/views@2020-03-24] 2020-03-24T19:06:10Z Kairsten Fay <kfay@fredhutch.org> # Update hcov19_observation date

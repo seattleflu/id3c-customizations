@@ -75,10 +75,6 @@ create or replace view shipping.reportable_condition_v1 as
  */
 revoke all on shipping.reportable_condition_v1 from reporter;
 
-grant select
-   on shipping.reportable_condition_v1
-   to "reportable-condition-notifier";
-
 
 drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v2 as
@@ -803,14 +799,17 @@ create or replace view shipping.hcov19_observation_v1 as
         left join warehouse.location using (location_id)
         left join hcov19_presence_absence using (sample_id)
     where
-        /* Helen recently asked us to include all samples collected since 1 Jan,
-         * 2020 for the NEJM paper.
+        /* All tested samples plus samples and encounters after 22 Feb 2020, as
+         * we presume those _will be_ tested.  This criteria comes from Mike
+         * Famulare:
+         *
+         *   https://seattle-flu-study.slack.com/archives/GU24NGD18/p1583684258051000
          *
          * Note that when comparing some row-valued X, the expressions "X is
          * not null" and "X is distinct from null" behave differently.  We want
          * the latter.
          */
-        (hcov19_presence_absence is distinct from null or best_available_encounter_date >= '2020-01-01')
+        (hcov19_presence_absence is distinct from null or best_available_encounter_date >= '2020-02-22')
 
         /* Exclude environmental swabs.
          *
