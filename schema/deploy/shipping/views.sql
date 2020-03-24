@@ -860,7 +860,8 @@ create or replace view shipping.scan_return_results_v1 as
         select distinct on (sample_id)
             sample_id,
             presence_absence_id,
-            pa.present as hcov19_present
+            pa.present as hcov19_present,
+            pa.modified::date as result_ts
         from
             warehouse.presence_absence as pa
             join warehouse.target using (target_id)
@@ -904,7 +905,8 @@ create or replace view shipping.scan_return_results_v1 as
             when hcov19_present is true then 'positive'
             when hcov19_present is false then 'negative'
             when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
-        end as status_code
+        end as status_code,
+        result_ts
     from
       scan_barcodes
       left join hcov19_presence_absence using (sample_id)
