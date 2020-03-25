@@ -206,86 +206,100 @@ comment on view shipping.return_results_v1 is
 create or replace view shipping.fhir_encounter_details_v1 as
 
     with
-        fhir as (
+        symptoms as (
           select encounter_id,
-                 case
-                    when details -> 'Condition' is not null then array_agg(distinct condition."id" order by condition."id")
-                    else null
-                 end as symptoms,
-                 jsonb_object_agg(response."linkId", response.answer order by response.answer) filter (where response."linkId" is not null) as responses
-            from warehouse.encounter
-            left join jsonb_to_recordset(details -> 'Condition') as condition("id" text) on true
-            left join jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb) on true
-            left join jsonb_to_recordset(q."item") as response("linkId" text, "answer" jsonb) on true
+                 array_agg(distinct condition."id" order by condition."id") as symptoms
+            from warehouse.encounter,
+                 jsonb_to_recordset(details -> 'Condition') as condition("id" text)
           group by encounter_id
         ),
 
+        -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
+        -- The following CTEs filter by linkId and uses the appropriate "value*" field to
+        -- select answer values.
+        questionnaire_responses as (
+          select encounter_id,
+                 "linkId",
+                 array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
+                 -- All boolean values must be true to be considered True
+                 -- I don't think we will ever get two answers for one boolean question, but just in case.
+                 -- Jover, 18 March 2020
+                 bool_and("valueBoolean") as boolean_response,
+                 array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
+                 array_remove(array_agg("code" order by "code"), null) as code_response
+            from warehouse.encounter,
+                 jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
+                 jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
+                 jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
+                 jsonb_to_record("valueCoding") as code("code" text)
+          where "linkId" in ('vaccine', 'race', 'insurance', 'ethnicity', 'travel_countries', 'travel_states')
+          group by encounter_id, "linkId"
+        ),
+
         vaccine as (
-            --Builds vaccine jsonb object without null values that spans multiple rows.
-            --Expand the rows into key/value pairs with jsonb_each and
-            --aggregate that back into a single jsonb value.
-            --  -Jover 10 Jan 2020
-            select encounter_id,
-                   jsonb_object_agg(t.k, t.v order by t.v) filter (where t.k is not null) as vaccine
-              from (
-                  select encounter_id,
-                         jsonb_strip_nulls(
-                           jsonb_build_object(
-                             'vaccine', vaccine."valueBoolean",
-                             'vaccine_date', vaccine."valueDate")) as vaccine_obj
-                  from fhir,
-                       jsonb_to_record(responses) as response("vaccine" jsonb),
-                       jsonb_to_recordset(response."vaccine") as vaccine("valueBoolean" bool, "valueDate" text)) as vaccine,
-              jsonb_each(vaccine.vaccine_obj) as t(k,v)
-            group by encounter_id
+          select encounter_id,
+                 boolean_response as vaccine,
+                 date_response[1] as vaccine_date
+            from questionnaire_responses
+          where "linkId" = 'vaccine'
         ),
 
-        array_responses as (
-            select
-                encounter_id,
-                case
-                    when responses -> 'race' is not null then array_agg(coalesce(race."valueCoding" ->> 'code', race."valueString") order by race."valueString")
-                    else null
-                end as race,
-                case
-                    when responses -> 'insurance' is not null then array_agg(insurance."valueString" order by insurance."valueString")
-                    else null
-                end as insurance
-              from fhir
-              left join jsonb_to_record(responses) as response("race" jsonb, "insurance" jsonb) on true
-              left join jsonb_to_recordset(response."race") as race ("valueCoding" jsonb, "valueString" text) on true
-              left join jsonb_to_recordset(response."insurance") as insurance ("valueString" text) on true
-            group by encounter_id, responses
+        race as (
+          select encounter_id,
+                 case
+                    when array_length(code_response, 1) is null then string_response
+                    else code_response
+                 end as race
+            from questionnaire_responses
+          where "linkId" = 'race'
         ),
 
-        boolean_responses as (
-            select
-                encounter_id,
-                ethnicity."valueBoolean" as hispanic_or_latino,
-                travel_countries."valueBoolean" as travel_countries,
-                travel_states."valueBoolean" as travel_states
-            from fhir
-            left join jsonb_to_record(responses) as response("ethnicity" jsonb, "travel_countries" jsonb, "travel_states" jsonb) on true
-            left join jsonb_to_recordset(response."ethnicity") as ethnicity("valueBoolean" bool) on true
-            left join jsonb_to_recordset(response."travel_countries") as travel_countries("valueBoolean" bool) on true
-            left join jsonb_to_recordset(response."travel_states") as travel_states("valueBoolean" bool) on true
+        insurance as (
+          select encounter_id,
+                 string_response as insurance
+            from questionnaire_responses
+          where "linkId" = 'insurance'
+        ),
+
+        ethnicity as (
+          select encounter_id,
+                 boolean_response as hispanic_or_latino
+            from questionnaire_responses
+          where "linkId" = 'ethnicity'
+        ),
+
+        travel_countries as (
+          select encounter_id,
+                 boolean_response as travel_countries
+            from questionnaire_responses
+          where "linkId" = 'travel_countries'
+        ),
+
+        travel_states as (
+          select encounter_id,
+                 boolean_response as travel_states
+            from questionnaire_responses
+          where "linkId" = 'travel_states'
         )
-
 
     select
         encounter_id,
         symptoms,
-        (vaccine ->> 'vaccine')::bool as vaccine,
-        vaccine ->> 'vaccine_date' as vaccine_date,
+        vaccine,
+        vaccine_date,
         race,
         insurance,
         hispanic_or_latino,
         travel_countries,
         travel_states
-    from fhir
-         left join vaccine using (encounter_id)
-         left join array_responses using (encounter_id)
-         left join boolean_responses using (encounter_id);
+      from warehouse.encounter
+      left join symptoms using (encounter_id)
+      left join vaccine using (encounter_id)
+      left join race using (encounter_id)
+      left join insurance using (encounter_id)
+      left join ethnicity using (encounter_id)
+      left join travel_countries using (encounter_id)
+      left join travel_states using (encounter_id);
 
 comment on view shipping.fhir_encounter_details_v1 is
   'A view of encounter details that are in FHIR format';
