@@ -295,9 +295,11 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
                 }
             ]
         },
-        "onsetDateTime": record["symptom_duration"], # YYYY-MM-DD in REDCap
         "subject": patient_reference
     }
+
+    if record["symptom_duration"]:
+        condition["onsetDateTime"] = record["symptom_duration"]
 
     return condition
 
