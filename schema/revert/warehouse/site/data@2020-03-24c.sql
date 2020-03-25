@@ -28,8 +28,7 @@ insert into warehouse.site(identifier, details)
         ('HUB',                                     '{"category": "community",  "type": "collegeCampus",
             "swab_site": "hub"}'),
         ('HutchKids',                               '{"category": "community",  "type": "childcare"}'),
-        ('KaiserPermanente',                        '{"category": "clinic",     "type": "clinic",
-            "sample_origin": "kp"}'),
+        ('KaiserPermanente',                        '{"category": "clinic",     "type": "clinic"}'),
         ('KingStreetStation',                       '{"category": "community",  "type": "publicSpace",
             "swab_site": "king_street%"}'),
         ('PioneerSquare',                           '{"category": "clinic",     "type": "clinic"}'),
@@ -41,8 +40,6 @@ insert into warehouse.site(identifier, details)
             "sample_origin": "nwh_retro"}'),
         ('RetrospectiveUWMedicalCenter',            '{"category": "hospital",   "type": "retrospective",
             "sample_origin": "uwmc_retro"}'),
-        ('SCAN',                                    '{"category": "community", "type": "SCAN",
-            "sample_origin": "scan"}'),
         ('SeaTacDomestic',                          '{"category": "community",  "type": "publicSpace",
             "swab_site": "seatac_airport"}'),
         ('SeaTacInternational',                     '{"category": "community",  "type": "publicSpace"}'),
@@ -65,6 +62,10 @@ insert into warehouse.site(identifier, details)
 
     on conflict (identifier) do update
         set details = EXCLUDED.details
+;
+
+delete from warehouse.site
+    where identifier = 'SCAN'
 ;
 
 commit;

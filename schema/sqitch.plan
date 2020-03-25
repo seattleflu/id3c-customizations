@@ -129,3 +129,6 @@ shipping/views [shipping/views@2020-03-24] 2020-03-24T19:06:10Z Kairsten Fay <kf
 
 warehouse/target/data [warehouse/target/data@2020-03-24b] 2020-03-25T00:56:30Z Jover Lee <joverlee@fredhutch.org> # Link new targets (uw-retro & covid) to organisms
 @2020-03-24c 2020-03-25T01:00:57Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 24 March 2020
+
+warehouse/site/data [warehouse/site/data@2020-03-24c] 2020-03-25T17:31:31Z Kairsten Fay <kfay@fredhutch.org> # Add KP, SCAN sample origin regex
+@2020-03-25 2020-03-25T18:14:42Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 25 March 2020
