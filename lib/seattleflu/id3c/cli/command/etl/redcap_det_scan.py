@@ -14,6 +14,7 @@ from id3c.db.session import DatabaseSession
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
+from id3c.cli.redcap import is_complete
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
@@ -23,7 +24,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 1
+REVISION = 2
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -31,12 +32,8 @@ INTERNAL_SYSTEM = "https://seattleflu.org"
 PROJECT_ID = 20759
 LANGUAGE_CODE = 'en'
 REQUIRED_INSTRUMENTS = [
-    'screening',
-    'shipping_information',
-    'back_end_mail_scans',
-    'illness_questionnaire'
-    'nasal_swab_collection',
-    'post_collection_data_entry_qc'
+    'consent_form',
+    'enrollment_questionnaire',
 ]
 
 
@@ -63,15 +60,21 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.warning("Skipping enrollment with insufficient information to construct an encounter")
         return None
 
-    specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
-
-    if not specimen_entry:
-        LOG.warning("Skipping enrollment with insufficent information to construct a specimen")
-        return None
-
     questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
 
-    specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
+    specimen_entry = None
+    specimen_observation_entry = None
+    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record)
+
+    if specimen_received:
+        specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
+        specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
+    else:
+        LOG.info("Creating encounter for record without sample")
+
+    if specimen_received and not specimen_entry:
+        LOG.warning("Skipping enrollment with insufficent information to construct a specimen")
+        return None
 
     resource_entries = [
         patient_entry,
@@ -302,9 +305,11 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
                 }
             ]
         },
-        "onsetDateTime": record["symptom_duration"], # YYYY-MM-DD in REDCap
         "subject": patient_reference
     }
+
+    if record["symptom_duration"]:
+        condition["onsetDateTime"] = record["symptom_duration"]
 
     return condition
 
