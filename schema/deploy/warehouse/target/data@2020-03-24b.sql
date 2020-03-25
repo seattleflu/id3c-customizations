@@ -80,6 +80,8 @@ with target_lineage (identifier, lineage) as (
         ('CoV_229E_CoV_OC43',           'Human_coronavirus'),
         ('CoV_HKU1_CoV_NL63',           'Human_coronavirus'),
         ('COVID-19',                    'Human_coronavirus.2019'),
+        ('COVID-19_Orf1b',              'Human_coronavirus.2019'),
+        ('COVID-19-S_gene',             'Human_coronavirus.2019'),
         ('nCoV',                        'Human_coronavirus.2019'),
         ('CoV_HKU1',                    'Human_coronavirus.HKU1'),
         ('CoV_NL63',                    'Human_coronavirus.NL63'),
@@ -121,13 +123,10 @@ with target_lineage (identifier, lineage) as (
         ('S. pneumoniae_APZTD4A',       'Streptococcus_pneumoniae'),
         ('S.pneumoniae',                'Streptococcus_pneumoniae'),
 
-        -- Snomed CT targets used by Ellume, Cepheid, UW Retros
-        ('http://snomed.info/id/440930009',        'Adenovirus'),
-        ('http://snomed.info/id/1240581000000104', 'Human_coronavirus.2019'),
-        ('http://snomed.info/id/181000124108',     'Influenza.A'),
-        ('http://snomed.info/id/441345003',        'Influenza.B'),
-        ('http://snomed.info/id/440925005',        'Rhinovirus'),
-        ('http://snomed.info/id/441278007',        'RSV')
+        -- Targets reported by Ellume & Cepheid using SNOMED CT
+        ('http://snomed.info/id/181000124108', 'Influenza.A'),
+        ('http://snomed.info/id/441345003',    'Influenza.B'),
+        ('http://snomed.info/id/441278007',    'RSV')
 )
 
 insert into warehouse.target (identifier, organism_id, control)
