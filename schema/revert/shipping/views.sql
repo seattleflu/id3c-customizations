@@ -743,6 +743,7 @@ comment on view shipping.return_results_v2 is
 drop view shipping.fhir_encounter_details_v2;
 
 
+drop view shipping.hcov19_observation_v1;
 create or replace view shipping.hcov19_observation_v1 as
 
     with hcov19_presence_absence as (

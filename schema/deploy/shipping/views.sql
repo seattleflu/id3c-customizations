@@ -1047,24 +1047,36 @@ grant select
    to "incidence-modeler";
 
 
+drop view shipping.hcov19_observation_v1;
 create or replace view shipping.hcov19_observation_v1 as
 
     with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample_id,
-            pa.created::date as hcov19_result_received,
-            pa.present as hcov19_present
-        from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-        where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and not control
-        order by
-            sample_id,
-            present desc nulls last -- t → f → null
+        select
+          sample_id,
+          hcov19_result_received,
+          hcov19_present,
+          array_agg("crt") as crt_values
+        from (
+            -- Collapse potentially multiple hCoV-19 results
+            select distinct on (sample_id)
+                sample_id,
+                pa.created::date as hcov19_result_received,
+                pa.present as hcov19_present,
+                pa.details -> 'replicates' as replicates
+            from
+                warehouse.presence_absence as pa
+                join warehouse.target using (target_id)
+                join warehouse.organism using (organism_id)
+            where
+                organism.lineage <@ 'Human_coronavirus.2019'
+                and not control
+            order by
+                sample_id,
+                present desc nulls last -- t → f → null
+        ) as deduplicated_hcov19
+        left join jsonb_to_recordset(replicates) as r("crt" text) on true
+
+        group by sample_id, hcov19_result_received, hcov19_present
     )
 
     select
@@ -1074,6 +1086,7 @@ create or replace view shipping.hcov19_observation_v1 as
         -- Lab testing-related columns
         hcov19_result_received,
         hcov19_present,
+        crt_values,
 
         -- Encounter-related columns
         encounter_id,
