@@ -299,6 +299,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'home health care': 'home',
         'transfer to hospital': 'other-hcf',
         'icf- intermediate care facility': 'other-hcf',
+        'designated cancer center or children\'s hospital': 'other-hcf',
         'against medical advice': 'aadvice',
         'expired': 'exp',
         'disch/trans to a distinct psych unit/hospital': 'psy',
