@@ -75,6 +75,10 @@ create or replace view shipping.reportable_condition_v1 as
  */
 revoke all on shipping.reportable_condition_v1 from reporter;
 
+grant select
+   on shipping.reportable_condition_v1
+   to "reportable-condition-notifier";
+
 
 drop view shipping.metadata_for_augur_build_v2;
 create or replace view shipping.metadata_for_augur_build_v2 as
@@ -852,7 +856,8 @@ comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
 
-create or replace view shipping.scan_return_results_v1 as
+drop view shipping.scan_return_results_v1;
+create view shipping.scan_return_results_v1 as
 
     with hcov19_presence_absence as (
         -- Collapse potentially multiple hCoV-19 results
