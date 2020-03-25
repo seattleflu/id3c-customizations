@@ -123,13 +123,10 @@ with target_lineage (identifier, lineage) as (
         ('S. pneumoniae_APZTD4A',       'Streptococcus_pneumoniae'),
         ('S.pneumoniae',                'Streptococcus_pneumoniae'),
 
-        -- Snomed CT targets used by Ellume, Cepheid, UW Retros
-        ('http://snomed.info/id/440930009',        'Adenovirus'),
-        ('http://snomed.info/id/1240581000000104', 'Human_coronavirus.2019'),
-        ('http://snomed.info/id/181000124108',     'Influenza.A'),
-        ('http://snomed.info/id/441345003',        'Influenza.B'),
-        ('http://snomed.info/id/440925005',        'Rhinovirus'),
-        ('http://snomed.info/id/441278007',        'RSV')
+        -- Targets reported by Ellume & Cepheid using SNOMED CT
+        ('http://snomed.info/id/181000124108', 'Influenza.A'),
+        ('http://snomed.info/id/441345003',    'Influenza.B'),
+        ('http://snomed.info/id/441278007',    'RSV')
 )
 
 insert into warehouse.target (identifier, organism_id, control)
