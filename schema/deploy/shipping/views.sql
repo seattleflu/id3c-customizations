@@ -1132,11 +1132,13 @@ create or replace view shipping.hcov19_observation_v1 as
         -- Misc cruft
         sample.details->>'sample_origin' as manifest_origin
 
-        /* XXX TODO
-         *   → symptoms (Mike says can be JSON blob)
-         *   → symptom onset (date)
-         *   → race, SES, housing, etc
-         */
+        /* Extra variables from SCAN REDCap project are available in
+        * shipping.fhir_encounter_details_v2. Roy from IDM has opted
+        * to join these two views locally to keep things running fast.
+        * See slack:
+        * https://seattle-flu-study.slack.com/archives/CCAA9RBFS/p1585186959003300?thread_ts=1585186062.003200&cid=CCAA9RBFS
+        *     - Jover, 25 March 2020
+        */
     from
         warehouse.sample
         left join shipping.sample_with_best_available_encounter_data_v1 using (sample_id)
