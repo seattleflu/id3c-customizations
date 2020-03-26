@@ -1050,18 +1050,18 @@ grant select
 drop view shipping.hcov19_observation_v1;
 create or replace view shipping.hcov19_observation_v1 as
 
-    with hcov19_presence_absence as (
+    with hcov19_presence_absence_bbi as (
         select
           sample_id,
-          hcov19_result_received,
-          hcov19_present,
+          hcov19_result_received_bbi,
+          hcov19_present_bbi,
           array_agg("crt") as crt_values
         from (
             -- Collapse potentially multiple hCoV-19 results
             select distinct on (sample_id)
                 sample_id,
-                pa.created::date as hcov19_result_received,
-                pa.present as hcov19_present,
+                pa.created::date as hcov19_result_received_bbi,
+                pa.present as hcov19_present_bbi,
                 pa.details -> 'replicates' as replicates
             from
                 warehouse.presence_absence as pa
@@ -1070,23 +1070,47 @@ create or replace view shipping.hcov19_observation_v1 as
             where
                 organism.lineage <@ 'Human_coronavirus.2019'
                 and not control
+                and not pa.details @> '{"device" : "clinical"}'
             order by
                 sample_id,
                 present desc nulls last -- t → f → null
-        ) as deduplicated_hcov19
+        ) as deduplicated_hcov19_bbi
         left join jsonb_to_recordset(replicates) as r("crt" text) on true
 
-        group by sample_id, hcov19_result_received, hcov19_present
+        group by sample_id, hcov19_result_received_bbi, hcov19_present_bbi
+    ),
+
+    hcov19_presence_absence_uw as (
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample_id,
+            pa.created::date as hcov19_result_received_uw,
+            pa.present as hcov19_present_uw
+        from
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+        where
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and not control
+            and pa.details @> '{"device" : "clinical"}'
+        order by
+            sample_id,
+            present desc nulls last -- t → f → null
     )
 
     select
         sample_id,
         sample.identifier as sample,
 
-        -- Lab testing-related columns
-        hcov19_result_received,
-        hcov19_present,
+        -- Lab testing-related columns for BBI
+        hcov19_result_received_bbi,
+        hcov19_present_bbi,
         crt_values,
+
+        -- Lab testing-related columns for UW
+        hcov19_result_received_uw,
+        hcov19_present_uw,
 
         -- Encounter-related columns
         encounter_id,
@@ -1121,7 +1145,8 @@ create or replace view shipping.hcov19_observation_v1 as
         left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
         left join warehouse.primary_encounter_location using (encounter_id)
         left join warehouse.location using (location_id)
-        left join hcov19_presence_absence using (sample_id)
+        left join hcov19_presence_absence_bbi using (sample_id)
+        left join hcov19_presence_absence_uw using (sample_id)
     where
         /* Helen recently asked us to include all samples collected since 1 Jan,
          * 2020 for the NEJM paper.
@@ -1130,7 +1155,9 @@ create or replace view shipping.hcov19_observation_v1 as
          * not null" and "X is distinct from null" behave differently.  We want
          * the latter.
          */
-        (hcov19_presence_absence is distinct from null or best_available_encounter_date >= '2020-01-01')
+        (hcov19_presence_absence_bbi is distinct from null
+         or hcov19_presence_absence_uw is distinct from null
+         or best_available_encounter_date >= '2020-01-01')
 
         /* Exclude environmental swabs.
          *
