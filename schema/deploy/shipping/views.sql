@@ -60,6 +60,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-self-test',
                                    'collections-swab&send-asymptomatic',
                                    'collections-kiosks-asymptomatic')
+    and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     order by encountered desc;
 
 /* The shipping.reportable_condition_v1 view needs hCoV-19 visibility, so
