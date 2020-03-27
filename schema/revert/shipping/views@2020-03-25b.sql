@@ -206,100 +206,86 @@ comment on view shipping.return_results_v1 is
 create or replace view shipping.fhir_encounter_details_v1 as
 
     with
-        symptoms as (
+        fhir as (
           select encounter_id,
-                 array_agg(distinct condition."id" order by condition."id") as symptoms
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'Condition') as condition("id" text)
+                 case
+                    when details -> 'Condition' is not null then array_agg(distinct condition."id" order by condition."id")
+                    else null
+                 end as symptoms,
+                 jsonb_object_agg(response."linkId", response.answer order by response.answer) filter (where response."linkId" is not null) as responses
+            from warehouse.encounter
+            left join jsonb_to_recordset(details -> 'Condition') as condition("id" text) on true
+            left join jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb) on true
+            left join jsonb_to_recordset(q."item") as response("linkId" text, "answer" jsonb) on true
           group by encounter_id
         ),
 
-        -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
-        -- The following CTEs filter by linkId and uses the appropriate "value*" field to
-        -- select answer values.
-        questionnaire_responses as (
-          select encounter_id,
-                 "linkId",
-                 array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
-                 -- All boolean values must be true to be considered True
-                 -- I don't think we will ever get two answers for one boolean question, but just in case.
-                 -- Jover, 18 March 2020
-                 bool_and("valueBoolean") as boolean_response,
-                 array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
-                 array_remove(array_agg("code" order by "code"), null) as code_response
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
-                 jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
-                 jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
-                 jsonb_to_record("valueCoding") as code("code" text)
-          where "linkId" in ('vaccine', 'race', 'insurance', 'ethnicity', 'travel_countries', 'travel_states')
-          group by encounter_id, "linkId"
-        ),
-
         vaccine as (
-          select encounter_id,
-                 boolean_response as vaccine,
-                 date_response[1] as vaccine_date
-            from questionnaire_responses
-          where "linkId" = 'vaccine'
+            --Builds vaccine jsonb object without null values that spans multiple rows.
+            --Expand the rows into key/value pairs with jsonb_each and
+            --aggregate that back into a single jsonb value.
+            --  -Jover 10 Jan 2020
+            select encounter_id,
+                   jsonb_object_agg(t.k, t.v order by t.v) filter (where t.k is not null) as vaccine
+              from (
+                  select encounter_id,
+                         jsonb_strip_nulls(
+                           jsonb_build_object(
+                             'vaccine', vaccine."valueBoolean",
+                             'vaccine_date', vaccine."valueDate")) as vaccine_obj
+                  from fhir,
+                       jsonb_to_record(responses) as response("vaccine" jsonb),
+                       jsonb_to_recordset(response."vaccine") as vaccine("valueBoolean" bool, "valueDate" text)) as vaccine,
+              jsonb_each(vaccine.vaccine_obj) as t(k,v)
+            group by encounter_id
         ),
 
-        race as (
-          select encounter_id,
-                 case
-                    when array_length(code_response, 1) is null then string_response
-                    else code_response
-                 end as race
-            from questionnaire_responses
-          where "linkId" = 'race'
+        array_responses as (
+            select
+                encounter_id,
+                case
+                    when responses -> 'race' is not null then array_agg(coalesce(race."valueCoding" ->> 'code', race."valueString") order by race."valueString")
+                    else null
+                end as race,
+                case
+                    when responses -> 'insurance' is not null then array_agg(insurance."valueString" order by insurance."valueString")
+                    else null
+                end as insurance
+              from fhir
+              left join jsonb_to_record(responses) as response("race" jsonb, "insurance" jsonb) on true
+              left join jsonb_to_recordset(response."race") as race ("valueCoding" jsonb, "valueString" text) on true
+              left join jsonb_to_recordset(response."insurance") as insurance ("valueString" text) on true
+            group by encounter_id, responses
         ),
 
-        insurance as (
-          select encounter_id,
-                 string_response as insurance
-            from questionnaire_responses
-          where "linkId" = 'insurance'
-        ),
-
-        ethnicity as (
-          select encounter_id,
-                 boolean_response as hispanic_or_latino
-            from questionnaire_responses
-          where "linkId" = 'ethnicity'
-        ),
-
-        travel_countries as (
-          select encounter_id,
-                 boolean_response as travel_countries
-            from questionnaire_responses
-          where "linkId" = 'travel_countries'
-        ),
-
-        travel_states as (
-          select encounter_id,
-                 boolean_response as travel_states
-            from questionnaire_responses
-          where "linkId" = 'travel_states'
+        boolean_responses as (
+            select
+                encounter_id,
+                ethnicity."valueBoolean" as hispanic_or_latino,
+                travel_countries."valueBoolean" as travel_countries,
+                travel_states."valueBoolean" as travel_states
+            from fhir
+            left join jsonb_to_record(responses) as response("ethnicity" jsonb, "travel_countries" jsonb, "travel_states" jsonb) on true
+            left join jsonb_to_recordset(response."ethnicity") as ethnicity("valueBoolean" bool) on true
+            left join jsonb_to_recordset(response."travel_countries") as travel_countries("valueBoolean" bool) on true
+            left join jsonb_to_recordset(response."travel_states") as travel_states("valueBoolean" bool) on true
         )
+
 
     select
         encounter_id,
         symptoms,
-        vaccine,
-        vaccine_date,
+        (vaccine ->> 'vaccine')::bool as vaccine,
+        vaccine ->> 'vaccine_date' as vaccine_date,
         race,
         insurance,
         hispanic_or_latino,
         travel_countries,
         travel_states
-      from warehouse.encounter
-      left join symptoms using (encounter_id)
-      left join vaccine using (encounter_id)
-      left join race using (encounter_id)
-      left join insurance using (encounter_id)
-      left join ethnicity using (encounter_id)
-      left join travel_countries using (encounter_id)
-      left join travel_states using (encounter_id);
+    from fhir
+         left join vaccine using (encounter_id)
+         left join array_responses using (encounter_id)
+         left join boolean_responses using (encounter_id);
 
 comment on view shipping.fhir_encounter_details_v1 is
   'A view of encounter details that are in FHIR format';
@@ -754,338 +740,18 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
-create or replace view shipping.fhir_encounter_details_v2 as
-
-    with
-        symptoms as (
-          select encounter_id,
-                 array_agg(distinct condition."id" order by condition."id") as symptoms,
-                 -- In our FHIR etl we give all symptoms the same onsetDateTime
-                 "onsetDateTime" as symptom_onset
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'Condition') as condition("id" text, "onsetDateTime" text)
-          group by encounter_id, symptom_onset
-        ),
-
-        -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
-        -- The following CTEs filter by linkId and uses the appropriate "value*" field to
-        -- select answer values.
-        questionnaire_responses as (
-          select encounter_id,
-                 "linkId",
-                 array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
-                 -- All boolean values must be true to be considered True
-                 -- I don't think we will ever get two answers for one boolean question, but just in case.
-                 -- Jover, 18 March 2020
-                 bool_and("valueBoolean") as boolean_response,
-                 array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
-                 array_remove(array_agg("code" order by "code"), null) as code_response
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
-                 jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
-                 jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
-                 jsonb_to_record("valueCoding") as code("code" text)
-          where "linkId" in ('redcap_event_name',
-                             'vaccine',
-                             'race',
-                             'insurance',
-                             'ethnicity',
-                             'travel_countries',
-                             'travel_countries_phs',
-                             'country',
-                             'travel_states',
-                             'travel_countries_phs',
-                             'state',
-                             'pregnant_yesno',
-                             'income',
-                             'housing_type',
-                             'house_members',
-                             'doctor_3e8fae',
-                             'hospital_where',
-                             'hospital_ed',
-                             'hospital_arrive',
-                             'hospital_leave',
-                             'smoke_9a005',
-                             'chronic_illness',
-                             'overall_risk_health',
-                             'overall_risk_setting',
-                             'longterm_type')
-          group by encounter_id, "linkId"
-        ),
-
-        scan_study_arm as (
-          select encounter_id,
-                 string_response[1] as scan_study_arm
-            from questionnaire_responses
-          where "linkId" = 'redcap_event_name'
-        ),
-
-        vaccine as (
-          select encounter_id,
-                 boolean_response as vaccine,
-                 date_response[1] as vaccine_date
-            from questionnaire_responses
-          where "linkId" = 'vaccine'
-        ),
-
-        race as (
-          select encounter_id,
-                 case
-                    when array_length(code_response, 1) is null then string_response
-                    else code_response
-                 end as race
-            from questionnaire_responses
-          where "linkId" = 'race'
-        ),
-
-        insurance as (
-          select encounter_id,
-                 string_response as insurance
-            from questionnaire_responses
-          where "linkId" = 'insurance'
-        ),
-
-        ethnicity as (
-          select encounter_id,
-                 boolean_response as hispanic_or_latino
-            from questionnaire_responses
-          where "linkId" = 'ethnicity'
-        ),
-
-        travel_countries as (
-          select encounter_id,
-                 bool_or(boolean_response) as travel_countries
-            from questionnaire_responses
-          where "linkId" in ('travel_countries','travel_countries_phs')
-          group by encounter_id
-        ),
-
-        countries as (
-          select encounter_id,
-                 string_response as countries
-            from questionnaire_responses
-          where "linkId" = 'country'
-        ),
-
-        travel_states as (
-          select encounter_id,
-                 bool_or(boolean_response) as travel_states
-            from questionnaire_responses
-          where "linkId" in ('travel_states', 'travel_states_phs')
-          group by encounter_id
-        ),
-
-        states as (
-          select encounter_id,
-                 string_response as states
-            from questionnaire_responses
-          where "linkId" = 'state'
-        ),
-
-        pregnant as (
-          select encounter_id,
-                 boolean_response as pregnant
-            from questionnaire_responses
-          where "linkId" = 'pregnant_yesno'
-        ),
-
-        income as (
-          select encounter_id,
-                 string_response[1] as income
-            from questionnaire_responses
-          where "linkId" = 'income'
-        ),
-
-        housing_type as (
-          select encounter_id,
-                 string_response[1] as housing_type
-            from questionnaire_responses
-          where "linkId" = 'housing_type'
-        ),
-
-        house_members as (
-          select encounter_id,
-                 string_response[1] as house_members
-            from questionnaire_responses
-          where "linkId" = 'house_members'
-        ),
-
-        clinical_care as (
-          select encounter_id,
-                 string_response as clinical_care
-            from questionnaire_responses
-          where "linkId" = 'doctor_3e8fae'
-        ),
-
-        hospital_where as (
-          select encounter_id,
-                 string_response[1] as hospital_where
-            from questionnaire_responses
-          where "linkId" = 'hospital_where'
-        ),
-
-        hospital_visit_type as (
-          select encounter_id,
-                 string_response[1] as hospital_visit_type
-            from questionnaire_responses
-          where "linkId" = 'hospital_ed'
-        ),
-
-        hospital_arrive as (
-          select encounter_id,
-                 string_response[1] as hospital_arrive
-            from questionnaire_responses
-          where "linkId" = 'hospital_arrive'
-        ),
-
-        hospital_leave as (
-          select encounter_id,
-                 string_response[1] as hospital_leave
-            from questionnaire_responses
-          where "linkId" = 'hospital_leave'
-        ),
-
-        smoking as (
-          select encounter_id,
-                 string_response as smoking
-            from questionnaire_responses
-          where "linkId" = 'smoke_9a005'
-        ),
-
-        chronic_illness as (
-          select encounter_id,
-                 string_response as chronic_illness
-            from questionnaire_responses
-          where "linkId" = 'chronic_illness'
-        ),
-
-        overall_risk_health as (
-          select encounter_id,
-                 string_response as overall_risk_health
-            from questionnaire_responses
-          where "linkId" = 'overall_risk_health'
-        ),
-
-        overall_risk_setting as (
-          select encounter_id,
-                 string_response as overall_risk_setting
-            from questionnaire_responses
-          where "linkId" = 'overall_risk_setting'
-        ),
-
-        long_term_type as (
-          select encounter_id,
-                 string_response as long_term_type
-            from questionnaire_responses
-          where "linkId" = 'longterm_type'
-        )
-
-    select
-        encounter_id,
-        scan_study_arm,
-        symptoms,
-        symptom_onset,
-        vaccine,
-        vaccine_date,
-        race,
-        insurance,
-        hispanic_or_latino,
-        travel_countries,
-        countries,
-        travel_states,
-        states,
-        pregnant,
-        housing_type,
-        house_members,
-        clinical_care,
-        hospital_where,
-        hospital_visit_type,
-        hospital_arrive,
-        hospital_leave,
-        smoking,
-        chronic_illness,
-        overall_risk_health,
-        overall_risk_setting,
-        long_term_type
-
-      from warehouse.encounter
-      left join scan_study_arm using (encounter_id)
-      left join symptoms using (encounter_id)
-      left join vaccine using (encounter_id)
-      left join race using (encounter_id)
-      left join insurance using (encounter_id)
-      left join ethnicity using (encounter_id)
-      left join travel_countries using (encounter_id)
-      left join countries using (encounter_id)
-      left join travel_states using (encounter_id)
-      left join states using (encounter_id)
-      left join pregnant using (encounter_id)
-      left join income using (encounter_id)
-      left join housing_type using (encounter_id)
-      left join house_members using (encounter_id)
-      left join clinical_care using (encounter_id)
-      left join hospital_where using (encounter_id)
-      left join hospital_visit_type using (encounter_id)
-      left join hospital_arrive using (encounter_id)
-      left join hospital_leave using (encounter_id)
-      left join smoking using (encounter_id)
-      left join chronic_illness using (encounter_id)
-      left join overall_risk_health using (encounter_id)
-      left join overall_risk_setting using (encounter_id)
-      left join long_term_type using (encounter_id)
-;
-
-comment on view shipping.fhir_encounter_details_v2 is
-  'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
-
-revoke all
-    on shipping.fhir_encounter_details_v2
-  from "incidence-modeler";
-
-grant select
-   on shipping.fhir_encounter_details_v2
-   to "incidence-modeler";
+drop view shipping.fhir_encounter_details_v2;
 
 
 drop view shipping.hcov19_observation_v1;
 create or replace view shipping.hcov19_observation_v1 as
 
-    with hcov19_presence_absence_bbi as (
-        select
-          sample_id,
-          hcov19_result_received_bbi,
-          hcov19_present_bbi,
-          array_agg("crt") as crt_values
-        from (
-            -- Collapse potentially multiple hCoV-19 results
-            select distinct on (sample_id)
-                sample_id,
-                pa.created::date as hcov19_result_received_bbi,
-                pa.present as hcov19_present_bbi,
-                pa.details -> 'replicates' as replicates
-            from
-                warehouse.presence_absence as pa
-                join warehouse.target using (target_id)
-                join warehouse.organism using (organism_id)
-            where
-                organism.lineage <@ 'Human_coronavirus.2019'
-                and not control
-                and not pa.details @> '{"device" : "clinical"}'
-            order by
-                sample_id,
-                present desc nulls last -- t → f → null
-        ) as deduplicated_hcov19_bbi
-        left join jsonb_to_recordset(replicates) as r("crt" text) on true
-
-        group by sample_id, hcov19_result_received_bbi, hcov19_present_bbi
-    ),
-
-    hcov19_presence_absence_uw as (
+    with hcov19_presence_absence as (
         -- Collapse potentially multiple hCoV-19 results
         select distinct on (sample_id)
             sample_id,
-            pa.created::date as hcov19_result_received_uw,
-            pa.present as hcov19_present_uw
+            pa.created::date as hcov19_result_received,
+            pa.present as hcov19_present
         from
             warehouse.presence_absence as pa
             join warehouse.target using (target_id)
@@ -1093,7 +759,6 @@ create or replace view shipping.hcov19_observation_v1 as
         where
             organism.lineage <@ 'Human_coronavirus.2019'
             and not control
-            and pa.details @> '{"device" : "clinical"}'
         order by
             sample_id,
             present desc nulls last -- t → f → null
@@ -1103,14 +768,9 @@ create or replace view shipping.hcov19_observation_v1 as
         sample_id,
         sample.identifier as sample,
 
-        -- Lab testing-related columns for BBI
-        hcov19_result_received_bbi,
-        hcov19_present_bbi,
-        crt_values,
-
-        -- Lab testing-related columns for UW
-        hcov19_result_received_uw,
-        hcov19_present_uw,
+        -- Lab testing-related columns
+        hcov19_result_received,
+        hcov19_present,
 
         -- Encounter-related columns
         encounter_id,
@@ -1132,13 +792,11 @@ create or replace view shipping.hcov19_observation_v1 as
         -- Misc cruft
         sample.details->>'sample_origin' as manifest_origin
 
-        /* Extra variables from SCAN REDCap project are available in
-        * shipping.fhir_encounter_details_v2. Roy from IDM has opted
-        * to join these two views locally to keep things running fast.
-        * See slack:
-        * https://seattle-flu-study.slack.com/archives/CCAA9RBFS/p1585186959003300?thread_ts=1585186062.003200&cid=CCAA9RBFS
-        *     - Jover, 25 March 2020
-        */
+        /* XXX TODO
+         *   → symptoms (Mike says can be JSON blob)
+         *   → symptom onset (date)
+         *   → race, SES, housing, etc
+         */
     from
         warehouse.sample
         left join shipping.sample_with_best_available_encounter_data_v1 using (sample_id)
@@ -1147,8 +805,7 @@ create or replace view shipping.hcov19_observation_v1 as
         left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
         left join warehouse.primary_encounter_location using (encounter_id)
         left join warehouse.location using (location_id)
-        left join hcov19_presence_absence_bbi using (sample_id)
-        left join hcov19_presence_absence_uw using (sample_id)
+        left join hcov19_presence_absence using (sample_id)
     where
         /* Helen recently asked us to include all samples collected since 1 Jan,
          * 2020 for the NEJM paper.
@@ -1157,9 +814,7 @@ create or replace view shipping.hcov19_observation_v1 as
          * not null" and "X is distinct from null" behave differently.  We want
          * the latter.
          */
-        (hcov19_presence_absence_bbi is distinct from null
-         or hcov19_presence_absence_uw is distinct from null
-         or best_available_encounter_date >= '2020-01-01')
+        (hcov19_presence_absence is distinct from null or best_available_encounter_date >= '2020-01-01')
 
         /* Exclude environmental swabs.
          *
