@@ -740,6 +740,10 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
+drop view shipping.fhir_encounter_details_v2;
+
+
+drop view shipping.hcov19_observation_v1;
 create or replace view shipping.hcov19_observation_v1 as
 
     with hcov19_presence_absence as (
@@ -803,17 +807,14 @@ create or replace view shipping.hcov19_observation_v1 as
         left join warehouse.location using (location_id)
         left join hcov19_presence_absence using (sample_id)
     where
-        /* All tested samples plus samples and encounters after 22 Feb 2020, as
-         * we presume those _will be_ tested.  This criteria comes from Mike
-         * Famulare:
-         *
-         *   https://seattle-flu-study.slack.com/archives/GU24NGD18/p1583684258051000
+        /* Helen recently asked us to include all samples collected since 1 Jan,
+         * 2020 for the NEJM paper.
          *
          * Note that when comparing some row-valued X, the expressions "X is
          * not null" and "X is distinct from null" behave differently.  We want
          * the latter.
          */
-        (hcov19_presence_absence is distinct from null or best_available_encounter_date >= '2020-02-22')
+        (hcov19_presence_absence is distinct from null or best_available_encounter_date >= '2020-01-01')
 
         /* Exclude environmental swabs.
          *
@@ -856,15 +857,15 @@ comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
 
-drop view shipping.scan_return_results_v1;
-create view shipping.scan_return_results_v1 as
+create or replace view shipping.scan_return_results_v1 as
 
     with hcov19_presence_absence as (
         -- Collapse potentially multiple hCoV-19 results
         select distinct on (sample_id)
             sample_id,
             presence_absence_id,
-            pa.present as hcov19_present
+            pa.present as hcov19_present,
+            pa.modified::date as result_ts
         from
             warehouse.presence_absence as pa
             join warehouse.target using (target_id)
@@ -908,7 +909,8 @@ create view shipping.scan_return_results_v1 as
             when hcov19_present is true then 'positive'
             when hcov19_present is false then 'negative'
             when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
-        end as status_code
+        end as status_code,
+        result_ts
     from
       scan_barcodes
       left join hcov19_presence_absence using (sample_id)
