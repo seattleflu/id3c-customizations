@@ -35,7 +35,8 @@ create or replace view shipping.reportable_condition_v1 as
         sample.details->'_provenance'->>'sheet' as sheet,
         sample.details->>'sample_origin' as sample_origin,
         sample.details->>'swab_site' as swab_site,
-        encounter.details ->> 'language' as language
+        encounter.details ->> 'language' as language,
+        encounter.age
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
