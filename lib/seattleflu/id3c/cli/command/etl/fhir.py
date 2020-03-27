@@ -256,7 +256,8 @@ def create_specimen_resource(specimen_identifier: List[dict],
                              patient_reference: dict,
                              specimen_type: str,
                              received_datetime: str = None,
-                             collection_datetime: str = None) -> dict:
+                             collection_datetime: str = None,
+                             note: str = None) -> dict:
     """
     Create specimen resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/specimen.html)
@@ -275,6 +276,9 @@ def create_specimen_resource(specimen_identifier: List[dict],
         specimen_resource["collection"] = {
             "collectedDateTime": collection_datetime
         }
+
+    if note:
+        specimen_resource["note"] = [{"text": note}]
 
     return specimen_resource
 
