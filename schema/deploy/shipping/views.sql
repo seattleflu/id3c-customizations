@@ -944,14 +944,14 @@ create or replace view shipping.fhir_encounter_details_v2 as
 
         hospital_arrive as (
           select encounter_id,
-                 string_response[1] as hospital_arrive
+                 date_response[1] as hospital_arrive
             from questionnaire_responses
           where "linkId" = 'hospital_arrive'
         ),
 
         hospital_leave as (
           select encounter_id,
-                 string_response[1] as hospital_leave
+                 date_response[1] as hospital_leave
             from questionnaire_responses
           where "linkId" = 'hospital_leave'
         ),
