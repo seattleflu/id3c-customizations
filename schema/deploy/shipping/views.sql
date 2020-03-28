@@ -816,7 +816,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
                              'hospital_ed',
                              'hospital_arrive',
                              'hospital_leave',
-                             'smoke_9a005',
+                             'smoke_9a005a',
                              'chronic_illness',
                              'overall_risk_health',
                              'overall_risk_setting',
@@ -960,7 +960,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
           select encounter_id,
                  string_response as smoking
             from questionnaire_responses
-          where "linkId" = 'smoke_9a005'
+          where "linkId" = 'smoke_9a005a'
         ),
 
         chronic_illness as (
