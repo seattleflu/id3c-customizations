@@ -35,8 +35,7 @@ create or replace view shipping.reportable_condition_v1 as
         sample.details->'_provenance'->>'sheet' as sheet,
         sample.details->>'sample_origin' as sample_origin,
         sample.details->>'swab_site' as swab_site,
-        encounter.details ->> 'language' as language,
-        encounter.age
+        encounter.details ->> 'language' as language
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
@@ -50,19 +49,10 @@ create or replace view shipping.reportable_condition_v1 as
 
     where organism.lineage <@ (table reportable)
     and present
-     -- Only report on SCAN samples and SFS prospective samples
-    -- We don't have to worry about SFS consent date because the
-    -- clinical team checks this before they contact the participant.
-    and collection_id_set.name in ('collections-scan',
-                                   'collections-household-observation',
-                                   'collections-household-intervention',
-                                   'collections-swab&send',
-                                   'collections-kiosks',
-                                   'collections-self-test',
-                                   'collections-swab&send-asymptomatic',
-                                   'collections-kiosks-asymptomatic',
-                                   'collections-environmental')
-    and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
+    -- Only report on SCAN samples for now until we figure out how to handle date
+    -- cutoff of SFS samples
+    and collection_id_set.name = 'collections-scan'
+
     order by encountered desc;
 
 /* The shipping.reportable_condition_v1 view needs hCoV-19 visibility, so
@@ -764,7 +754,6 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
-drop view shipping.fhir_encounter_details_v2;
 create or replace view shipping.fhir_encounter_details_v2 as
 
     with

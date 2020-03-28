@@ -764,6 +764,7 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
+drop view shipping.fhir_encounter_details_v2;
 create or replace view shipping.fhir_encounter_details_v2 as
 
     with
@@ -1005,6 +1006,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
         travel_states,
         states,
         pregnant,
+        income,
         housing_type,
         house_members,
         clinical_care,
