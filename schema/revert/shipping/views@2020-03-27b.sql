@@ -816,7 +816,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
                              'hospital_ed',
                              'hospital_arrive',
                              'hospital_leave',
-                             'smoke_9a005a',
+                             'smoke_9a005',
                              'chronic_illness',
                              'overall_risk_health',
                              'overall_risk_setting',
@@ -944,14 +944,14 @@ create or replace view shipping.fhir_encounter_details_v2 as
 
         hospital_arrive as (
           select encounter_id,
-                 date_response[1] as hospital_arrive
+                 string_response[1] as hospital_arrive
             from questionnaire_responses
           where "linkId" = 'hospital_arrive'
         ),
 
         hospital_leave as (
           select encounter_id,
-                 date_response[1] as hospital_leave
+                 string_response[1] as hospital_leave
             from questionnaire_responses
           where "linkId" = 'hospital_leave'
         ),
@@ -960,7 +960,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
           select encounter_id,
                  string_response as smoking
             from questionnaire_responses
-          where "linkId" = 'smoke_9a005a'
+          where "linkId" = 'smoke_9a005'
         ),
 
         chronic_illness as (
@@ -1006,7 +1006,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
         travel_states,
         states,
         pregnant,
-        income,
         housing_type,
         house_members,
         clinical_care,
@@ -1230,10 +1229,6 @@ create or replace view shipping.scan_return_results_v1 as
         where
             organism.lineage <@ 'Human_coronavirus.2019'
             and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
         /*
           Keep only the most recent push. According to Lea, samples are only
           retested if there is a failed result. A positive, negative, or
