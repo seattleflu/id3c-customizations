@@ -149,8 +149,7 @@ def send_slack_post_request(record: Any, url: str) -> requests.Response:
         "clia_barcode": record.clia_barcode,
         "site": record.site,
         "condition": record.lineage,
-        "language": record.language,
-        "age": record.age
+        "language": record.language
     }
 
     if not record.site:
