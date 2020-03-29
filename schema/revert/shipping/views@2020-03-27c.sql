@@ -1230,10 +1230,6 @@ create or replace view shipping.scan_return_results_v1 as
         where
             organism.lineage <@ 'Human_coronavirus.2019'
             and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
         /*
           Keep only the most recent push. According to Lea, samples are only
           retested if there is a failed result. A positive, negative, or

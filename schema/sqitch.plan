@@ -142,3 +142,5 @@ shipping/views [shipping/views@2020-03-27] 2020-03-28T01:51:27Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-03-27b] 2020-03-28T03:37:54Z Kairsten Fay <kfay@fredhutch.org> # squash
 @2020-03-27c 2020-03-28T03:45:06Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 27 March 2020
+
+shipping/views [shipping/views@2020-03-27c] 2020-03-29T18:32:21Z Jover Lee <joverlee@fredhutch.org> # Fix bugs in views
