@@ -805,7 +805,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
                              'travel_countries_phs',
                              'country',
                              'travel_states',
-                             'travel_countries_phs',
+                             'travel_states_phs',
                              'state',
                              'pregnant_yesno',
                              'income',
