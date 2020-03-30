@@ -150,7 +150,8 @@ def send_slack_post_request(record: Any, url: str) -> requests.Response:
         "site": record.site,
         "condition": record.lineage,
         "language": record.language,
-        "age": str(record.age)
+        "age": str(record.age),
+        "hcov19_result": record.result
     }
 
     if not record.site:

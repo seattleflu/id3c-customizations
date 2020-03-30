@@ -36,11 +36,7 @@ create or replace view shipping.reportable_condition_v1 as
         sample.details->>'sample_origin' as sample_origin,
         sample.details->>'swab_site' as swab_site,
         encounter.details ->> 'language' as language,
-        age_in_years(encounter.age) as age,
-        case
-          when present then 'positive'
-          when present is null then 'inconclusive'
-        end as result
+        encounter.age
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
@@ -53,7 +49,7 @@ create or replace view shipping.reportable_condition_v1 as
     left join warehouse.site using (site_id)
 
     where organism.lineage <@ (table reportable)
-    and (present or present is null)
+    and present
      -- Only report on SCAN samples and SFS prospective samples
     -- We don't have to worry about SFS consent date because the
     -- clinical team checks this before they contact the participant.
@@ -809,7 +805,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
                              'travel_countries_phs',
                              'country',
                              'travel_states',
-                             'travel_states_phs',
+                             'travel_countries_phs',
                              'state',
                              'pregnant_yesno',
                              'income',
