@@ -24,7 +24,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 2
+REVISION = 3
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -349,9 +349,12 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     # YYYY-MM-DD HH:MM:SS in REDCap
     received_time = record['samp_process_date'].split()[0] if record['samp_process_date'] else None
 
+    note = 'never-tested' if record['able_to_test'] == 'no' else None
+
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
-        [specimen_identifier], patient_reference, specimen_type, received_time, collected_time
+        [specimen_identifier], patient_reference, specimen_type, received_time,
+        collected_time, note
     )
 
     return create_entry_and_reference(specimen_resource, "Specimen")
