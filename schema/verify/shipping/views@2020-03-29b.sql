@@ -94,9 +94,4 @@ select 1/(count(*) = 1)::int
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.scan_return_results_v1');
 
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.scan_encounters_v1');
-
 rollback;

@@ -1310,4 +1310,50 @@ comment on view shipping.scan_return_results_v1 is
   'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
 
 
+create or replace view shipping.scan_encounters_v1 as
+
+    select
+        encounter_id,
+        scan_study_arm,
+        encountered,
+        to_char(encountered, 'IYYY-"W"IW') as encountered_week,
+        location.hierarchy -> 'puma' as puma,
+        individual_id,
+        age_bin_fine_v2.range as age_range_fine,
+        lower(age_bin_fine_v2.range) as age_range_fine_lower,
+        upper(age_bin_fine_v2.range) as age_range_fine_upper,
+        sex,
+        symptoms,
+        symptom_onset,
+        race,
+        hispanic_or_latino,
+        travel_countries,
+        countries,
+        travel_states,
+        states,
+        pregnant,
+        income,
+        housing_type,
+        house_members,
+        clinical_care,
+        hospital_where,
+        hospital_visit_type,
+        hospital_arrive,
+        hospital_leave,
+        smoking,
+        chronic_illness,
+        overall_risk_health,
+        overall_risk_setting,
+        long_term_type
+
+    from warehouse.encounter
+    join warehouse.site using (site_id)
+    join warehouse.individual using (individual_id)
+    left join warehouse.primary_encounter_location using (encounter_id)
+    left join warehouse.location using (location_id)
+    left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
+    left join shipping.fhir_encounter_details_v2 using (encounter_id)
+    where site.identifier = 'SCAN'
+;
+
 commit;

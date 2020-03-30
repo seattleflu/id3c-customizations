@@ -768,6 +768,7 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
+drop view shipping.fhir_encounter_details_v2;
 create or replace view shipping.fhir_encounter_details_v2 as
 
     with
@@ -1308,7 +1309,5 @@ grant select
 comment on view shipping.scan_return_results_v1 is
   'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
 
-
-drop view shipping.scan_encounters_v1;
 
 commit;
