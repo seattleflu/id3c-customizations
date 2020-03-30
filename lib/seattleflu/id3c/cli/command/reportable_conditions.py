@@ -22,6 +22,7 @@ import json
 import click
 import logging
 import requests
+from os.path import basename
 from typing import Any, Mapping, List
 from textwrap import dedent
 from datetime import datetime, timezone
@@ -144,49 +145,39 @@ def send_slack_post_request(record: Any, url: str) -> requests.Response:
     containing minimal sample details.
     """
     data = {
-        "sample_barcode": record.sample_barcode,
-        "collection_barcode": record.collection_barcode,
-        "clia_barcode": record.clia_barcode,
-        "site": record.site,
-        "condition": record.lineage,
-        "language": record.language,
-        "age": str(record.age),
-        "hcov19_result": record.result
+        "Result": record.result,
+        "Sample": record.sample_barcode,
+        "Collection": record.collection_barcode,
+        "CLIA": record.clia_barcode,
+        "Site": record.site,
+        "Language": record.language,
+        "Age": str(record.age),
     }
 
     if not record.site:
-        data["manifest"] = {
-            "workbook": record.workbook,
-            "sheet": record.sheet,
-        }
+        data["Manifest"] = basename(record.workbook)
 
         if record.sample_origin:
-            data["manifest"]["sample_origin"] = record.sample_origin
+            data["Manifest origin"] = record.sample_origin
 
         if record.swab_site:
-            data["manifest"]["swab_site"] = record.swab_site
+            data["Manifest swab site"] = record.swab_site
 
+    result = record.result.capitalize()
 
     payload = {
-        "text": f":rotating_light: {record.lineage} detected",
+        "text": f":rotating_light: {result} {record.lineage} result.",
         "blocks": [{
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": dedent(f"""
-                :rotating_light: @channel {record.lineage} detected.
-                """)
-            }
-        },
-        {
-            "type": "section",
+                "text": f":rotating_light: @channel {result} {record.lineage} result.",
+            },
             "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Details:*\n```{json.dumps(data, sort_keys=True, indent=4)}```"
-                }
-            ]
-        }]
+                {"type": "mrkdwn", "text": f"{key}: *{value}*"}
+                    for key, value in data.items()
+            ],
+        }],
     }
 
     return requests.post(url, data=json.dumps(payload),
