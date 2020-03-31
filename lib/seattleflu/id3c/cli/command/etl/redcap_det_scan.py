@@ -24,7 +24,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 3
+REVISION = 4
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -113,7 +113,7 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
 
     address = {
         'street': record['home_street'],
-        'secondary': None,
+        'secondary': record['apartment_number'],
         'city': record['homecity_other'],
         'state': record['home_state'],
         'zipcode': record['home_zipcode_2'],
