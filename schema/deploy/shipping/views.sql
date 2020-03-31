@@ -768,7 +768,6 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
-drop view shipping.fhir_encounter_details_v2;
 create or replace view shipping.fhir_encounter_details_v2 as
 
     with
@@ -1373,5 +1372,16 @@ create or replace view shipping.scan_encounters_v1 as
     left join warehouse.sample using (encounter_id)
     where site.identifier = 'SCAN'
 ;
+
+comment on view shipping.scan_encounters_v1 is
+  'A view of encounter data that are from the SCAN project';
+
+revoke all
+    on shipping.scan_encounters_v1
+  from "incidence-modeler";
+
+grant select
+   on shipping.scan_encounters_v1
+   to "incidence-modeler";
 
 commit;
