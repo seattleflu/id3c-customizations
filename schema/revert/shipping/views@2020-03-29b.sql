@@ -36,11 +36,7 @@ create or replace view shipping.reportable_condition_v1 as
         sample.details->>'sample_origin' as sample_origin,
         sample.details->>'swab_site' as swab_site,
         encounter.details ->> 'language' as language,
-        age_in_years(encounter.age) as age,
-        case
-          when present then 'positive'
-          when present is null then 'inconclusive'
-        end as result
+        age_in_years(encounter.age) as age
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
@@ -53,7 +49,7 @@ create or replace view shipping.reportable_condition_v1 as
     left join warehouse.site using (site_id)
 
     where organism.lineage <@ (table reportable)
-    and (present or present is null)
+    and present
      -- Only report on SCAN samples and SFS prospective samples
     -- We don't have to worry about SFS consent date because the
     -- clinical team checks this before they contact the participant.
@@ -1309,69 +1305,5 @@ grant select
 comment on view shipping.scan_return_results_v1 is
   'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
 
-
-create or replace view shipping.scan_encounters_v1 as
-
-    select
-        encounter_id,
-        scan_study_arm,
-
-        encountered,
-        to_char(encountered, 'IYYY-"W"IW') as encountered_week,
-
-        site.identifier as site,
-        site.details ->> 'type' as site_type,
-
-        individual.identifier as individual,
-        individual.sex,
-
-        age_in_years(age) as age,
-
-        age_bin_fine_v2.range as age_range_fine,
-        age_in_years(lower(age_bin_fine_v2.range)) as age_range_fine_lower,
-        age_in_years(upper(age_bin_fine_v2.range)) as age_range_fine_upper,
-
-        age_bin_coarse_v2.range as age_range_coarse,
-        age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
-        age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
-
-        location.hierarchy -> 'puma' as puma,
-
-        symptoms,
-        symptom_onset,
-        race,
-        hispanic_or_latino,
-        travel_countries,
-        countries,
-        travel_states,
-        states,
-        pregnant,
-        income,
-        housing_type,
-        house_members,
-        clinical_care,
-        hospital_where,
-        hospital_visit_type,
-        hospital_arrive,
-        hospital_leave,
-        smoking,
-        chronic_illness,
-        overall_risk_health,
-        overall_risk_setting,
-        long_term_type,
-
-        sample.identifier as sample
-
-    from warehouse.encounter
-    join warehouse.site using (site_id)
-    join warehouse.individual using (individual_id)
-    left join warehouse.primary_encounter_location using (encounter_id)
-    left join warehouse.location using (location_id)
-    left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
-    left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
-    left join shipping.fhir_encounter_details_v2 using (encounter_id)
-    left join warehouse.sample using (encounter_id)
-    where site.identifier = 'SCAN'
-;
 
 commit;
