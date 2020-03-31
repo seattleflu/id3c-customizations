@@ -1374,15 +1374,4 @@ create or replace view shipping.scan_encounters_v1 as
     where site.identifier = 'SCAN'
 ;
 
-comment on view shipping.scan_encounters_v1 is
-  'A view of encounter data that are from the SCAN project';
-
-revoke all
-    on shipping.scan_encounters_v1
-  from "incidence-modeler";
-
-grant select
-   on shipping.scan_encounters_v1
-   to "incidence-modeler";
-
 commit;
