@@ -149,3 +149,4 @@ shipping/views [shipping/views@2020-03-29] 2020-03-29T21:21:20Z Jover Lee <jover
 @2020-03-29b 2020-03-29T21:24:55Z Jover Lee <joverlee@fredhutch.org> # Schema as of later on 29 March 2020
 
 shipping/views [shipping/views@2020-03-29b] 2020-03-30T18:51:34Z Jover Lee <joverlee@fredhutch.org> # Add a scan_encounters view for the most up-to-date data on SCAN
+@2020-03-31 2020-03-31T18:04:55Z Jover Lee <joverlee@fredhutch.org> # Schema as of 31 March 2020
