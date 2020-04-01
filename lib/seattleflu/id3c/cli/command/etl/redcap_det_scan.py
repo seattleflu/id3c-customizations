@@ -316,24 +316,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
 
 def create_specimen(record: dict, patient_reference: dict) -> tuple:
     """ Returns a FHIR Specimen resource entry and reference """
-    def specimen_barcode(record: Any) -> str:
-        """
-        Given a REDCap *record*, returns the barcode or corrected barcode if it
-        exists.
-        """
-        barcode = record['return_utm_barcode'] or record['pre_scan_barcode']
-
-        if not barcode:
-            barcode = record['utm_tube_barcode_2']
-            reentered_barcode = record['reenter_barcode']
-
-            if record['barcode_confirm'] == "No":
-                #TODO: Figure out why 'corrected_barcode' doesn't always exist?
-                barcode = record.get('corrected_barcode')
-
-        return barcode
-
-    barcode = specimen_barcode(record)
+    barcode = record['return_utm_barcode']
     if not barcode:
         LOG.warning("Could not create Specimen Resource due to lack of barcode.")
         return None, None
