@@ -1183,7 +1183,9 @@ create or replace view shipping.hcov19_observation_v1 as
          * condition is slow, we could directly index
          * details->>'sample_origin'.
          */
-        and (sample.details is null or sample.details->>'sample_origin' != 'es')
+        and (sample.details is null
+            or sample.details ->> 'sample_origin' is null
+            or sample.details->>'sample_origin' != 'es')
 ;
 
 
