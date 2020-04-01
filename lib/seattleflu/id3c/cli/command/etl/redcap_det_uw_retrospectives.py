@@ -362,6 +362,7 @@ def create_encounter_status(redcap_record: dict) -> str:
 
     mapper = {
         'arrived': 'arrived',
+        'preadmit': 'arrived',
         'discharged': 'finished',
         'lwbs': 'cancelled',  # LWBS = left without being seen.
     }
