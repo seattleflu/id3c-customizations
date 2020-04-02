@@ -155,3 +155,4 @@ shipping/views [shipping/views@2020-03-31] 2020-03-31T23:31:14Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-03-31b] 2020-04-01T18:04:11Z Jover Lee <joverlee@fredhutch.org> # Remove filter from shipping.sample_with_best_available_encounter_data_v1
 @2020-04-07 2020-04-07T22:37:34Z Jover Lee <joverlee@fredhutch.org> # Schema as of 07 April 2020
+shipping/views [shipping/views@2020-04-07] 2020-04-09T04:48:56Z Thomas Sibley <tsibley@fredhutch.org> # Deduplicate hCoV-19 p/a results consistently
