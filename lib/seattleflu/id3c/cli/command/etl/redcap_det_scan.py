@@ -24,7 +24,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 4
+REVISION = 5
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -332,7 +332,16 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     # YYYY-MM-DD HH:MM:SS in REDCap
     received_time = record['samp_process_date'].split()[0] if record['samp_process_date'] else None
 
-    note = 'never-tested' if record['able_to_test'] == 'no' else None
+    note = None
+
+    if record['able_to_test'] == 'no':
+        note = 'never-tested'
+    # This is based on values currently in the SCAN REDCap project,
+    # I'm guessing `can-test` was filled in at some point before the answer
+    # code was changed.
+    #   -Jover, 3 April 2020
+    elif record['able_to_test'] in {'yes', 'can-test'}:
+        note = 'can-test'
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
