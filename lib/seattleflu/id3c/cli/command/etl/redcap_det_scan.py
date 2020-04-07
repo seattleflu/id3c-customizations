@@ -1,20 +1,19 @@
 """
-Process REDCap DETs that are specific to the
-COVID-19 Public Health Surveillance (SCAN) Project.
+Process DETs for the greater Seattle Coronavirus Assessment Network (SCAN) REDCap projects.
 """
 import re
 import click
 import json
 import logging
 from uuid import uuid4
-from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Match, NamedTuple, Optional, Union, Tuple
 from datetime import datetime
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
-from id3c.cli.redcap import is_complete
+from id3c.cli.redcap import is_complete, Record as REDCapRecord
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
@@ -24,29 +23,48 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
+class ScanProject(NamedTuple):
+    id: int
+    lang: str
+
+PROJECTS = [
+    ScanProject(20759, "en"),
+]
+
 REVISION = 7
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
 
-PROJECT_ID = 20759
-LANGUAGE_CODE = 'en'
+LANGUAGE_CODE = {
+    project.id: project.lang
+        for project in PROJECTS }
+
 REQUIRED_INSTRUMENTS = [
     'consent_form',
     'enrollment_questionnaire',
 ]
 
 
-@redcap_det.command_for_project(
-    "scan-en",
-    redcap_url = REDCAP_URL,
-    project_id = PROJECT_ID,
-    required_instruments = REQUIRED_INSTRUMENTS,
-    raw_coded_values = True,
-    revision = REVISION,
-    help = __doc__)
+def command_for_each_project(function):
+    """
+    A decorator to register one redcap-det subcommand per SCAN project, each
+    calling the same base *function*.
+    """
+    for project in PROJECTS:
+        redcap_det.command_for_project(
+            f"scan-{project.lang}",
+            redcap_url = REDCAP_URL,
+            project_id = project.id,
+            required_instruments = REQUIRED_INSTRUMENTS,
+            raw_coded_values = True,
+            revision = REVISION,
+            help = f"Process REDCap DETs for SCAN ({project.lang})")(function)
 
-def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
+    return function
+
+@command_for_each_project
+def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -88,7 +106,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
-        source = f"{REDCAP_URL}{PROJECT_ID}/{redcap_record['record_id']}",
+        source = f"{REDCAP_URL}{redcap_record.project.id}/{redcap_record['record_id']}",
         entries = list(filter(None, resource_entries))
     )
 
@@ -178,13 +196,13 @@ def create_location(system: str, value: str, location_type: str, parent: str=Non
     return create_location_resource([location_type_cc], [location_identifier], part_of)
 
 
-def create_patient(record: dict) -> tuple:
+def create_patient(record: REDCapRecord) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
     gender = map_sex(record['sex_new'])
 
     language_codeable_concept = create_codeable_concept(
         system = 'urn:ietf:bcp:47',
-        code = LANGUAGE_CODE
+        code = LANGUAGE_CODE[record.project.id]
     )
     communication = [{
         'language' : language_codeable_concept,
@@ -201,7 +219,7 @@ def create_patient(record: dict) -> tuple:
         # Some piece of information was missing, so we couldn't generate a
         # hash.  Fallback to treating this individual as always unique by using
         # the REDCap record id.
-        patient_id = generate_hash(f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}")
+        patient_id = generate_hash(f"{REDCAP_URL}{record.project.id}/{record['record_id']}")
 
     LOG.debug(f"Generated individual identifier {patient_id}")
 
@@ -211,7 +229,7 @@ def create_patient(record: dict) -> tuple:
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def create_encounter(record: dict, patient_reference: dict, locations: list) -> tuple:
+def create_encounter(record: REDCapRecord, patient_reference: dict, locations: list) -> tuple:
     """ Returns a FHIR Encounter resource entry and reference """
 
     def grab_symptom_keys(key: str, suffix: str='') -> Optional[Match[str]]:
@@ -258,7 +276,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
 
     encounter_identifier = create_identifier(
         system = f"{INTERNAL_SYSTEM}/encounter",
-        value = f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}"
+        value = f"{REDCAP_URL}{record.project.id}/{record['record_id']}"
     )
     encounter_class_coding = create_coding(
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
