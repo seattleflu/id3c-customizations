@@ -727,6 +727,7 @@ create or replace view shipping.sample_with_best_available_encounter_data_v1 as
   left join samples_with_manifest_data using (sample_id)
   left join site_details on (site_manifest_details similar to manifest_regex)
   left join warehouse.site on (samples_with_manifest_data.site_id = site.site_id)
+  where sample.identifier is not null
   ;
 
 comment on view shipping.sample_with_best_available_encounter_data_v1 is
@@ -1183,9 +1184,7 @@ create or replace view shipping.hcov19_observation_v1 as
          * condition is slow, we could directly index
          * details->>'sample_origin'.
          */
-        and (sample.details is null
-            or sample.details ->> 'sample_origin' is null
-            or sample.details->>'sample_origin' != 'es')
+        and (sample.details is null or sample.details->>'sample_origin' != 'es')
 ;
 
 
@@ -1373,16 +1372,5 @@ create or replace view shipping.scan_encounters_v1 as
     left join warehouse.sample using (encounter_id)
     where site.identifier = 'SCAN'
 ;
-
-comment on view shipping.scan_encounters_v1 is
-  'A view of encounter data that are from the SCAN project';
-
-revoke all
-    on shipping.scan_encounters_v1
-  from "incidence-modeler";
-
-grant select
-   on shipping.scan_encounters_v1
-   to "incidence-modeler";
 
 commit;
