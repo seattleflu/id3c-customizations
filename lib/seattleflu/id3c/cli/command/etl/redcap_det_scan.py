@@ -344,7 +344,14 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     # YYYY-MM-DD HH:MM:SS in REDCap
     received_time = record['samp_process_date'].split()[0] if record['samp_process_date'] else None
 
-    note = 'never-tested' if record['able_to_test'] == 'no' else None
+    note = None
+
+    if record['able_to_test'] == 'no':
+        note = 'never-tested'
+    # Assumes that all samples can be tested unless explicitly marked "no".
+    #   - Jover 09 April 2020
+    else:
+        note = 'can-test'
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
