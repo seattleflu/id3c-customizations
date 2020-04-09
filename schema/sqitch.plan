@@ -160,3 +160,6 @@ shipping/views [shipping/views@2020-04-07] 2020-04-09T04:48:56Z Thomas Sibley <t
 
 shipping/views [shipping/views@2020-04-08] 2020-04-09T19:31:04Z Jover Lee <joverlee@fredhutch.org> # Add address hash to shipping.hcov19_observation_v1
 @2020-04-09 2020-04-09T21:57:12Z Jover Lee <joverlee@fredhutch.org> # Schema as of 09 April 2020
+
+shipping/views [shipping/views@2020-04-09] 2020-04-09T22:13:56Z Kairsten Fay <kfay@fredhutch.org> # Add "never-tested" to SCAN RoR view
+@2020-04-09b 2020-04-09T22:14:56Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 9 April 2020

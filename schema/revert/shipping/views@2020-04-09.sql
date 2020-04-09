@@ -1135,11 +1135,6 @@ create or replace view shipping.hcov19_observation_v1 as
         best_available_site_type as site_type,
 
         location.hierarchy->'puma' as puma,
-        case location.scale
-          -- Only include address identifiers as those are used to identify
-          -- participants of the same household.
-          when 'address' then location.identifier
-        end as address_identifier,
 
         -- Individual-related columns
         individual_id,
