@@ -336,11 +336,9 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
 
     if record['able_to_test'] == 'no':
         note = 'never-tested'
-    # This is based on values currently in the SCAN REDCap project,
-    # I'm guessing `can-test` was filled in at some point before the answer
-    # code was changed.
-    #   -Jover, 3 April 2020
-    elif record['able_to_test'] in {'yes', 'can-test'}:
+    # Assumes that all samples can be tested unless explicitly marked "no".
+    #   - Jover 09 April 2020
+    else:
         note = 'can-test'
 
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
