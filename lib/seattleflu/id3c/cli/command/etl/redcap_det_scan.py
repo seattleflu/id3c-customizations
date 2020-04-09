@@ -24,7 +24,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 4
+REVISION = 5
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -214,21 +214,21 @@ def create_patient(record: dict) -> tuple:
 def create_encounter(record: dict, patient_reference: dict, locations: list) -> tuple:
     """ Returns a FHIR Encounter resource entry and reference """
 
-    def grab_symptom_keys(key: str) -> Optional[Match[str]]:
+    def grab_symptom_keys(key: str, suffix: str='') -> Optional[Match[str]]:
         if record[key] == '1':
-            return re.match('symptoms___[a-z]+$', key)
+            return re.match(f'symptoms{suffix}___[a-z]+$', key)
         else:
             return None
 
-    def build_conditions_list(symptom: str) -> dict:
-        return create_resource_condition(record, symptom, patient_reference)
+    def build_conditions_list(symptom: str, suffix: str='') -> dict:
+        return create_resource_condition(record, symptom, patient_reference, suffix)
 
-    def build_diagnosis_list(symptom: str) -> Optional[dict]:
+    def build_diagnosis_list(symptom: str, suffix: str='') -> Optional[dict]:
         mapped_symptom = map_symptom(symptom)
         if not mapped_symptom:
             return None
 
-        return { "condition": { "reference": f"#{mapped_symptom}" } }
+        return { "condition": { "reference": f"#{mapped_symptom}{suffix}" } }
 
     def build_locations_list(location: dict) -> dict:
         return {
@@ -246,6 +246,16 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     symptoms = list(map(lambda x: x.replace('symptoms___', ''), symptom_keys))
     contained = list(filter(None, map(build_conditions_list, symptoms)))
     diagnosis = list(filter(None, map(build_diagnosis_list, symptoms)))
+
+    # Look for the follow up symptoms questions, labeled with suffix '_2'
+    suffix = '_2'
+    symptom_keys2 = list(filter(lambda key: grab_symptom_keys(key, suffix), record))
+    if symptom_keys2:
+        symptoms2 = list(map(lambda x: x.replace(f'symptoms{suffix}___', ''), symptom_keys2))
+
+        contained += list(filter(None, map(lambda x: build_conditions_list(x, suffix), symptoms2)))
+        diagnosis += list(filter(None, map(lambda x: build_diagnosis_list(x, suffix), symptoms2)))
+
     encounter_identifier = create_identifier(
         system = f"{INTERNAL_SYSTEM}/encounter",
         value = f"{REDCAP_URL}{PROJECT_ID}/{record['record_id']}"
@@ -284,7 +294,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     return create_entry_and_reference(encounter_resource, "Encounter")
 
 
-def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[dict]:
+def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict, suffix: str='') -> Optional[dict]:
     """ Returns a FHIR Condition resource. """
     mapped_symptom_name = map_symptom(symptom_name)
     if not mapped_symptom_name:
@@ -296,7 +306,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
     #   -trs, 24 Oct 2019
     condition: Any = {
         "resourceType": "Condition",
-        "id": mapped_symptom_name,
+        "id": f'{mapped_symptom_name}{suffix}',
         "code": {
             "coding": [
                 {
@@ -308,8 +318,10 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
         "subject": patient_reference
     }
 
-    if record["symptom_duration"]:
-        condition["onsetDateTime"] = record["symptom_duration"]
+    symptom_duration = record.get(f'symptom_duration{suffix}')
+
+    if symptom_duration:
+        condition["onsetDateTime"] = symptom_duration
 
     return condition
 
