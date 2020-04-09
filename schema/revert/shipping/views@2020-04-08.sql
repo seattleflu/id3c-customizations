@@ -1087,7 +1087,7 @@ create or replace view shipping.hcov19_observation_v1 as
                 and not pa.details @> '{"device" : "clinical"}'
             order by
                 sample_id,
-                presence_absence_id desc
+                present desc nulls last -- t → f → null
         ) as deduplicated_hcov19_bbi
         left join jsonb_to_recordset(replicates) as r("crt" text) on true
 
@@ -1110,7 +1110,7 @@ create or replace view shipping.hcov19_observation_v1 as
             and pa.details @> '{"device" : "clinical"}'
         order by
             sample_id,
-            presence_absence_id desc
+            present desc nulls last -- t → f → null
     )
 
     select
