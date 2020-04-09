@@ -159,3 +159,4 @@ shipping/views [shipping/views@2020-04-07] 2020-04-09T04:48:56Z Thomas Sibley <t
 @2020-04-08 2020-04-09T04:50:30Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 8 April 2020
 
 shipping/views [shipping/views@2020-04-08] 2020-04-09T19:31:04Z Jover Lee <joverlee@fredhutch.org> # Add address hash to shipping.hcov19_observation_v1
+@2020-04-09 2020-04-09T21:57:12Z Jover Lee <joverlee@fredhutch.org> # Schema as of 09 April 2020
