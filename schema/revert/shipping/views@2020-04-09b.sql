@@ -1238,7 +1238,6 @@ create or replace view shipping.scan_return_results_v1 as
             join warehouse.organism using (organism_id)
         where
             organism.lineage <@ 'Human_coronavirus.2019'
-            and pa.details @> '{"assay_type": "Clia"}'
             and not control
             -- We shouldn't be receiving these results from Samplify, but they
             -- sometimes sneak in. Be sure to block them from this view so as
@@ -1255,12 +1254,11 @@ create or replace view shipping.scan_return_results_v1 as
             sample_id, presence_absence_id desc
     ),
 
-    scan_samples as (
+    scan_barcodes as (
       select
         sample_id,
         barcode as qrcode,
-        encountered::date as collect_ts,
-        sample.details @> '{"note": "never-tested"}' as never_tested
+        encountered::date as collect_ts
 
       from
         warehouse.identifier
@@ -1277,7 +1275,6 @@ create or replace view shipping.scan_return_results_v1 as
         collect_ts,
         case
             when sample_id is null then 'not-received'
-            when never_tested then 'never-tested'
             when sample_id is not null and presence_absence_id is null then 'pending'
             when hcov19_present is true then 'positive'
             when hcov19_present is false then 'negative'
@@ -1285,7 +1282,7 @@ create or replace view shipping.scan_return_results_v1 as
         end as status_code,
         result_ts
     from
-      scan_samples
+      scan_barcodes
       left join hcov19_presence_absence using (sample_id)
     ;
 

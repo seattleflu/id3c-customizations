@@ -163,3 +163,6 @@ shipping/views [shipping/views@2020-04-08] 2020-04-09T19:31:04Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-04-09] 2020-04-09T22:13:56Z Kairsten Fay <kfay@fredhutch.org> # Add "never-tested" to SCAN RoR view
 @2020-04-09b 2020-04-09T22:14:56Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 9 April 2020
+
+shipping/views [shipping/views@2020-04-09b] 2020-04-10T00:19:46Z Kairsten Fay <kfay@fredhutch.org> # Ingest CLIA samples only in SCAN RoR
+@2020-04-09c 2020-04-10T00:21:04Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 9 April 2020
