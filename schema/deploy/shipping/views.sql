@@ -1364,6 +1364,8 @@ create or replace view shipping.scan_encounters_v1 as
 
         symptoms,
         symptom_onset,
+        symptoms_2,
+        symptom_onset_2,
         race,
         hispanic_or_latino,
         travel_countries,
