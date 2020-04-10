@@ -767,6 +767,8 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
+drop view shipping.scan_encounters_v1;
+drop view shipping.fhir_encounter_details_v2;
 create or replace view shipping.fhir_encounter_details_v2 as
 
     with
@@ -777,7 +779,19 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  "onsetDateTime" as symptom_onset
             from warehouse.encounter,
                  jsonb_to_recordset(details -> 'Condition') as condition("id" text, "onsetDateTime" text)
+          where not condition."id" like '%_2'
           group by encounter_id, symptom_onset
+        ),
+
+        symptoms_2 as (
+          select encounter_id,
+                 array_agg(distinct rtrim(condition."id", '_2') order by rtrim(condition."id", '_2')) as symptoms_2,
+                 -- In our FHIR etl we give all symptoms the same onsetDateTime
+                 "onsetDateTime" as symptom_onset_2
+            from warehouse.encounter,
+                 jsonb_to_recordset(details -> 'Condition') as condition("id" text, "onsetDateTime" text)
+          where condition."id" like '%_2'
+          group by encounter_id, symptom_onset_2
         ),
 
         -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
@@ -998,6 +1012,8 @@ create or replace view shipping.fhir_encounter_details_v2 as
         scan_study_arm,
         symptoms,
         symptom_onset,
+        symptoms_2,
+        symptom_onset_2,
         vaccine,
         vaccine_date,
         race,
@@ -1025,6 +1041,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
       left join symptoms using (encounter_id)
+      left join symptoms_2 using (encounter_id)
       left join vaccine using (encounter_id)
       left join race using (encounter_id)
       left join insurance using (encounter_id)

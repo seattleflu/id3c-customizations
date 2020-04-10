@@ -166,3 +166,5 @@ shipping/views [shipping/views@2020-04-09] 2020-04-09T22:13:56Z Kairsten Fay <kf
 
 shipping/views [shipping/views@2020-04-09b] 2020-04-10T00:19:46Z Kairsten Fay <kfay@fredhutch.org> # Ingest CLIA samples only in SCAN RoR
 @2020-04-09c 2020-04-10T00:21:04Z Kairsten Fay <kfay@fredhutch.org> # Schema as of later on 9 April 2020
+
+shipping/views [shipping/views@2020-04-09c] 2020-04-10T18:24:51Z Jover Lee <joverlee@fredhutch.org> # Add new symptoms to shipping.fhir_encounter_details_v2

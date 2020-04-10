@@ -767,9 +767,6 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
-drop view shipping.scan_encounters_v1;
-drop view shipping.fhir_encounter_details_v2;
-
 create or replace view shipping.fhir_encounter_details_v2 as
 
     with
