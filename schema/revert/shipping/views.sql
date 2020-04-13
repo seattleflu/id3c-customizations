@@ -767,6 +767,9 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
+drop view shipping.scan_encounters_v1;
+drop view shipping.fhir_encounter_details_v2;
+
 create or replace view shipping.fhir_encounter_details_v2 as
 
     with
@@ -1238,6 +1241,7 @@ create or replace view shipping.scan_return_results_v1 as
             join warehouse.organism using (organism_id)
         where
             organism.lineage <@ 'Human_coronavirus.2019'
+            and pa.details @> '{"assay_type": "Clia"}'
             and not control
             -- We shouldn't be receiving these results from Samplify, but they
             -- sometimes sneak in. Be sure to block them from this view so as
