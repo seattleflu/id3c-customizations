@@ -24,7 +24,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 6
+REVISION = 7
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -444,6 +444,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'longterm_type',
         'country',
         'state',
+        'ace',
     ]
 
     date_questions = [
@@ -469,6 +470,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'overall_risk_health',
         'overall_risk_setting',
         'longterm_type',
+        'ace',
     ]
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(field)
