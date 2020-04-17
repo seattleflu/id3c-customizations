@@ -1396,6 +1396,7 @@ create or replace view shipping.scan_encounters_v1 as
         overall_risk_health,
         overall_risk_setting,
         long_term_type,
+        ace_inhibitor,
 
         sample.identifier as sample
 
