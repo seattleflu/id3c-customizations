@@ -836,7 +836,8 @@ create or replace view shipping.fhir_encounter_details_v2 as
                              'chronic_illness',
                              'overall_risk_health',
                              'overall_risk_setting',
-                             'longterm_type')
+                             'longterm_type',
+                             'ace')
           group by encounter_id, "linkId"
         ),
 
@@ -1005,6 +1006,13 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  string_response as long_term_type
             from questionnaire_responses
           where "linkId" = 'longterm_type'
+        ),
+
+        ace as (
+          select encounter_id,
+                 string_response as ace_inhibitor
+            from questionnaire_responses
+          where "linkId" = 'ace'
         )
 
     select
@@ -1036,7 +1044,8 @@ create or replace view shipping.fhir_encounter_details_v2 as
         chronic_illness,
         overall_risk_health,
         overall_risk_setting,
-        long_term_type
+        long_term_type,
+        ace_inhibitor
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -1064,6 +1073,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join overall_risk_health using (encounter_id)
       left join overall_risk_setting using (encounter_id)
       left join long_term_type using (encounter_id)
+      left join ace using (encounter_id)
 ;
 
 comment on view shipping.fhir_encounter_details_v2 is
