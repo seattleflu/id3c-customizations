@@ -1398,7 +1398,8 @@ create or replace view shipping.scan_encounters_v1 as
         long_term_type,
         ace_inhibitor,
 
-        sample.identifier as sample
+        sample.identifier as sample,
+        sample.details @> '{"note": "never-tested"}' as never_tested
 
     from warehouse.encounter
     join warehouse.site using (site_id)
