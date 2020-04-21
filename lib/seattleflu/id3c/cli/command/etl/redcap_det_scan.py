@@ -29,6 +29,9 @@ class ScanProject(NamedTuple):
 
 PROJECTS = [
     ScanProject(20759, "en"),
+    ScanProject(21520, "es"),
+    ScanProject(21512, "vi"),
+    ScanProject(21514, "zh-Hans"),
 ]
 
 REVISION = 7
