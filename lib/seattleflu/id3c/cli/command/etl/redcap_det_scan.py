@@ -49,10 +49,15 @@ REQUIRED_INSTRUMENTS = [
 ]
 
 
+# A decorator lets us keep command registration up here at the top, instead of
+# moving the loop after the definition of redcap_det_scan().
+#
 def command_for_each_project(function):
     """
     A decorator to register one redcap-det subcommand per SCAN project, each
     calling the same base *function*.
+
+    Used for side-effects only; the original *function* is unmodified.
     """
     for project in PROJECTS:
         redcap_det.command_for_project(
