@@ -494,7 +494,7 @@ def canonicalize_name(*parts: Iterable[str]) -> str:
 
     >>> canonicalize_name("`1234567890-=~!@#$%^&*()_+")
     '1234567890'
-    >>> canonicalize_name("qwertyuiop[]\\QWERTYUIOP{}|")
+    >>> canonicalize_name("qwertyuiop[]\\\\QWERTYUIOP{}|")
     'QWERTYUIOPQWERTYUIOP'
     >>> canonicalize_name("asdfghjkl;'ASDFGHJKL:\\"")
     'ASDFGHJKLASDFGHJKL'
