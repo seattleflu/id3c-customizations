@@ -1360,6 +1360,7 @@ create or replace view shipping.scan_encounters_v1 as
     select
         encounter_id,
         scan_study_arm,
+        priority_code,
 
         encountered,
         to_char(encountered, 'IYYY-"W"IW') as encountered_week,
