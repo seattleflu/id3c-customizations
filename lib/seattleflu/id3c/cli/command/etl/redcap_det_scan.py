@@ -528,7 +528,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
 def questionnaire_item(record: dict, question_id: str, response_type: str) -> Optional[dict]:
     """ Creates a QuestionnaireResponse internal item from a REDCap record. """
-    response = record[question_id]
+    response = record.get(question_id)
     if not response:
         return None
 
