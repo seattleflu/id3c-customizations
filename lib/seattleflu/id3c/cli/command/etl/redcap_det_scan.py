@@ -81,6 +81,7 @@ def command_for_each_project(function):
 
 @command_for_each_project
 def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
+    site_reference = create_site_reference()
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -88,7 +89,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.warning("Skipping enrollment with insufficient information to construct patient")
         return None
 
-    encounter_entry, encounter_reference = create_encounter(redcap_record, patient_reference, location_resource_entries)
+    encounter_entry, encounter_reference = create_encounter(redcap_record, patient_reference, site_reference, location_resource_entries)
 
     if not encounter_entry:
         LOG.warning("Skipping enrollment with insufficient information to construct an encounter")
@@ -125,6 +126,19 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         source = f"{REDCAP_URL}{redcap_record.project.id}/{redcap_record['record_id']}",
         entries = list(filter(None, resource_entries))
     )
+
+
+def create_site_reference() -> Dict[str,dict]:
+    """
+    Create a Location reference for site of encounter.
+    Site for all SCAN Encounters is 'SCAN'.
+    """
+    return {
+        "location": create_reference(
+            reference_type = "Location",
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", "SCAN")
+        )
+    }
 
 
 def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
@@ -335,7 +349,7 @@ def create_patient(record: REDCapRecord) -> tuple:
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def create_encounter(record: REDCapRecord, patient_reference: dict, locations: list) -> tuple:
+def create_encounter(record: REDCapRecord, patient_reference: dict, site_reference: dict, locations: list) -> tuple:
     """ Returns a FHIR Encounter resource entry and reference """
 
     def grab_symptom_keys(key: str, suffix: str='') -> Optional[Match[str]]:
@@ -396,13 +410,7 @@ def create_encounter(record: REDCapRecord, patient_reference: dict, locations: l
 
     non_tracts = list(filter(non_tract_locations, locations))
     non_tract_references = list(map(build_locations_list, non_tracts))
-    # Site for all SCAN Encounters is 'scan'
-    site_reference = {
-        "location": create_reference(
-            reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", 'SCAN')
-        )
-    }
+    # Add hard-coded site Location reference
     non_tract_references.append(site_reference)
 
     encounter_resource = create_encounter_resource(
