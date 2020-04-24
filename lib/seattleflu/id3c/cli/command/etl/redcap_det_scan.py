@@ -42,7 +42,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 10
+REVISION = 11
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -89,13 +89,16 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.warning("Skipping enrollment with insufficient information to construct patient")
         return None
 
-    encounter_entry, encounter_reference = create_encounter(redcap_record, patient_reference, site_reference, location_resource_entries)
+    primary_encounter_entry, primary_encounter_reference = create_primary_encounter(
+        redcap_record, patient_reference,
+        site_reference, location_resource_entries)
 
-    if not encounter_entry:
-        LOG.warning("Skipping enrollment with insufficient information to construct an encounter")
+    if not primary_encounter_entry:
+        LOG.warning("Skipping enrollment with insufficient information to construct a primary encounter")
         return None
 
-    questionnaire_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
+    questionnaire_entry = create_questionnaire_response(
+        redcap_record, patient_reference, primary_encounter_reference)
 
     specimen_entry = None
     specimen_observation_entry = None
@@ -103,7 +106,8 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
 
     if specimen_received:
         specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
-        specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
+        specimen_observation_entry = create_specimen_observation_entry(
+            specimen_reference, patient_reference, primary_encounter_reference)
     else:
         LOG.info("Creating encounter for record without sample")
 
@@ -111,13 +115,22 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.warning("Skipping enrollment with insufficent information to construct a specimen")
         return None
 
+    follow_up_encounter_entry = None
+    follow_up_questionnaire_entry = None
+
+    if is_complete('day_7_follow_up', redcap_record):
+        # Follow-up encounter for 7 day follow-up survey
+        follow_up_encounter_entry, follow_up_encounter_reference = create_follow_up_encounter(
+            redcap_record, patient_reference, site_reference)
+
     resource_entries = [
         patient_entry,
-        encounter_entry,
+        primary_encounter_entry,
         questionnaire_entry,
         specimen_entry,
         *location_resource_entries,
-        specimen_observation_entry
+        specimen_observation_entry,
+        follow_up_encounter_entry
     ]
 
     return create_bundle_resource(
@@ -349,8 +362,11 @@ def create_patient(record: REDCapRecord) -> tuple:
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def create_encounter(record: REDCapRecord, patient_reference: dict, site_reference: dict, locations: list) -> tuple:
-    """ Returns a FHIR Encounter resource entry and reference """
+def create_primary_encounter(record: REDCapRecord, patient_reference: dict, site_reference: dict, locations: list) -> tuple:
+    """
+    Returns a FHIR Encounter resource entry and reference for the primary
+    encounter in the study (i.e. encounter of enrollment in the study)
+    """
 
     def grab_symptom_keys(key: str, suffix: str='') -> Optional[Match[str]]:
         if record[key] == '1':
@@ -691,6 +707,36 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         return create_questionnaire_response_item(question_id, answers)
 
     return None
+
+
+def create_follow_up_encounter(record: REDCapRecord, patient_reference: dict, site_reference: dict) -> tuple:
+    """
+    Returns a FHIR Encounter resource entry and reference for a follow-up
+    encounter
+    """
+    if not record.get('fu_timestamp'):
+        return None, None
+
+    encounter_identifier = create_identifier(
+        system = f"{INTERNAL_SYSTEM}/encounter",
+        value = f"{REDCAP_URL}{record.project.id}/{record['record_id']}_follow_up"
+    )
+    encounter_class_coding = create_coding(
+        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        code = "HH"
+    )
+
+    # YYYY-MM-DD HH:MM in REDCap
+    encounter_date = record['fu_timestamp'].split()[0]
+    encounter_resource = create_encounter_resource(
+        encounter_identifier = [encounter_identifier],
+        encounter_class = encounter_class_coding,
+        encounter_date = encounter_date,
+        patient_reference = patient_reference,
+        location_references = [site_reference]
+    )
+
+    return create_entry_and_reference(encounter_resource, "Encounter")
 
 
 class UnknownRedcapZipCode(ValueError):
