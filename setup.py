@@ -56,7 +56,7 @@ setup(
     python_requires = ">=3.6",
 
     install_requires = [
-        "id3c >=2020.1",
+        "id3c >=2020.2",
         "click >=7.0",
         "regex",
         "requests",
