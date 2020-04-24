@@ -97,7 +97,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.warning("Skipping enrollment with insufficient information to construct a primary encounter")
         return None
 
-    questionnaire_entry = create_questionnaire_response(
+    primary_questionnaire_entry = create_primary_questionnaire_response(
         redcap_record, patient_reference, primary_encounter_reference)
 
     specimen_entry = None
@@ -126,7 +126,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     resource_entries = [
         patient_entry,
         primary_encounter_entry,
-        questionnaire_entry,
+        primary_questionnaire_entry,
         specimen_entry,
         *location_resource_entries,
         specimen_observation_entry,
@@ -510,39 +510,12 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     return create_entry_and_reference(specimen_resource, "Specimen")
 
 
-def create_questionnaire_response(record: dict, patient_reference: dict,
-    encounter_reference: dict) -> Optional[dict]:
-    """ Returns a FHIR Questionnaire Response resource entry. """
-
-    def combine_checkbox_answers(coded_question: str) -> Optional[List]:
-        """
-        Handles the combining "select all that apply"-type checkbox
-        responses into one list.
-
-        Uses our in-house mapping for race.
-        """
-        regex = rf'{re.escape(coded_question)}___[\w]*$'
-        empty_value = '0'
-        answered_checkboxes = list(filter(lambda f: filter_fields(f, regex, empty_value), record))
-        # REDCap checkbox fields have format of {question}___{answer}
-        answers = list(map(lambda k: k.replace(f"{coded_question}___", ""), answered_checkboxes))
-
-        if coded_question == 'race':
-            return race(answers)
-
-        return answers
-
-
-    def filter_fields(field: str, regex: str, empty_value: str) -> bool:
-        """
-        Function that filters answered fields matching given *regex*
-        """
-        if re.match(regex, field) and record[field] != empty_value:
-            return True
-
-        return False
-
-
+def create_primary_questionnaire_response(record: dict, patient_reference: dict,
+                                          encounter_reference: dict) -> Optional[dict]:
+    """
+    Returns a FHIR Questionnaire Response resource entry for the primary
+    encounter (i.e. encounter of enrollment into the study)
+    """
     def combine_multiple_fields(field_prefix: str) -> Optional[List]:
         """
         Handles the combining of multiple fields asking the same question such
@@ -550,16 +523,12 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         """
         regex = rf'^{re.escape(field_prefix)}[0-9]+$'
         empty_value = ''
-        answered_fields = list(filter(lambda f: filter_fields(f, regex, empty_value), record))
+        answered_fields = list(filter(lambda f: filter_fields(f, record[f], regex, empty_value), record))
 
         if not answered_fields:
             return None
 
         return list(map(lambda x: record[x], answered_fields))
-
-
-    def build_questionnaire_items(question: str) -> Optional[dict]:
-        return questionnaire_item(record, question, category)
 
     coding_questions = [
         'race'
@@ -622,7 +591,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'ace',
     ]
     for field in checkbox_fields:
-        record[field] = combine_checkbox_answers(field)
+        record[field] = combine_checkbox_answers(record, field)
 
     # Combine all fields answering the same question
     record['country'] = combine_multiple_fields('country')
@@ -631,6 +600,51 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     # Age Ceiling
     record['age'] = age_ceiling(int(record['age']))
     record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
+
+    return questionnaire_response(record, question_categories, patient_reference, encounter_reference)
+
+
+def filter_fields(field: str, field_value: str, regex: str, empty_value: str) -> bool:
+    """
+    Function that filters for *field* matching given *regex* and the
+    *field_value* must not equal the expected *empty_value.
+    """
+    if re.match(regex, field) and field_value != empty_value:
+        return True
+
+    return False
+
+
+def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[List]:
+    """
+    Handles the combining "select all that apply"-type checkbox
+    responses into one list.
+
+    Uses our in-house mapping for race.
+    """
+    regex = rf'{re.escape(coded_question)}___[\w]*$'
+    empty_value = '0'
+    answered_checkboxes = list(filter(lambda f: filter_fields(f, record[f], regex, empty_value), record))
+    # REDCap checkbox fields have format of {question}___{answer}
+    answers = list(map(lambda k: k.replace(f"{coded_question}___", ""), answered_checkboxes))
+
+    if coded_question == 'race':
+        return race(answers)
+
+    return answers
+
+
+def questionnaire_response(record: dict,
+                           question_categories: Dict[str, list],
+                           patient_reference: dict,
+                           encounter_reference: dict) -> Optional[dict]:
+    """
+    Provided a dictionary of *question_categories* with the key being the value
+    type and the value being a list of field names, return a FHIR
+    Questionnaire Response resource entry.
+    """
+    def build_questionnaire_items(question: str) -> Optional[dict]:
+        return questionnaire_item(record, question, category)
 
     items: List[dict] = []
     for category in question_categories:
