@@ -122,6 +122,8 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         # Follow-up encounter for 7 day follow-up survey
         follow_up_encounter_entry, follow_up_encounter_reference = create_follow_up_encounter(
             redcap_record, patient_reference, site_reference)
+        follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
+        redcap_record, patient_reference, follow_up_encounter_reference)
 
     resource_entries = [
         patient_entry,
@@ -130,7 +132,8 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         specimen_entry,
         *location_resource_entries,
         specimen_observation_entry,
-        follow_up_encounter_entry
+        follow_up_encounter_entry,
+        follow_up_questionnaire_entry
     ]
 
     return create_bundle_resource(
@@ -620,7 +623,7 @@ def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[List
     Handles the combining "select all that apply"-type checkbox
     responses into one list.
 
-    Uses our in-house mapping for race.
+    Uses our in-house mapping for race and symptoms
     """
     regex = rf'{re.escape(coded_question)}___[\w]*$'
     empty_value = '0'
@@ -630,6 +633,9 @@ def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[List
 
     if coded_question == 'race':
         return race(answers)
+
+    if re.match(r'fu_[1-4]_symptoms$', coded_question):
+        return list(map(lambda a: map_symptom(a), answers))
 
     return answers
 
@@ -751,6 +757,106 @@ def create_follow_up_encounter(record: REDCapRecord, patient_reference: dict, si
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
+
+
+def create_follow_up_questionnaire_response(record: dict, patient_reference: dict,
+                                            encounter_reference: dict) -> Optional[dict]:
+    """
+    Returns a FHIR Questionnaire Response resource entry for the follow-up
+    encounter.
+
+    Note: `fu_which_activites` and `fu_missed_activites` are misspelled on
+    purpose to match the misspelling of the fields in the REDCap project.
+    """
+    boolean_questions = [
+        'fu_illness',
+        'fu_change',
+        'fu_feel_normal',
+        'fu_household_sick'
+    ]
+
+    integer_questions = [
+        'fu_number_sick'
+    ]
+
+    string_questions = [
+        'fu_fever',
+        'fu_headache',
+        'fu_cough',
+        'fu_chills',
+        'fu_sweat',
+        'fu_throat',
+        'fu_nausea',
+        'fu_nose',
+        'fu_tired',
+        'fu_ache',
+        'fu_breathe',
+        'fu_diarrhea',
+        'fu_rash',
+        'fu_ear',
+        'fu_eye',
+        'fu_smell_taste',
+        'fu_care',
+        'fu_hospital_where',
+        'fu_hospital_ed',
+        'fu_work_school',
+        'fu_activities',
+        'fu_which_activites',
+        'fu_missed_activites',
+        'fu_test_result',
+        'fu_behaviors_no',
+        'fu_behaviors_inconclusive',
+        'fu_behaviors',
+        'fu_1_symptoms',
+        'fu_1_test',
+        'fu_1_result',
+        'fu_2_symptoms',
+        'fu_2_test',
+        'fu_2_result',
+        'fu_3_symptoms',
+        'fu_3_test',
+        'fu_3_result',
+        'fu_4_symptoms',
+        'fu_4_test',
+        'fu_4_result',
+        'fu_healthy_test',
+        'fu_healthy_result'
+    ]
+
+    date_questions = [
+        'fu_symptom_duration',
+        'fu_date_care',
+        'fu_1_date',
+        'fu_2_date',
+        'fu_3_date',
+        'fu_4_date',
+    ]
+
+    question_categories = {
+        'valueBoolean': boolean_questions,
+        'valueInteger': integer_questions,
+        'valueString': string_questions,
+        'valueDate': date_questions
+    }
+
+    # Combine checkbox answers into one list
+    checkbox_fields = [
+        'fu_care',
+        'fu_which_activites',
+        'fu_missed_activites',
+        'fu_behaviors_no',
+        'fu_behaviors_inconclusive',
+        'fu_behaviors',
+        'fu_1_symptoms',
+        'fu_2_symptoms',
+        'fu_3_symptoms',
+        'fu_4_symptoms'
+    ]
+
+    for field in checkbox_fields:
+        record[field] = combine_checkbox_answers(record, field)
+
+    return questionnaire_response(record, question_categories, patient_reference, encounter_reference)
 
 
 class UnknownRedcapZipCode(ValueError):
