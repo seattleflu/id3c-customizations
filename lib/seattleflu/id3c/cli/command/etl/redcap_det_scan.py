@@ -34,7 +34,7 @@ PROJECTS = [
     ScanProject(21514, "zh-Hans"),
 ]
 
-REVISION = 7
+REVISION = 8
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -242,7 +242,7 @@ def create_encounter(record: REDCapRecord, patient_reference: dict, locations: l
 
     def grab_symptom_keys(key: str, suffix: str='') -> Optional[Match[str]]:
         if record[key] == '1':
-            return re.match(f'symptoms{suffix}___[a-z]+$', key)
+            return re.match(f'symptoms{suffix}___[a-z_]+$', key)
         else:
             return None
 
