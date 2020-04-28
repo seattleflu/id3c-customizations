@@ -34,7 +34,7 @@ PROJECTS = [
     ScanProject(21514, "zh-Hans"),
 ]
 
-REVISION = 8
+REVISION = 9
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -457,6 +457,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
     string_questions = [
         'redcap_event_name',
+        'priority_code',
         'income',
         'housing_type',
         'house_members',
@@ -528,7 +529,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
 
 def questionnaire_item(record: dict, question_id: str, response_type: str) -> Optional[dict]:
     """ Creates a QuestionnaireResponse internal item from a REDCap record. """
-    response = record[question_id]
+    response = record.get(question_id)
     if not response:
         return None
 

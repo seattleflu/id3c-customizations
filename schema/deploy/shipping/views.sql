@@ -813,6 +813,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
                  jsonb_to_record("valueCoding") as code("code" text)
           where "linkId" in ('redcap_event_name',
+                             'priority_code',
                              'vaccine',
                              'race',
                              'insurance',
@@ -846,6 +847,13 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  string_response[1] as scan_study_arm
             from questionnaire_responses
           where "linkId" = 'redcap_event_name'
+        ),
+
+        priority_code as (
+          select encounter_id,
+                 string_response[1] as priority_code
+            from questionnaire_responses
+          where "linkId" = 'priority_code'
         ),
 
         vaccine as (
@@ -1018,6 +1026,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
     select
         encounter_id,
         scan_study_arm,
+        priority_code,
         symptoms,
         symptom_onset,
         symptoms_2,
@@ -1049,6 +1058,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
+      left join priority_code using (encounter_id)
       left join symptoms using (encounter_id)
       left join symptoms_2 using (encounter_id)
       left join vaccine using (encounter_id)
@@ -1350,6 +1360,7 @@ create or replace view shipping.scan_encounters_v1 as
     select
         encounter_id,
         scan_study_arm,
+        priority_code,
 
         encountered,
         to_char(encountered, 'IYYY-"W"IW') as encountered_week,
