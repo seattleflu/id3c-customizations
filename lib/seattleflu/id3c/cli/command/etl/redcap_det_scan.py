@@ -32,6 +32,7 @@ PROJECTS = [
     ScanProject(21520, "es"),
     ScanProject(21512, "vi"),
     ScanProject(21514, "zh-Hans"),
+    ScanProject(21521, "zh-Hant"),
 ]
 
 REVISION = 9
