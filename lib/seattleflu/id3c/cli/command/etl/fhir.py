@@ -204,7 +204,8 @@ def create_encounter_resource(encounter_identifier: List[dict],
                               diagnosis: List[dict] = None,
                               contained: List[dict] = None,
                               encounter_status = 'finished',
-                              hospitalization: dict = None) -> dict:
+                              hospitalization: dict = None,
+                              reason_code: List[dict] = None) -> dict:
     """
     Create encounter resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/encounter.html)
@@ -248,6 +249,8 @@ def create_encounter_resource(encounter_identifier: List[dict],
         encounter_resource["contained"] = contained
     if hospitalization:
         encounter_resource["hospitalization"] = hospitalization
+    if reason_code:
+        encounter_resource['reasonCode'] = reason_code
 
     return encounter_resource
 

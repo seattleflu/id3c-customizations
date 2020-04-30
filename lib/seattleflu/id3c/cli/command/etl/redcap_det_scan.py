@@ -745,6 +745,11 @@ def create_follow_up_encounter(record: REDCapRecord, patient_reference: dict, si
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
         code = "HH"
     )
+    encounter_reason_code = create_codeable_concept(
+        system = "http://snomed.info/sct",
+        code = "390906007",
+        display = "Follow-up encounter"
+    )
 
     # YYYY-MM-DD HH:MM in REDCap
     encounter_date = record['fu_timestamp'].split()[0]
@@ -753,7 +758,8 @@ def create_follow_up_encounter(record: REDCapRecord, patient_reference: dict, si
         encounter_class = encounter_class_coding,
         encounter_date = encounter_date,
         patient_reference = patient_reference,
-        location_references = [site_reference]
+        location_references = [site_reference],
+        reason_code = [encounter_reason_code]
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
