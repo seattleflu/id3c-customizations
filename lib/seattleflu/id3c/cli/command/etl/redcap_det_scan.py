@@ -89,16 +89,16 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.warning("Skipping enrollment with insufficient information to construct patient")
         return None
 
-    primary_encounter_entry, primary_encounter_reference = create_primary_encounter(
+    initial_encounter_entry, initial_encounter_reference = create_initial_encounter(
         redcap_record, patient_reference,
         site_reference, location_resource_entries)
 
-    if not primary_encounter_entry:
-        LOG.warning("Skipping enrollment with insufficient information to construct a primary encounter")
+    if not initial_encounter_entry:
+        LOG.warning("Skipping enrollment with insufficient information to construct a initial encounter")
         return None
 
-    primary_questionnaire_entry = create_primary_questionnaire_response(
-        redcap_record, patient_reference, primary_encounter_reference)
+    initial_questionnaire_entry = create_initial_questionnaire_response(
+        redcap_record, patient_reference, initial_encounter_reference)
 
     specimen_entry = None
     specimen_observation_entry = None
@@ -107,7 +107,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     if specimen_received:
         specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
         specimen_observation_entry = create_specimen_observation_entry(
-            specimen_reference, patient_reference, primary_encounter_reference)
+            specimen_reference, patient_reference, initial_encounter_reference)
     else:
         LOG.info("Creating encounter for record without sample")
 
@@ -127,8 +127,8 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
 
     resource_entries = [
         patient_entry,
-        primary_encounter_entry,
-        primary_questionnaire_entry,
+        initial_encounter_entry,
+        initial_questionnaire_entry,
         specimen_entry,
         *location_resource_entries,
         specimen_observation_entry,
@@ -365,9 +365,9 @@ def create_patient(record: REDCapRecord) -> tuple:
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def create_primary_encounter(record: REDCapRecord, patient_reference: dict, site_reference: dict, locations: list) -> tuple:
+def create_initial_encounter(record: REDCapRecord, patient_reference: dict, site_reference: dict, locations: list) -> tuple:
     """
-    Returns a FHIR Encounter resource entry and reference for the primary
+    Returns a FHIR Encounter resource entry and reference for the initial
     encounter in the study (i.e. encounter of enrollment in the study)
     """
 
@@ -513,10 +513,10 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     return create_entry_and_reference(specimen_resource, "Specimen")
 
 
-def create_primary_questionnaire_response(record: dict, patient_reference: dict,
+def create_initial_questionnaire_response(record: dict, patient_reference: dict,
                                           encounter_reference: dict) -> Optional[dict]:
     """
-    Returns a FHIR Questionnaire Response resource entry for the primary
+    Returns a FHIR Questionnaire Response resource entry for the initial
     encounter (i.e. encounter of enrollment into the study)
     """
     def combine_multiple_fields(field_prefix: str) -> Optional[List]:
