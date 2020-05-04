@@ -80,6 +80,7 @@ def map_symptom(symptom_name: str) -> Optional[str]:
         'increased trouble with breathing':     'increasedTroubleBreathing',
         'eye':                                  'eyePain',
         'smell_taste':                          'lossOfSmellOrTaste',
+        'other':                                'other',
         'none':                                 None,
         'none of the above':                    None
     }
