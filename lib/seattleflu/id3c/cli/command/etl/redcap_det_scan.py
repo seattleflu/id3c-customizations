@@ -121,7 +121,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     if is_complete('day_7_follow_up', redcap_record):
         # Follow-up encounter for 7 day follow-up survey
         follow_up_encounter_entry, follow_up_encounter_reference = create_follow_up_encounter(
-            redcap_record, patient_reference, site_reference)
+            redcap_record, patient_reference, site_reference, initial_encounter_reference)
         follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
         redcap_record, patient_reference, follow_up_encounter_reference)
 
@@ -729,7 +729,10 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
     return None
 
 
-def create_follow_up_encounter(record: REDCapRecord, patient_reference: dict, site_reference: dict) -> tuple:
+def create_follow_up_encounter(record: REDCapRecord,
+                               patient_reference: dict,
+                               site_reference: dict,
+                               initial_encounter_reference: dict) -> tuple:
     """
     Returns a FHIR Encounter resource entry and reference for a follow-up
     encounter
@@ -759,7 +762,8 @@ def create_follow_up_encounter(record: REDCapRecord, patient_reference: dict, si
         encounter_date = encounter_date,
         patient_reference = patient_reference,
         location_references = [site_reference],
-        reason_code = [encounter_reason_code]
+        reason_code = [encounter_reason_code],
+        part_of = initial_encounter_reference
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
