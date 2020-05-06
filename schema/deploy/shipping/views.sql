@@ -1409,4 +1409,503 @@ grant select
    on shipping.scan_encounters_v1
    to "incidence-modeler";
 
+
+create or replace view shipping.scan_follow_up_encounters_v1 as
+
+    with
+        fu_illness as (
+          select encounter_id,
+                 boolean_response as fu_illness
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_illness'
+        ),
+
+        fu_change as (
+          select encounter_id,
+                 boolean_response as fu_change
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_change'
+        ),
+
+        fu_fever as (
+          select encounter_id,
+                 string_response[1] as fu_feelingFeverish
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_fever'
+        ),
+
+        fu_headache as (
+          select encounter_id,
+                 string_response[1] as fu_headaches
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_headache'
+        ),
+
+        fu_cough as (
+          select encounter_id,
+                 string_response[1] as fu_cough
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_cough'
+        ),
+
+        fu_chills as (
+          select encounter_id,
+                 string_response[1] as fu_chillsOrShivering
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_chills'
+        ),
+
+        fu_sweat as (
+          select encounter_id,
+                 string_response[1] as fu_sweats
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_sweat'
+        ),
+
+        fu_throat as (
+          select encounter_id,
+                 string_response[1] as fu_soreThroat
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_throat'
+        ),
+
+        fu_nausea as (
+          select encounter_id,
+                 string_response[1] as fu_nauseaOrVomiting
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_nausea'
+        ),
+
+        fu_nose as (
+          select encounter_id,
+                 string_response[1] as fu_runnyOrStuffyNose
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_nose'
+        ),
+
+        fu_tired as (
+          select encounter_id,
+                 string_response[1] as fu_fatigue
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_tired'
+        ),
+
+        fu_ache as (
+          select encounter_id,
+                 string_response[1] as fu_muscleOrBodyAches
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_ache'
+        ),
+
+        fu_breathe as (
+          select encounter_id,
+                 string_response[1] as fu_increasedTroubleBreathing
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_breathe'
+        ),
+
+        fu_diarrhea as (
+          select encounter_id,
+                 string_response[1] as fu_diarrhea
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_diarrhea'
+        ),
+
+        fu_rash as (
+          select encounter_id,
+                 string_response[1] as fu_rash
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_rash'
+        ),
+
+        fu_ear as (
+          select encounter_id,
+                 string_response[1] as fu_earPainOrDischarge
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_ear'
+        ),
+
+        fu_eye as (
+          select encounter_id,
+                 string_response[1] as fu_eyePain
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_eye'
+        ),
+
+        fu_smell_taste as (
+          select encounter_id,
+                 string_response[1] as fu_lossOfSmellOrTaste
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_smell_taste'
+        ),
+
+        fu_feel_normal as (
+          select encounter_id,
+                 boolean_response as fu_feel_normal
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_feel_normal'
+        ),
+
+        fu_symptom_duration as (
+          select encounter_id,
+                 date_response[1] as fu_symptom_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_symptom_duration'
+        ),
+
+        fu_care as (
+          select encounter_id,
+                 string_response as fu_care
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_care'
+        ),
+
+        fu_date_care as (
+          select encounter_id,
+                 date_response[1] as fu_date_care
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_date_care'
+        ),
+
+        fu_hospital_where as (
+          select encounter_id,
+                 string_response[1] as fu_hospital_where
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_hospital_where'
+        ),
+
+        fu_hospital_ed as (
+          select encounter_id,
+                 string_response[1] as fu_hospital_ed
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_hospital_ed'
+        ),
+
+        fu_work_school as (
+          select encounter_id,
+                 string_response[1] as fu_work_school
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_work_school'
+        ),
+
+        fu_activities as (
+          select encounter_id,
+                 string_response[1] as fu_activities
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_activities'
+        ),
+
+        fu_which_activities as (
+          select encounter_id,
+                 string_response as fu_which_activities
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_which_activites'
+        ),
+
+        fu_missed_activities as (
+          select encounter_id,
+                 string_response as fu_missed_activities
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_missed_activites'
+        ),
+
+        fu_test_result as (
+          select encounter_id,
+                 string_response[1] as fu_test_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_test_result'
+        ),
+
+        fu_behaviors_no as (
+          select encounter_id,
+                 string_response as fu_behaviors_no
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_behaviors_no'
+        ),
+
+        fu_behaviors_inconclusive as (
+          select encounter_id,
+                 string_response as fu_behaviors_inconclusive
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_behaviors_inconclusive'
+        ),
+
+        fu_behaviors as (
+          select encounter_id,
+                 string_response as fu_behaviors
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_behaviors'
+        ),
+
+        fu_household_sick as (
+          select encounter_id,
+                 boolean_response as fu_household_sick
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_household_sick'
+        ),
+
+        fu_number_sick as (
+          select encounter_id,
+                 integer_response[1] as fu_number_sick
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_number_sick'
+        ),
+
+        fu_1_date as (
+          select encounter_id,
+                 date_response[1] as household_1_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_date'
+        ),
+
+        fu_1_symptoms as (
+          select encounter_id,
+                 string_response as household_1_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_symptoms'
+        ),
+
+        fu_1_test as (
+          select encounter_id,
+                 string_response[1] as household_1_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_test'
+        ),
+
+        fu_1_result as (
+          select encounter_id,
+                 string_response[1] as household_1_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_result'
+        ),
+
+        fu_2_date as (
+          select encounter_id,
+                 date_response[1] as household_2_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_date'
+        ),
+
+        fu_2_symptoms as (
+          select encounter_id,
+                 string_response as household_2_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_symptoms'
+        ),
+
+        fu_2_test as (
+          select encounter_id,
+                 string_response[1] as household_2_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_test'
+        ),
+
+        fu_2_result as (
+          select encounter_id,
+                 string_response[1] as household_2_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_result'
+        ),
+
+        fu_3_date as (
+          select encounter_id,
+                 date_response[1] as household_3_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_date'
+        ),
+
+        fu_3_symptoms as (
+          select encounter_id,
+                 string_response as household_3_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_symptoms'
+        ),
+
+        fu_3_test as (
+          select encounter_id,
+                 string_response[1] as household_3_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_test'
+        ),
+
+        fu_3_result as (
+          select encounter_id,
+                 string_response[1] as household_3_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_result'
+        ),
+
+        fu_4_date as (
+          select encounter_id,
+                 date_response[1] as household_4_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_date'
+        ),
+
+        fu_4_symptoms as (
+          select encounter_id,
+                 string_response as household_4_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_symptoms'
+        ),
+
+        fu_4_test as (
+          select encounter_id,
+                 string_response[1] as household_4_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_test'
+        ),
+
+        fu_4_result as (
+          select encounter_id,
+                 string_response[1] as household_4_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_result'
+        ),
+
+        fu_healthy_test as (
+          select encounter_id,
+                 string_response[1] as household_healthy_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_healthy_test'
+        ),
+
+        fu_healthy_result as (
+          select encounter_id,
+                 string_response[1] as household_healthy_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_healthy_result'
+        )
+
+    select
+        initial.encounter_id as encounter_id,
+        encounter.encounter_id as fu_encounter_id,
+        encounter.encountered as fu_encountered,
+        individual.identifier as fu_individual,
+
+        fu_illness,
+        fu_change,
+        fu_feelingFeverish,
+        fu_headaches,
+        fu_cough,
+        fu_chillsOrShivering,
+        fu_sweats,
+        fu_soreThroat,
+        fu_nauseaOrVomiting,
+        fu_runnyOrStuffyNose,
+        fu_fatigue,
+        fu_muscleOrBodyAches,
+        fu_increasedTroubleBreathing,
+        fu_diarrhea,
+        fu_rash,
+        fu_earPainOrDischarge,
+        fu_eyePain,
+        fu_lossOfSmellOrTaste,
+        fu_feel_normal,
+        fu_symptom_onset,
+        fu_care,
+        fu_date_care,
+        fu_hospital_where,
+        fu_hospital_ed,
+        fu_work_school,
+        fu_activities,
+        fu_which_activities,
+        fu_missed_activities,
+        fu_test_result,
+        fu_behaviors_no,
+        fu_behaviors_inconclusive,
+        fu_behaviors,
+        fu_household_sick,
+        fu_number_sick,
+        household_1_illness_onset,
+        household_1_symptoms,
+        household_1_tested,
+        household_1_result,
+        household_2_illness_onset,
+        household_2_symptoms,
+        household_2_tested,
+        household_2_result,
+        household_3_illness_onset,
+        household_3_symptoms,
+        household_3_tested,
+        household_3_result,
+        household_4_illness_onset,
+        household_4_symptoms,
+        household_4_tested,
+        household_4_result,
+        household_healthy_tested,
+        household_healthy_result
+
+      from warehouse.encounter
+      join warehouse.site using (site_id)
+      join warehouse.individual using (individual_id)
+      left join fu_illness using (encounter_id)
+      left join fu_change using (encounter_id)
+      left join fu_fever using (encounter_id)
+      left join fu_headache using (encounter_id)
+      left join fu_cough using (encounter_id)
+      left join fu_chills using (encounter_id)
+      left join fu_sweat using (encounter_id)
+      left join fu_throat using (encounter_id)
+      left join fu_nausea using (encounter_id)
+      left join fu_nose using (encounter_id)
+      left join fu_tired using (encounter_id)
+      left join fu_ache using (encounter_id)
+      left join fu_breathe using (encounter_id)
+      left join fu_diarrhea using (encounter_id)
+      left join fu_rash using (encounter_id)
+      left join fu_ear using (encounter_id)
+      left join fu_eye using (encounter_id)
+      left join fu_smell_taste using (encounter_id)
+      left join fu_feel_normal using (encounter_id)
+      left join fu_symptom_duration using (encounter_id)
+      left join fu_care using (encounter_id)
+      left join fu_date_care using (encounter_id)
+      left join fu_hospital_where using (encounter_id)
+      left join fu_hospital_ed using (encounter_id)
+      left join fu_work_school using (encounter_id)
+      left join fu_activities using (encounter_id)
+      left join fu_which_activities using (encounter_id)
+      left join fu_missed_activities using (encounter_id)
+      left join fu_test_result using (encounter_id)
+      left join fu_behaviors_no using (encounter_id)
+      left join fu_behaviors_inconclusive using (encounter_id)
+      left join fu_behaviors using (encounter_id)
+      left join fu_household_sick using (encounter_id)
+      left join fu_number_sick using (encounter_id)
+      left join fu_1_date using (encounter_id)
+      left join fu_1_symptoms using (encounter_id)
+      left join fu_1_test using (encounter_id)
+      left join fu_1_result using (encounter_id)
+      left join fu_2_date using (encounter_id)
+      left join fu_2_symptoms using (encounter_id)
+      left join fu_2_test using (encounter_id)
+      left join fu_2_result using (encounter_id)
+      left join fu_3_date using (encounter_id)
+      left join fu_3_symptoms using (encounter_id)
+      left join fu_3_test using (encounter_id)
+      left join fu_3_result using (encounter_id)
+      left join fu_4_date using (encounter_id)
+      left join fu_4_symptoms using (encounter_id)
+      left join fu_4_test using (encounter_id)
+      left join fu_4_result using (encounter_id)
+      left join fu_healthy_test using (encounter_id)
+      left join fu_healthy_result using (encounter_id)
+      left join warehouse.encounter initial on initial.identifier = encounter.details ->> 'part_of'
+
+    where site.identifier = 'SCAN'
+    and encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
+;
+
+comment on view shipping.scan_follow_up_encounters_v1 is
+  'A view of follow-up encounter date that are from the SCAN project';
+
+revoke all
+    on shipping.scan_follow_up_encounters_v1
+  from "incidence-modeler";
+
+grant select
+    on shipping.scan_follow_up_encounters_v1
+  to "incidence-modeler";
+
 commit;

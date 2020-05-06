@@ -1436,6 +1436,8 @@ grant select
    on shipping.scan_encounters_v1
    to "incidence-modeler";
 
+
+drop view shipping.scan_follow_up_encounters_v1;
 drop materialized view shipping.fhir_questionnaire_responses_v1;
 
 commit;
