@@ -175,3 +175,6 @@ shipping/views [shipping/views@2020-04-13] 2020-04-17T17:13:00Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-04-17] 2020-04-23T23:12:18Z Jover Lee <joverlee@fredhutch.org> # Add priority_code to views
 @2020-04-23 2020-04-23T23:18:27Z Jover Lee <joverlee@fredhutch.org> # Schema as of 23 April 2020
+
+shipping/views [shipping/views@2020-04-23] 2020-05-08T20:01:46Z Jover Lee <joverlee@fredhutch.org> # Add sample collection date to hcov19_observation_v1
+@2020-05-08 2020-05-08T20:13:14Z Jover Lee <joverlee@fredhutch.org> # Schema as of 08 May 2020
