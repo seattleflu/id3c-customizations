@@ -1153,7 +1153,6 @@ create or replace view shipping.hcov19_observation_v1 as
     select
         sample_id,
         sample.identifier as sample,
-        sample.collected,
 
         -- Lab testing-related columns for BBI
         hcov19_result_received_bbi,
@@ -1423,8 +1422,6 @@ create or replace view shipping.scan_encounters_v1 as
     left join shipping.fhir_encounter_details_v2 using (encounter_id)
     left join warehouse.sample using (encounter_id)
     where site.identifier = 'SCAN'
-    -- Filter out follow up encounters
-    and not encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
 ;
 
 comment on view shipping.scan_encounters_v1 is
