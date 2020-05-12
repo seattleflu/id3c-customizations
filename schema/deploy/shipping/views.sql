@@ -269,34 +269,12 @@ create or replace view shipping.fhir_encounter_details_v1 as
           group by encounter_id
         ),
 
-        -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
-        -- The following CTEs filter by linkId and uses the appropriate "value*" field to
-        -- select answer values.
-        questionnaire_responses as (
-          select encounter_id,
-                 "linkId",
-                 array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
-                 -- All boolean values must be true to be considered True
-                 -- I don't think we will ever get two answers for one boolean question, but just in case.
-                 -- Jover, 18 March 2020
-                 bool_and("valueBoolean") as boolean_response,
-                 array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
-                 array_remove(array_agg("code" order by "code"), null) as code_response
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
-                 jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
-                 jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
-                 jsonb_to_record("valueCoding") as code("code" text)
-          where "linkId" in ('vaccine', 'race', 'insurance', 'ethnicity', 'travel_countries', 'travel_states')
-          group by encounter_id, "linkId"
-        ),
-
         vaccine as (
           select encounter_id,
                  boolean_response as vaccine,
                  date_response[1] as vaccine_date
-            from questionnaire_responses
-          where "linkId" = 'vaccine'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine'
         ),
 
         race as (
@@ -305,36 +283,36 @@ create or replace view shipping.fhir_encounter_details_v1 as
                     when array_length(code_response, 1) is null then string_response
                     else code_response
                  end as race
-            from questionnaire_responses
-          where "linkId" = 'race'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'race'
         ),
 
         insurance as (
           select encounter_id,
                  string_response as insurance
-            from questionnaire_responses
-          where "linkId" = 'insurance'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'insurance'
         ),
 
         ethnicity as (
           select encounter_id,
                  boolean_response as hispanic_or_latino
-            from questionnaire_responses
-          where "linkId" = 'ethnicity'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'ethnicity'
         ),
 
         travel_countries as (
           select encounter_id,
                  boolean_response as travel_countries
-            from questionnaire_responses
-          where "linkId" = 'travel_countries'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'travel_countries'
         ),
 
         travel_states as (
           select encounter_id,
                  boolean_response as travel_states
-            from questionnaire_responses
-          where "linkId" = 'travel_states'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'travel_states'
         )
 
     select
