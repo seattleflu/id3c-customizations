@@ -217,6 +217,47 @@ comment on view shipping.return_results_v1 is
     'View of barcodes and presence/absence results for return of results on website';
 
 
+drop materialized view if exists shipping.fhir_questionnaire_responses_v1;
+create materialized view shipping.fhir_questionnaire_responses_v1 as
+
+    select encounter_id,
+           "linkId" as link_id,
+           array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
+           -- All boolean values must be true to be considered True
+           -- I don't think we will ever get two answers for one boolean question, but just in case.
+           -- Jover, 18 March 2020
+           bool_and("valueBoolean") as boolean_response,
+           array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
+           array_remove(array_agg("valueInteger" order by "valueInteger"), null) as integer_response,
+           array_remove(array_agg("code" order by "code"), null) as code_response
+      from warehouse.encounter,
+           jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
+           jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
+           jsonb_to_recordset("answer") as answer("valueString" text,
+                                                  "valueBoolean" bool,
+                                                  "valueDate" text,
+                                                  "valueInteger" integer,
+                                                  "valueCoding" jsonb),
+           jsonb_to_record("valueCoding") as code("code" text)
+    -- Don't need age because it is formalized in `warehouse.encounter.age`
+    where "linkId" != 'age'
+    group by encounter_id, link_id;
+
+create index fhir_questionnaire_responses_link_id_idx on shipping.fhir_questionnaire_responses_v1 (link_id);
+create index fhir_questionnaire_responses_encounter_id_idx on shipping.fhir_questionnaire_responses_v1 (encounter_id);
+
+comment on materialized view shipping.fhir_questionnaire_responses_v1 is
+  'View of FHIR Questionnaire Responses store in encounter details';
+
+revoke all
+    on shipping.fhir_questionnaire_responses_v1
+  from "incidence-modeler";
+
+grant select
+   on shipping.fhir_questionnaire_responses_v1
+   to "incidence-modeler";
+
+
 create or replace view shipping.fhir_encounter_details_v1 as
 
     with
