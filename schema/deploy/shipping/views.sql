@@ -813,74 +813,26 @@ create or replace view shipping.fhir_encounter_details_v2 as
           group by encounter_id, symptom_onset_2
         ),
 
-        -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
-        -- The following CTEs filter by linkId and uses the appropriate "value*" field to
-        -- select answer values.
-        questionnaire_responses as (
-          select encounter_id,
-                 "linkId",
-                 array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
-                 -- All boolean values must be true to be considered True
-                 -- I don't think we will ever get two answers for one boolean question, but just in case.
-                 -- Jover, 18 March 2020
-                 bool_and("valueBoolean") as boolean_response,
-                 array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
-                 array_remove(array_agg("code" order by "code"), null) as code_response
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
-                 jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
-                 jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
-                 jsonb_to_record("valueCoding") as code("code" text)
-          where "linkId" in ('redcap_event_name',
-                             'priority_code',
-                             'vaccine',
-                             'race',
-                             'insurance',
-                             'ethnicity',
-                             'travel_countries',
-                             'travel_countries_phs',
-                             'country',
-                             'travel_states',
-                             'travel_states_phs',
-                             'state',
-                             'pregnant_yesno',
-                             'income',
-                             'housing_type',
-                             'house_members',
-                             'doctor_3e8fae',
-                             'hospital_where',
-                             'hospital_ed',
-                             'hospital_arrive',
-                             'hospital_leave',
-                             'smoke_9a005a',
-                             'chronic_illness',
-                             'overall_risk_health',
-                             'overall_risk_setting',
-                             'longterm_type',
-                             'ace')
-          group by encounter_id, "linkId"
-        ),
-
         scan_study_arm as (
           select encounter_id,
                  string_response[1] as scan_study_arm
-            from questionnaire_responses
-          where "linkId" = 'redcap_event_name'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'redcap_event_name'
         ),
 
         priority_code as (
           select encounter_id,
                  string_response[1] as priority_code
-            from questionnaire_responses
-          where "linkId" = 'priority_code'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'priority_code'
         ),
 
         vaccine as (
           select encounter_id,
                  boolean_response as vaccine,
                  date_response[1] as vaccine_date
-            from questionnaire_responses
-          where "linkId" = 'vaccine'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine'
         ),
 
         race as (
@@ -889,157 +841,157 @@ create or replace view shipping.fhir_encounter_details_v2 as
                     when array_length(code_response, 1) is null then string_response
                     else code_response
                  end as race
-            from questionnaire_responses
-          where "linkId" = 'race'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'race'
         ),
 
         insurance as (
           select encounter_id,
                  string_response as insurance
-            from questionnaire_responses
-          where "linkId" = 'insurance'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'insurance'
         ),
 
         ethnicity as (
           select encounter_id,
                  boolean_response as hispanic_or_latino
-            from questionnaire_responses
-          where "linkId" = 'ethnicity'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'ethnicity'
         ),
 
         travel_countries as (
           select encounter_id,
                  bool_or(boolean_response) as travel_countries
-            from questionnaire_responses
-          where "linkId" in ('travel_countries','travel_countries_phs')
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id in ('travel_countries','travel_countries_phs')
           group by encounter_id
         ),
 
         countries as (
           select encounter_id,
                  string_response as countries
-            from questionnaire_responses
-          where "linkId" = 'country'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'country'
         ),
 
         travel_states as (
           select encounter_id,
                  bool_or(boolean_response) as travel_states
-            from questionnaire_responses
-          where "linkId" in ('travel_states', 'travel_states_phs')
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id in ('travel_states', 'travel_states_phs')
           group by encounter_id
         ),
 
         states as (
           select encounter_id,
                  string_response as states
-            from questionnaire_responses
-          where "linkId" = 'state'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'state'
         ),
 
         pregnant as (
           select encounter_id,
                  boolean_response as pregnant
-            from questionnaire_responses
-          where "linkId" = 'pregnant_yesno'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'pregnant_yesno'
         ),
 
         income as (
           select encounter_id,
                  string_response[1] as income
-            from questionnaire_responses
-          where "linkId" = 'income'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'income'
         ),
 
         housing_type as (
           select encounter_id,
                  string_response[1] as housing_type
-            from questionnaire_responses
-          where "linkId" = 'housing_type'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'housing_type'
         ),
 
         house_members as (
           select encounter_id,
                  string_response[1] as house_members
-            from questionnaire_responses
-          where "linkId" = 'house_members'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'house_members'
         ),
 
         clinical_care as (
           select encounter_id,
                  string_response as clinical_care
-            from questionnaire_responses
-          where "linkId" = 'doctor_3e8fae'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'doctor_3e8fae'
         ),
 
         hospital_where as (
           select encounter_id,
                  string_response[1] as hospital_where
-            from questionnaire_responses
-          where "linkId" = 'hospital_where'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_where'
         ),
 
         hospital_visit_type as (
           select encounter_id,
                  string_response[1] as hospital_visit_type
-            from questionnaire_responses
-          where "linkId" = 'hospital_ed'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_ed'
         ),
 
         hospital_arrive as (
           select encounter_id,
                  date_response[1] as hospital_arrive
-            from questionnaire_responses
-          where "linkId" = 'hospital_arrive'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_arrive'
         ),
 
         hospital_leave as (
           select encounter_id,
                  date_response[1] as hospital_leave
-            from questionnaire_responses
-          where "linkId" = 'hospital_leave'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_leave'
         ),
 
         smoking as (
           select encounter_id,
                  string_response as smoking
-            from questionnaire_responses
-          where "linkId" = 'smoke_9a005a'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'smoke_9a005a'
         ),
 
         chronic_illness as (
           select encounter_id,
                  string_response as chronic_illness
-            from questionnaire_responses
-          where "linkId" = 'chronic_illness'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'chronic_illness'
         ),
 
         overall_risk_health as (
           select encounter_id,
                  string_response as overall_risk_health
-            from questionnaire_responses
-          where "linkId" = 'overall_risk_health'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'overall_risk_health'
         ),
 
         overall_risk_setting as (
           select encounter_id,
                  string_response as overall_risk_setting
-            from questionnaire_responses
-          where "linkId" = 'overall_risk_setting'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'overall_risk_setting'
         ),
 
         long_term_type as (
           select encounter_id,
                  string_response as long_term_type
-            from questionnaire_responses
-          where "linkId" = 'longterm_type'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'longterm_type'
         ),
 
         ace as (
           select encounter_id,
                  string_response as ace_inhibitor
-            from questionnaire_responses
-          where "linkId" = 'ace'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'ace'
         )
 
     select
