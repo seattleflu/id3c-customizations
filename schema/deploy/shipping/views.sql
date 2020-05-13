@@ -245,6 +245,7 @@ create materialized view shipping.fhir_questionnaire_responses_v1 as
 
 create index fhir_questionnaire_responses_link_id_idx on shipping.fhir_questionnaire_responses_v1 (link_id);
 create index fhir_questionnaire_responses_encounter_id_idx on shipping.fhir_questionnaire_responses_v1 (encounter_id);
+create unique index fhir_questionnaire_responses_unique_link_id_per_encounter on shipping.fhir_questionnaire_responses_v1 (encounter_id, link_id);
 
 comment on materialized view shipping.fhir_questionnaire_responses_v1 is
   'View of FHIR Questionnaire Responses store in encounter details';
