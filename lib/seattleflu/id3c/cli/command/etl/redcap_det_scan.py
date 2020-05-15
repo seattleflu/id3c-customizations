@@ -42,7 +42,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 9
+REVISION = 10
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -150,7 +150,7 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         'secondary': record['apartment_number'],
         'city': record['homecity_other'],
         'state': record['home_state'],
-        'zipcode': record['home_zipcode_2'],
+        'zipcode': zipcode_map(record['home_zipcode_2']),
     }
 
     lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
@@ -172,6 +172,96 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
     address_entry = create_resource_entry(address_location, generate_full_url_uuid())
 
     return [tract_entry, address_entry]
+
+
+def zipcode_map(redcap_code: str) -> str:
+    """
+    Maps *redcap_code* to corresponding zip code. This is required because the
+    branching logic in REDCap cauases major issues if the code is the
+    actual zip code.
+    """
+    zipcode_map = {
+        '44': '98101',
+        '45': '98102',
+        '46': '98103',
+        '47': '98104',
+        '48': '98105',
+        '49': '98106',
+        '50': '98107',
+        '51': '98108',
+        '52': '98109',
+        '53': '98112',
+        '54': '98115',
+        '55': '98116',
+        '56': '98117',
+        '57': '98118',
+        '58': '98119',
+        '59': '98121',
+        '60': '98122',
+        '61': '98125',
+        '62': '98126',
+        '63': '98133',
+        '64': '98134',
+        '65': '98136',
+        '66': '98144',
+        '67': '98146',
+        '69': '98154',
+        '70': '98155',
+        '71': '98164',
+        '75': '98177',
+        '76': '98178',
+        '78': '98195',
+        '80': '98199',
+        '4':  '98004',
+        '5':  '98005',
+        '6':  '98006',
+        '7':  '98007',
+        '8':  '98008',
+        '21': '98033',
+        '22': '98034',
+        '25': '98039',
+        '26': '98040',
+        '33': '98056',
+        '36': '98059',
+        '10': '98011',
+        '17': '98028',
+        '1':  '98001',
+        '2':  '98002',
+        '3':  '98003',
+        '15': '98023',
+        '18': '98030',
+        '19': '98031',
+        '20': '98032',
+        '28': '98042',
+        '31': '98047',
+        '32': '98055',
+        '34': '98057',
+        '35': '98058',
+        '68': '98148',
+        '72': '98166',
+        '73': '98168',
+        '77': '98188',
+        '79': '98198',
+        '81': '98010',
+        '82': '98022',
+        '83': '98038',
+        '84': '98045',
+        '85': '98051',
+        '86': '98065',
+        '87': '98027',
+        '88': '98029',
+        '89': '98052',
+        '90': '98074',
+        '91': '98075',
+        '92': '98092',
+        '93': '98070'
+    }
+
+    if redcap_code not in zipcode_map:
+        raise UnknownRedcapZipCode(f"Found unknown zip code REDCap code {redcap_code}")
+
+    return zipcode_map[redcap_code]
+
 
 
 def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
@@ -593,3 +683,11 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         return create_questionnaire_response_item(question_id, answers)
 
     return None
+
+
+class UnknownRedcapZipCode(ValueError):
+    """
+    Raised by :function: `zipcode_map` if a provided *redcap_code* is not
+    among a set of expected values.
+    """
+    pass
