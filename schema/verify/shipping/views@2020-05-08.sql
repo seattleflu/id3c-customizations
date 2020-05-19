@@ -35,11 +35,6 @@ select 1/(count(*) = 1)::int
      = pg_catalog.parse_ident('shipping.return_results_v1');
 
 select 1/(count(*) = 1)::int
-  from pg_matviews
- where array[schemaname, matviewname]::text[]
-     = pg_catalog.parse_ident('shipping.fhir_questionnaire_responses_v1');
-
-select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.fhir_encounter_details_v1');
@@ -103,10 +98,5 @@ select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.scan_encounters_v1');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.scan_follow_up_encounters_v1');
 
 rollback;
