@@ -296,6 +296,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
 
     mapper = {
         'home/self care': 'home',
+        'home: home/self care': 'home',
         'home health care': 'home',
         'transfer to hospital': 'other-hcf',
         'icf- intermediate care facility': 'other-hcf',
