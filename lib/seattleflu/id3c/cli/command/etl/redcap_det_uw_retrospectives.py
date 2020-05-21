@@ -295,29 +295,29 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         return 'other-hcf'
 
     mapper = {
-        'home/self care': 'home',
-        'home: home/self care': 'home',
-        'home health care': 'home',
-        'home hlth: home health care': 'home',
-        'transfer to hospital': 'other-hcf',
-        'transfer to : transfer to hospital': 'other-hcf',
-        'icf- intermediate care facility': 'other-hcf',
-        'designated cancer center or children\'s hospital': 'other-hcf',
+        'against medical advice'                                : 'aadvice',
+        'ama: against medical advice'                           : 'aadvice',
+        'expired'                                               : 'exp',
+        'expired: expired'                                      : 'exp',
+        'home health care'                                      : 'home',
+        'home hlth: home health care'                           : 'home',
+        'home/self care'                                        : 'home',
+        'home: home/self care'                                  : 'home',
+        'ltc: disch/transferred to long-term care hosp'         : 'long',
+        'disch/trans to court/law enforcement'                  : 'oth',
+        'disch/trans : disch/trans to court/law enforcement'    : 'oth',
+        'other institution - not defined elsewhere'             : 'oth',
+        'transfer to hospital'                                  : 'other-hcf',
+        'transfer to : transfer to hospital'                    : 'other-hcf',
+        'icf- intermediate care facility'                       : 'other-hcf',
+        'designated cancer center or children\'s hospital'      : 'other-hcf',
         'disch/trans/planned readm to designated cancer ctr or children\'s hospital': 'other-hcf',
-        'against medical advice': 'aadvice',
-        'ama: against medical advice': 'aadvice',
-        'expired': 'exp',
-        'expired: expired': 'exp',
-        'ltc: disch/transferred to long-term care hosp': 'long',
-        'disch/trans to a distinct psych unit/hospital': 'psy',
+        'disch/trans to a distinct psych unit/hospital'         : 'psy',
         'dsch/tran: disch/trans to a distinct psych unit/hospital': 'psy',
-        'disch/trans to a distinct rehab unit/hospital': 'rehab',
+        'disch/trans to a distinct rehab unit/hospital'         : 'rehab',
         'dis/trans: disch/trans to a distinct rehab unit/hospital': 'rehab',
-        'snf-skilled nursing facility': 'snf',
-        'snf: snf-skilled nursing facility': 'snf',
-        'disch/trans to court/law enforcement': 'oth',
-        'disch/trans : disch/trans to court/law enforcement': 'oth',
-        'other institution - not defined elsewhere': 'oth',
+        'snf-skilled nursing facility'                          : 'snf',
+        'snf: snf-skilled nursing facility'                     : 'snf',
     }
 
     standardized_disposition = standardize_whitespace(disposition.lower())
@@ -339,12 +339,12 @@ def create_encounter_class(redcap_record: dict) -> dict:
     encounter_class = redcap_record.get('patient_class', '')
 
     mapper = {
-        "op": "AMB",
-        "ip": "IMP",
-        "lim": "IMP",
-        "obs": "IMP",
-        "obv": "IMP",
-        "ed": "EMER",  # can also code as "AMB"
+        "op"    : "AMB",
+        "ed"    : "EMER",  # can also code as "AMB"
+        "ip"    : "IMP",
+        "lim"   : "IMP",
+        "obs"   : "IMP",
+        "obv"   : "IMP",
     }
 
     standardized_encounter_class = standardize_whitespace(encounter_class.lower())
@@ -373,10 +373,10 @@ def create_encounter_status(redcap_record: dict) -> str:
         return 'finished'
 
     mapper = {
-        'arrived': 'arrived',
-        'preadmit': 'arrived',
+        'arrived'   : 'arrived',
+        'preadmit'  : 'arrived',
+        'lwbs'      : 'cancelled',  # LWBS = left without being seen.
         'discharged': 'finished',
-        'lwbs': 'cancelled',  # LWBS = left without being seen.
     }
 
     standardized_status = standardize_whitespace(status.lower())
@@ -491,18 +491,18 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
         return None
 
     test_result_map = {
-        'Positive': True,
-        'Detected': True,
-        'Detected (qualifier value)': True,
-        'Negative': False,
-        'None detected.': False,
-        'Not detected (qualifier value)': False,
-        'Test not applicable': None,
-        'Inconclusive.': None, # XXX: Ingest this someday as present = null?
-        'Indeterminate': None, # XXX: Ingest this someday as present = null?
-        'Canceled by practitioner': None,
-        'Cancel, order changed': None,
-        'Duplicate request': None,
+        'Negative'                          : False,
+        'None detected.'                    : False,
+        'Not detected (qualifier value)'    : False,
+        'Detected'                          : True,
+        'Detected (qualifier value)'        : True,
+        'Positive'                          : True,
+        'Cancel, order changed'             : None,
+        'Canceled by practitioner'          : None,
+        'Duplicate request'                 : None,
+        'Inconclusive.'                     : None, # XXX: Ingest this someday as present = null?
+        'Indeterminate'                     : None, # XXX: Ingest this someday as present = null?
+        'Test not applicable'               : None,
         'Wrong test ordered by practitioner': None,
     }
 
