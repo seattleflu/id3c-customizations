@@ -314,6 +314,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'ca ctr/chld : designated cancer center or childrens hospital': 'other-hcf',
         'designated cancer center or children\'s hospital'      : 'other-hcf',
         'disch/trans/planned readm to designated cancer ctr or children\'s hospital': 'other-hcf',
+        'disch/trans/planned readm to hospital'                 : 'other-hcf',
         'disch/trans to a distinct psych unit/hospital'         : 'psy',
         'dsch/tran: disch/trans to a distinct psych unit/hospital': 'psy',
         'disch/trans to a distinct rehab unit/hospital'         : 'rehab',
