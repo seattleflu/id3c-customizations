@@ -1886,6 +1886,9 @@ create or replace view shipping.scan_return_results_v1 as
         left join warehouse.encounter using (encounter_id)
       where
         identifier_set.name in('collections-scan')
+        -- Add a date cutoff so that we only return results to participants
+        -- that are in the SCAN research study.
+        and encountered::date >= '2020-06-08'
       order by encountered, barcode
     )
 
