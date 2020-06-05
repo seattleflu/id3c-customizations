@@ -5,216 +5,157 @@
 -- to change a view definition or add new views.  This workflow helps keep
 -- inter-view dependencies manageable.
 
-begin;
-
--- This view is versioned as a hedge against future changes.  Changing this
--- view in place is fine as long as changes are backwards compatible.  Think of
+-- Views are versioned as a hedge against future changes.  Changing these
+-- views in place is fine as long as changes are backwards compatible. Think of
 -- the version number as the major part of a semantic versioning scheme.  If
 -- there needs to be a lag between view development and consumers being
 -- updated, copy the view definition into v2 and make changes there.
 
-drop view shipping.reportable_condition_v1;
-create or replace view shipping.reportable_condition_v1 as
+begin;
 
-    with reportable as (
-        select array_agg(lineage) as lineages
-        from warehouse.organism
-        where details @> '{"report_to_public_health":true}'
+-- Drop all views at the top in order of dependency so we don't have to
+-- worry about view dependencies when reworking view definitions.
+drop view shipping.scan_return_results_v1;
+drop view shipping.return_results_v2;
+drop view shipping.return_results_v1;
+drop view shipping.reportable_condition_v1;
+
+drop view shipping.metadata_for_augur_build_v3;
+drop view shipping.metadata_for_augur_build_v2;
+drop view shipping.genomic_sequences_for_augur_build_v1;
+drop view shipping.flu_assembly_jobs_v1;
+
+drop view shipping.scan_follow_up_encounters_v1;
+drop view shipping.scan_encounters_v1;
+drop view shipping.hcov19_observation_v1;
+
+drop view shipping.observation_with_presence_absence_result_v2;
+drop view shipping.observation_with_presence_absence_result_v1;
+
+drop view shipping.incidence_model_observation_v3;
+drop view shipping.incidence_model_observation_v2;
+drop view shipping.incidence_model_observation_v1;
+
+drop view shipping.fhir_encounter_details_v2;
+drop view shipping.fhir_encounter_details_v1;
+drop materialized view shipping.fhir_questionnaire_responses_v1;
+
+drop view shipping.sample_with_best_available_encounter_data_v1;
+
+/******************** VIEWS FOR INTERNAL USE ********************/
+create or replace view shipping.sample_with_best_available_encounter_data_v1 as
+
+    with specimen_manifest_data as (
+        select
+            sample_id,
+            date_or_null(details->>'date') as collection_date,
+            trim(both ' ' from details->>'swab_site') as swab_site,
+            trim(both ' ' from details->>'sample_origin') as sample_origin
+        from
+            warehouse.sample
+    ),
+
+    site_details as (
+      select
+          site_id,
+          site.identifier as site,
+          site.details->>'type' as site_type,
+          site.details->>'category' as site_category,
+          coalesce(site.details->>'swab_site', site.details->>'sample_origin') as manifest_regex
+      from warehouse.site
+    ),
+
+    samples_with_manifest_data as (
+      select
+        sample_id,
+        site_id,
+        coalesce(encountered::date, collection_date) as best_available_encounter_date,
+
+        coalesce(
+          case
+              -- Environmental samples must be processed first, because they're
+              -- often taken at existing human swab sites
+              when manifest.sample_origin = 'es'
+                then 'environmental'
+              else manifest.swab_site
+          end,
+
+          manifest.sample_origin
+        ) as site_manifest_details,
+
+        site_id is not null as has_encounter_data
+
+        from warehouse.sample
+        left join warehouse.encounter using (encounter_id)
+        left join specimen_manifest_data as manifest using (sample_id)
     )
 
-    select
-        presence_absence.presence_absence_id,
-        organism.lineage::text,
-        sample.identifier as sample,
-        sample_id.barcode as sample_barcode,
-        collection_id.barcode as collection_barcode,
-        sample.details ->> 'clia_barcode' as clia_barcode,
-        site.identifier as site,
-        presence_absence.details->>'reporting_log' as reporting_log,
-        sample.details->'_provenance'->>'workbook' as workbook,
-        sample.details->'_provenance'->>'sheet' as sheet,
-        sample.details->>'sample_origin' as sample_origin,
-        sample.details->>'swab_site' as swab_site,
-        encounter.details ->> 'language' as language,
-        age_in_years(encounter.age) as age,
-        case
-          when present then 'positive'
-          when present is null then 'inconclusive'
-        end as result
+  select
+    sample_id,
+    sample.identifier as sample,
+    has_encounter_data,
+    best_available_encounter_date,
 
-    from warehouse.presence_absence
-    join warehouse.target using (target_id)
-    join warehouse.organism using (organism_id)
-    join warehouse.sample using (sample_id)
-    join warehouse.identifier sample_id on (sample.identifier = cast(sample_id.uuid as text))
-    join warehouse.identifier collection_id on (sample.collection_identifier = cast(collection_id.uuid as text))
-    join warehouse.identifier_set collection_id_set on (collection_id.identifier_set_id = collection_id_set.identifier_set_id)
-    left join warehouse.encounter using (encounter_id)
-    left join warehouse.site using (site_id)
+    case
+      when best_available_encounter_date < '2019-10-01'::date then 'Y1'
+      when best_available_encounter_date < '2020-10-01'::date then 'Y2'
+      else null
+    end as season,
 
-    where organism.lineage <@ (table reportable)
-    and (present or present is null)
-     -- Only report on SCAN samples and SFS prospective samples
-    -- We don't have to worry about SFS consent date because the
-    -- clinical team checks this before they contact the participant.
-    and collection_id_set.name in ('collections-scan',
-                                   'collections-household-observation',
-                                   'collections-household-intervention',
-                                   'collections-swab&send',
-                                   'collections-kiosks',
-                                   'collections-self-test',
-                                   'collections-swab&send-asymptomatic',
-                                   'collections-kiosks-asymptomatic',
-                                   'collections-environmental')
-    and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
-    order by encountered desc;
+    coalesce(site.site_id, site_details.site_id) as best_available_site_id,
+    coalesce(site.identifier, site_details.site) as best_available_site,
+    coalesce(site.details->>'type', site_type) as best_available_site_type,
+    coalesce(site.details->>'category', site_category) as best_available_site_category
 
-/* The shipping.reportable_condition_v1 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by
- * reportable-condition-notifier.  Revoke existing grants to every other role.
- *
- * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
- * in the future.  It's part of the broader bad interplay between views and
- * their grants.  I think it was a mistake to lump grants to each role in their
- * own change instead of scattering them amongst the changes that create/rework
- * tables and views and things that are granted on.  I made that choice
- * initially so that all grants for a role could be seen in a single
- * consolidated place, which would still be nice.  There's got to be a better
- * system for managing this (a single idempotent change script with all ACLs
- * that is always run after other changes? cleaner breaking up of sqitch
- * projects?), but I don't have time to think on it much now.  Luckily for us,
- * I think the core reporter role is unlikely to be reworked soon, but we
- * should be wary.
- *   -trs, 7 March 2020
- */
-revoke all on shipping.reportable_condition_v1 from reporter;
+  from warehouse.sample
+  left join samples_with_manifest_data using (sample_id)
+  left join site_details on (site_manifest_details similar to manifest_regex)
+  left join warehouse.site on (samples_with_manifest_data.site_id = site.site_id)
+  ;
+
+comment on view shipping.sample_with_best_available_encounter_data_v1 is
+    'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
+
+
+create materialized view shipping.fhir_questionnaire_responses_v1 as
+
+    select encounter_id,
+           "linkId" as link_id,
+           array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
+           -- All boolean values must be true to be considered True
+           -- I don't think we will ever get two answers for one boolean question, but just in case.
+           -- Jover, 18 March 2020
+           bool_and("valueBoolean") as boolean_response,
+           array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
+           array_remove(array_agg("valueInteger" order by "valueInteger"), null) as integer_response,
+           array_remove(array_agg("code" order by "code"), null) as code_response
+      from warehouse.encounter,
+           jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
+           jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
+           jsonb_to_recordset("answer") as answer("valueString" text,
+                                                  "valueBoolean" bool,
+                                                  "valueDate" text,
+                                                  "valueInteger" integer,
+                                                  "valueCoding" jsonb),
+           jsonb_to_record("valueCoding") as code("code" text)
+    -- Don't need age because it is formalized in `warehouse.encounter.age`
+    where "linkId" != 'age'
+    group by encounter_id, link_id;
+
+create index fhir_questionnaire_responses_link_id_idx on shipping.fhir_questionnaire_responses_v1 (link_id);
+create index fhir_questionnaire_responses_encounter_id_idx on shipping.fhir_questionnaire_responses_v1 (encounter_id);
+create unique index fhir_questionnaire_responses_unique_link_id_per_encounter on shipping.fhir_questionnaire_responses_v1 (encounter_id, link_id);
+
+comment on materialized view shipping.fhir_questionnaire_responses_v1 is
+  'View of FHIR Questionnaire Responses store in encounter details';
+
+revoke all
+    on shipping.fhir_questionnaire_responses_v1
+  from "incidence-modeler";
 
 grant select
-   on shipping.reportable_condition_v1
-   to "reportable-condition-notifier";
-
-
-drop view shipping.metadata_for_augur_build_v2;
-create or replace view shipping.metadata_for_augur_build_v2 as
-
-    select sample as strain,
-            cast(encountered as date) as date,
-            'seattle' as region,
-            -- XXX TODO: Change to PUMA and neighborhoods
-            residence_census_tract as location,
-            'Seattle Flu Study' as authors,
-            age_range_coarse,
-            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
-                when 't' then 'child'
-                when 'f' then 'adult'
-            end as age_category,
-            case
-                when site_type in ('childrensHospital', 'childrensClinic', 'childrensHospital', 'clinic', 'hospital', 'retrospective') then 'clinical'
-                when site_type in ('childcare' , 'collegeCampus' , 'homelessShelter' , 'port', 'publicSpace', 'workplace') then 'community'
-            end as site_category,
-            residence_census_tract,
-            flu_shot,
-            sex
-
-      from shipping.incidence_model_observation_v3
-      join warehouse.encounter on encounter.identifier = incidence_model_observation_v3.encounter;
-
-comment on view shipping.metadata_for_augur_build_v2 is
-		'View of metadata necessary for SFS augur build';
-
-
-create or replace view shipping.genomic_sequences_for_augur_build_v1 as
-
-    select distinct on (sample.identifier, organism.lineage, segment)
-           sample.identifier as sample,
-           organism.lineage as organism,
-           genomic_sequence.segment,
-           round(((length(replace(seq, 'N', '')) * 1.0 / length(seq))), 4) as coverage,
-           genomic_sequence.seq
-      from warehouse.sample
-      join warehouse.consensus_genome using (sample_id)
-      join warehouse.genomic_sequence using (consensus_genome_id)
-      join warehouse.organism using (organism_id)
-
-      order by sample.identifier, organism.lineage, segment, coverage desc;
-
-comment on view shipping.genomic_sequences_for_augur_build_v1 is
-    'View of genomic sequences for SFS augur build';
-
-
-create or replace view shipping.flu_assembly_jobs_v1 as
-
-    select sample.identifier as sfs_uuid,
-           sample.details ->> 'nwgc_id' as nwgc_id,
-           sequence_read_set.urls,
-           target.identifier as target,
-           o1.lineage as target_linked_organism,
-           coalesce(o2.lineage, o1.lineage) as assembly_job_organism,
-           sequence_read_set.details
-
-      from warehouse.sequence_read_set
-      join warehouse.sample using (sample_id)
-      join warehouse.presence_absence using (sample_id)
-      join warehouse.target using (target_id)
-      join warehouse.organism o1 using (organism_id)
-      -- Reason for o2 join: For pan-subtype targets like Flu_A_pan,
-      -- we want to spread out to the more specific lineages for assembly jobs.
-      -- Since this view is Flu specific, we are hard-coding it to spread just one level down.
-      left join warehouse.organism o2 on (o2.lineage ~ concat(o1.lineage::text, '.*{1}')::lquery)
-
-    where o1.lineage ~ 'Influenza.*'
-    and present
-    -- The sequence read set details currently holds the state of assembly jobs for each lineage.
-    -- So if null, then definitely no jobs have been completed.
-    -- If not null, then check if the assembly job organism matches any key in the sequence read set details.
-    and (sequence_read_set.details is null
-         or not sequence_read_set.details ? coalesce(o2.lineage, o1.lineage)::text)
-
-    order by sample.details ->> 'nwgc_id';
-
-comment on view shipping.flu_assembly_jobs_v1 is
-    'View of flu jobs that still need to be run through the assembly pipeline';
-
--- Does not need HCoV-19 visibility and should filter it out
--- anyway, but be safe.
-alter view shipping.flu_assembly_jobs_v1 owner to "view-owner";
-
-
-
-create or replace view shipping.return_results_v1 as
-
-    select barcode,
-           case
-             when sample_id is null then 'notReceived'
-             when sample_id is not null and count(present) = 0 then 'processing'
-             when count(present) > 0 then 'complete'
-           end as status,
-           -- We only return the top level organisms for results so we want to omit subtypes
-           array_agg(distinct subpath(organism, 0, 1)::text)
-            filter (where present and organism is not null)  as organisms_present,
-           array_agg(distinct subpath(organism, 0, 1)::text)
-            filter (where not present and organism is not null) as organisms_absent
-
-      from warehouse.identifier
-      join warehouse.identifier_set using (identifier_set_id)
-      left join warehouse.sample on uuid::text = sample.collection_identifier
-      left join shipping.presence_absence_result_v1 on sample.identifier = presence_absence_result_v1.sample
-
-    --These are all past and current collection identifier sets not including self-test
-    where identifier_set.name in ('collections-seattleflu.org',
-                                  'collections-kiosks',
-                                  'collections-environmental',
-                                  'collections-swab&send',
-                                  'collections-household-observation',
-                                  'collections-household-intervention') and
-          (organism is null or
-          -- We only return results for these organisms, so omit all other presence/absence results
-          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapneumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
-    group by barcode, sample_id
-    order by barcode;
-
-comment on view shipping.return_results_v1 is
-    'View of barcodes and presence/absence results for return of results on website';
+   on shipping.fhir_questionnaire_responses_v1
+   to "incidence-modeler";
 
 
 create or replace view shipping.fhir_encounter_details_v1 as
@@ -228,34 +169,12 @@ create or replace view shipping.fhir_encounter_details_v1 as
           group by encounter_id
         ),
 
-        -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
-        -- The following CTEs filter by linkId and uses the appropriate "value*" field to
-        -- select answer values.
-        questionnaire_responses as (
-          select encounter_id,
-                 "linkId",
-                 array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
-                 -- All boolean values must be true to be considered True
-                 -- I don't think we will ever get two answers for one boolean question, but just in case.
-                 -- Jover, 18 March 2020
-                 bool_and("valueBoolean") as boolean_response,
-                 array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
-                 array_remove(array_agg("code" order by "code"), null) as code_response
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
-                 jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
-                 jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
-                 jsonb_to_record("valueCoding") as code("code" text)
-          where "linkId" in ('vaccine', 'race', 'insurance', 'ethnicity', 'travel_countries', 'travel_states')
-          group by encounter_id, "linkId"
-        ),
-
         vaccine as (
           select encounter_id,
                  boolean_response as vaccine,
                  date_response[1] as vaccine_date
-            from questionnaire_responses
-          where "linkId" = 'vaccine'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine'
         ),
 
         race as (
@@ -264,36 +183,36 @@ create or replace view shipping.fhir_encounter_details_v1 as
                     when array_length(code_response, 1) is null then string_response
                     else code_response
                  end as race
-            from questionnaire_responses
-          where "linkId" = 'race'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'race'
         ),
 
         insurance as (
           select encounter_id,
                  string_response as insurance
-            from questionnaire_responses
-          where "linkId" = 'insurance'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'insurance'
         ),
 
         ethnicity as (
           select encounter_id,
                  boolean_response as hispanic_or_latino
-            from questionnaire_responses
-          where "linkId" = 'ethnicity'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'ethnicity'
         ),
 
         travel_countries as (
           select encounter_id,
                  boolean_response as travel_countries
-            from questionnaire_responses
-          where "linkId" = 'travel_countries'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'travel_countries'
         ),
 
         travel_states as (
           select encounter_id,
                  boolean_response as travel_states
-            from questionnaire_responses
-          where "linkId" = 'travel_states'
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'travel_states'
         )
 
     select
@@ -327,6 +246,287 @@ grant select
    to "incidence-modeler";
 
 
+create or replace view shipping.fhir_encounter_details_v2 as
+
+    with
+        symptoms as (
+          select encounter_id,
+                 array_agg(distinct condition."id" order by condition."id") as symptoms,
+                 -- In our FHIR etl we give all symptoms the same onsetDateTime
+                 "onsetDateTime" as symptom_onset
+            from warehouse.encounter,
+                 jsonb_to_recordset(details -> 'Condition') as condition("id" text, "onsetDateTime" text)
+          where not condition."id" like '%_2'
+          group by encounter_id, symptom_onset
+        ),
+
+        symptoms_2 as (
+          select encounter_id,
+                 array_agg(distinct rtrim(condition."id", '_2') order by rtrim(condition."id", '_2')) as symptoms_2,
+                 -- In our FHIR etl we give all symptoms the same onsetDateTime
+                 "onsetDateTime" as symptom_onset_2
+            from warehouse.encounter,
+                 jsonb_to_recordset(details -> 'Condition') as condition("id" text, "onsetDateTime" text)
+          where condition."id" like '%_2'
+          group by encounter_id, symptom_onset_2
+        ),
+
+        scan_study_arm as (
+          select encounter_id,
+                 string_response[1] as scan_study_arm
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'redcap_event_name'
+        ),
+
+        priority_code as (
+          select encounter_id,
+                 string_response[1] as priority_code
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'priority_code'
+        ),
+
+        vaccine as (
+          select encounter_id,
+                 boolean_response as vaccine,
+                 date_response[1] as vaccine_date
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine'
+        ),
+
+        race as (
+          select encounter_id,
+                 case
+                    when array_length(code_response, 1) is null then string_response
+                    else code_response
+                 end as race
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'race'
+        ),
+
+        insurance as (
+          select encounter_id,
+                 string_response as insurance
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'insurance'
+        ),
+
+        ethnicity as (
+          select encounter_id,
+                 boolean_response as hispanic_or_latino
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'ethnicity'
+        ),
+
+        travel_countries as (
+          select encounter_id,
+                 bool_or(boolean_response) as travel_countries
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id in ('travel_countries','travel_countries_phs')
+          group by encounter_id
+        ),
+
+        countries as (
+          select encounter_id,
+                 string_response as countries
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'country'
+        ),
+
+        travel_states as (
+          select encounter_id,
+                 bool_or(boolean_response) as travel_states
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id in ('travel_states', 'travel_states_phs')
+          group by encounter_id
+        ),
+
+        states as (
+          select encounter_id,
+                 string_response as states
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'state'
+        ),
+
+        pregnant as (
+          select encounter_id,
+                 boolean_response as pregnant
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'pregnant_yesno'
+        ),
+
+        income as (
+          select encounter_id,
+                 string_response[1] as income
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'income'
+        ),
+
+        housing_type as (
+          select encounter_id,
+                 string_response[1] as housing_type
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'housing_type'
+        ),
+
+        house_members as (
+          select encounter_id,
+                 string_response[1] as house_members
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'house_members'
+        ),
+
+        clinical_care as (
+          select encounter_id,
+                 string_response as clinical_care
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'doctor_3e8fae'
+        ),
+
+        hospital_where as (
+          select encounter_id,
+                 string_response[1] as hospital_where
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_where'
+        ),
+
+        hospital_visit_type as (
+          select encounter_id,
+                 string_response[1] as hospital_visit_type
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_ed'
+        ),
+
+        hospital_arrive as (
+          select encounter_id,
+                 date_response[1] as hospital_arrive
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_arrive'
+        ),
+
+        hospital_leave as (
+          select encounter_id,
+                 date_response[1] as hospital_leave
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hospital_leave'
+        ),
+
+        smoking as (
+          select encounter_id,
+                 string_response as smoking
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'smoke_9a005a'
+        ),
+
+        chronic_illness as (
+          select encounter_id,
+                 string_response as chronic_illness
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'chronic_illness'
+        ),
+
+        overall_risk_health as (
+          select encounter_id,
+                 string_response as overall_risk_health
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'overall_risk_health'
+        ),
+
+        overall_risk_setting as (
+          select encounter_id,
+                 string_response as overall_risk_setting
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'overall_risk_setting'
+        ),
+
+        long_term_type as (
+          select encounter_id,
+                 string_response as long_term_type
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'longterm_type'
+        ),
+
+        ace as (
+          select encounter_id,
+                 string_response as ace_inhibitor
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'ace'
+        )
+
+    select
+        encounter_id,
+        scan_study_arm,
+        priority_code,
+        symptoms,
+        symptom_onset,
+        symptoms_2,
+        symptom_onset_2,
+        vaccine,
+        vaccine_date,
+        race,
+        insurance,
+        hispanic_or_latino,
+        travel_countries,
+        countries,
+        travel_states,
+        states,
+        pregnant,
+        income,
+        housing_type,
+        house_members,
+        clinical_care,
+        hospital_where,
+        hospital_visit_type,
+        hospital_arrive,
+        hospital_leave,
+        smoking,
+        chronic_illness,
+        overall_risk_health,
+        overall_risk_setting,
+        long_term_type,
+        ace_inhibitor
+
+      from warehouse.encounter
+      left join scan_study_arm using (encounter_id)
+      left join priority_code using (encounter_id)
+      left join symptoms using (encounter_id)
+      left join symptoms_2 using (encounter_id)
+      left join vaccine using (encounter_id)
+      left join race using (encounter_id)
+      left join insurance using (encounter_id)
+      left join ethnicity using (encounter_id)
+      left join travel_countries using (encounter_id)
+      left join countries using (encounter_id)
+      left join travel_states using (encounter_id)
+      left join states using (encounter_id)
+      left join pregnant using (encounter_id)
+      left join income using (encounter_id)
+      left join housing_type using (encounter_id)
+      left join house_members using (encounter_id)
+      left join clinical_care using (encounter_id)
+      left join hospital_where using (encounter_id)
+      left join hospital_visit_type using (encounter_id)
+      left join hospital_arrive using (encounter_id)
+      left join hospital_leave using (encounter_id)
+      left join smoking using (encounter_id)
+      left join chronic_illness using (encounter_id)
+      left join overall_risk_health using (encounter_id)
+      left join overall_risk_setting using (encounter_id)
+      left join long_term_type using (encounter_id)
+      left join ace using (encounter_id)
+  ;
+comment on view shipping.fhir_encounter_details_v2 is
+  'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
+
+revoke all
+    on shipping.fhir_encounter_details_v2
+  from "incidence-modeler";
+
+grant select
+   on shipping.fhir_encounter_details_v2
+   to "incidence-modeler";
+
+
+/******************** VIEWS FOR IDM MODELERS ********************/
 create or replace view shipping.incidence_model_observation_v1 as
 
     select encounter.identifier as encounter,
@@ -520,21 +720,6 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.observation_with_presence_absence_result_v1 as
-
-    select target,
-           present,
-           present::int as presence,
-           observation.*,
-           organism
-      from shipping.incidence_model_observation_v2 as observation
-      join shipping.presence_absence_result_v1 using (sample)
-      order by site, encounter, sample, target;
-
-comment on view shipping.observation_with_presence_absence_result_v1 is
-  'Joined view of shipping.incidence_model_observation_v2 and shipping.presence_absence_result_v1';
-
-
 create or replace view shipping.incidence_model_observation_v3 as
 
     select encounter.identifier as encounter,
@@ -610,6 +795,21 @@ grant select
    to "incidence-modeler";
 
 
+create or replace view shipping.observation_with_presence_absence_result_v1 as
+
+    select target,
+           present,
+           present::int as presence,
+           observation.*,
+           organism
+      from shipping.incidence_model_observation_v2 as observation
+      join shipping.presence_absence_result_v1 using (sample)
+      order by site, encounter, sample, target;
+
+comment on view shipping.observation_with_presence_absence_result_v1 is
+  'Joined view of shipping.incidence_model_observation_v2 and shipping.presence_absence_result_v1';
+
+
 create or replace view shipping.observation_with_presence_absence_result_v2 as
 
     select target,
@@ -625,480 +825,6 @@ comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
 
 
-create or replace view shipping.metadata_for_augur_build_v3 as
-
-    select sample.identifier as strain,
-            coalesce(
-              encountered_date,
-              case
-                when date_or_null(sample.details->>'date') <= current_date
-                  then date_or_null(sample.details->>'date')
-              end
-            ) as date,
-            'seattle' as region,
-            -- XXX TODO: Change to PUMA and neighborhoods
-            residence_census_tract as location,
-            'Seattle Flu Study' as authors,
-            age_range_coarse,
-            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
-                when 't' then 'child'
-                when 'f' then 'adult'
-            end as age_category,
-            warehouse.site.details->>'category' as site_category,
-            residence_census_tract,
-            flu_shot,
-            sex
-
-      from warehouse.sample
-      left join shipping.incidence_model_observation_v2 on sample.identifier = incidence_model_observation_v2.sample
-      left join warehouse.site on site.identifier = incidence_model_observation_v2.site
-
-     where sample.identifier is not null;
-
-comment on view shipping.metadata_for_augur_build_v3 is
-		'View of metadata necessary for SFS augur build';
-
-
-create or replace view shipping.sample_with_best_available_encounter_data_v1 as
-
-    with specimen_manifest_data as (
-        select
-            sample_id,
-            date_or_null(details->>'date') as collection_date,
-            trim(both ' ' from details->>'swab_site') as swab_site,
-            trim(both ' ' from details->>'sample_origin') as sample_origin
-        from
-            warehouse.sample
-    ),
-
-    site_details as (
-      select
-          site_id,
-          site.identifier as site,
-          site.details->>'type' as site_type,
-          site.details->>'category' as site_category,
-          coalesce(site.details->>'swab_site', site.details->>'sample_origin') as manifest_regex
-      from warehouse.site
-    ),
-
-    samples_with_manifest_data as (
-      select
-        sample_id,
-        site_id,
-        coalesce(encountered::date, collection_date) as best_available_encounter_date,
-
-        coalesce(
-          case
-              -- Environmental samples must be processed first, because they're
-              -- often taken at existing human swab sites
-              when manifest.sample_origin = 'es'
-                then 'environmental'
-              else manifest.swab_site
-          end,
-
-          manifest.sample_origin
-        ) as site_manifest_details,
-
-        site_id is not null as has_encounter_data
-
-        from warehouse.sample
-        left join warehouse.encounter using (encounter_id)
-        left join specimen_manifest_data as manifest using (sample_id)
-    )
-
-  select
-    sample_id,
-    sample.identifier as sample,
-    has_encounter_data,
-    best_available_encounter_date,
-
-    case
-      when best_available_encounter_date < '2019-10-01'::date then 'Y1'
-      when best_available_encounter_date < '2020-10-01'::date then 'Y2'
-      else null
-    end as season,
-
-    coalesce(site.site_id, site_details.site_id) as best_available_site_id,
-    coalesce(site.identifier, site_details.site) as best_available_site,
-    coalesce(site.details->>'type', site_type) as best_available_site_type,
-    coalesce(site.details->>'category', site_category) as best_available_site_category
-
-  from warehouse.sample
-  left join samples_with_manifest_data using (sample_id)
-  left join site_details on (site_manifest_details similar to manifest_regex)
-  left join warehouse.site on (samples_with_manifest_data.site_id = site.site_id)
-  ;
-
-comment on view shipping.sample_with_best_available_encounter_data_v1 is
-    'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
-
-
-create or replace view shipping.return_results_v2 as
-
-    select barcode,
-           case
-             when sample_id is null then 'notReceived'
-             when sample_id is not null and count(present) = 0 then 'processing'
-             when count(present) > 0 then 'complete'
-           end as status,
-           array_agg(distinct organism::text)
-            filter (where present and organism is not null)  as organisms_present,
-           array_agg(distinct organism::text)
-            filter (where not present and organism is not null) as organisms_absent
-
-      from warehouse.identifier
-      join warehouse.identifier_set using (identifier_set_id)
-      left join warehouse.sample on uuid::text = sample.collection_identifier
-      left join warehouse.encounter using (encounter_id)
-      left join shipping.presence_absence_result_v2 on sample.identifier = presence_absence_result_v2.sample
-
-    --These are all past and current collection identifier sets not including self-test
-    where identifier_set.name in ('collections-swab&send', 'collections-self-test')
-      and (organism is null or
-          -- We only return results for COVID-19, so omit all other presence/absence results
-          organism <@ '{"Human_coronavirus.2019"}'::ltree[])
-          -- We only want results collected after Izzy updated the REDCap consent form in swab & send.
-          -- This filter-by timestamp comes from REDCap
-      and coalesce(encountered, date_or_null(warehouse.sample.details->>'date')) > '2020-03-04 08:35:00-8'::timestamp with time zone
-    group by barcode, sample_id
-    order by barcode;
-
-comment on view shipping.return_results_v2 is
-    'Version 2 of view of barcodes and presence/absence results for return of results on website';
-
-
-drop view shipping.scan_encounters_v1;
-drop view shipping.fhir_encounter_details_v2;
-create or replace view shipping.fhir_encounter_details_v2 as
-
-    with
-        symptoms as (
-          select encounter_id,
-                 array_agg(distinct condition."id" order by condition."id") as symptoms,
-                 -- In our FHIR etl we give all symptoms the same onsetDateTime
-                 "onsetDateTime" as symptom_onset
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'Condition') as condition("id" text, "onsetDateTime" text)
-          where not condition."id" like '%_2'
-          group by encounter_id, symptom_onset
-        ),
-
-        symptoms_2 as (
-          select encounter_id,
-                 array_agg(distinct rtrim(condition."id", '_2') order by rtrim(condition."id", '_2')) as symptoms_2,
-                 -- In our FHIR etl we give all symptoms the same onsetDateTime
-                 "onsetDateTime" as symptom_onset_2
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'Condition') as condition("id" text, "onsetDateTime" text)
-          where condition."id" like '%_2'
-          group by encounter_id, symptom_onset_2
-        ),
-
-        -- This creates a loooong table of encounter_id, linkId, and all ingested "value*" fields
-        -- The following CTEs filter by linkId and uses the appropriate "value*" field to
-        -- select answer values.
-        questionnaire_responses as (
-          select encounter_id,
-                 "linkId",
-                 array_remove(array_agg("valueString" order by "valueString"), null) as string_response,
-                 -- All boolean values must be true to be considered True
-                 -- I don't think we will ever get two answers for one boolean question, but just in case.
-                 -- Jover, 18 March 2020
-                 bool_and("valueBoolean") as boolean_response,
-                 array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
-                 array_remove(array_agg("code" order by "code"), null) as code_response
-            from warehouse.encounter,
-                 jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
-                 jsonb_to_recordset("item") as response("linkId" text, "answer" jsonb),
-                 jsonb_to_recordset("answer") as answer("valueString" text, "valueBoolean" bool, "valueDate" text, "valueCoding" jsonb),
-                 jsonb_to_record("valueCoding") as code("code" text)
-          where "linkId" in ('redcap_event_name',
-                             'priority_code',
-                             'vaccine',
-                             'race',
-                             'insurance',
-                             'ethnicity',
-                             'travel_countries',
-                             'travel_countries_phs',
-                             'country',
-                             'travel_states',
-                             'travel_states_phs',
-                             'state',
-                             'pregnant_yesno',
-                             'income',
-                             'housing_type',
-                             'house_members',
-                             'doctor_3e8fae',
-                             'hospital_where',
-                             'hospital_ed',
-                             'hospital_arrive',
-                             'hospital_leave',
-                             'smoke_9a005a',
-                             'chronic_illness',
-                             'overall_risk_health',
-                             'overall_risk_setting',
-                             'longterm_type',
-                             'ace')
-          group by encounter_id, "linkId"
-        ),
-
-        scan_study_arm as (
-          select encounter_id,
-                 string_response[1] as scan_study_arm
-            from questionnaire_responses
-          where "linkId" = 'redcap_event_name'
-        ),
-
-        priority_code as (
-          select encounter_id,
-                 string_response[1] as priority_code
-            from questionnaire_responses
-          where "linkId" = 'priority_code'
-        ),
-
-        vaccine as (
-          select encounter_id,
-                 boolean_response as vaccine,
-                 date_response[1] as vaccine_date
-            from questionnaire_responses
-          where "linkId" = 'vaccine'
-        ),
-
-        race as (
-          select encounter_id,
-                 case
-                    when array_length(code_response, 1) is null then string_response
-                    else code_response
-                 end as race
-            from questionnaire_responses
-          where "linkId" = 'race'
-        ),
-
-        insurance as (
-          select encounter_id,
-                 string_response as insurance
-            from questionnaire_responses
-          where "linkId" = 'insurance'
-        ),
-
-        ethnicity as (
-          select encounter_id,
-                 boolean_response as hispanic_or_latino
-            from questionnaire_responses
-          where "linkId" = 'ethnicity'
-        ),
-
-        travel_countries as (
-          select encounter_id,
-                 bool_or(boolean_response) as travel_countries
-            from questionnaire_responses
-          where "linkId" in ('travel_countries','travel_countries_phs')
-          group by encounter_id
-        ),
-
-        countries as (
-          select encounter_id,
-                 string_response as countries
-            from questionnaire_responses
-          where "linkId" = 'country'
-        ),
-
-        travel_states as (
-          select encounter_id,
-                 bool_or(boolean_response) as travel_states
-            from questionnaire_responses
-          where "linkId" in ('travel_states', 'travel_states_phs')
-          group by encounter_id
-        ),
-
-        states as (
-          select encounter_id,
-                 string_response as states
-            from questionnaire_responses
-          where "linkId" = 'state'
-        ),
-
-        pregnant as (
-          select encounter_id,
-                 boolean_response as pregnant
-            from questionnaire_responses
-          where "linkId" = 'pregnant_yesno'
-        ),
-
-        income as (
-          select encounter_id,
-                 string_response[1] as income
-            from questionnaire_responses
-          where "linkId" = 'income'
-        ),
-
-        housing_type as (
-          select encounter_id,
-                 string_response[1] as housing_type
-            from questionnaire_responses
-          where "linkId" = 'housing_type'
-        ),
-
-        house_members as (
-          select encounter_id,
-                 string_response[1] as house_members
-            from questionnaire_responses
-          where "linkId" = 'house_members'
-        ),
-
-        clinical_care as (
-          select encounter_id,
-                 string_response as clinical_care
-            from questionnaire_responses
-          where "linkId" = 'doctor_3e8fae'
-        ),
-
-        hospital_where as (
-          select encounter_id,
-                 string_response[1] as hospital_where
-            from questionnaire_responses
-          where "linkId" = 'hospital_where'
-        ),
-
-        hospital_visit_type as (
-          select encounter_id,
-                 string_response[1] as hospital_visit_type
-            from questionnaire_responses
-          where "linkId" = 'hospital_ed'
-        ),
-
-        hospital_arrive as (
-          select encounter_id,
-                 date_response[1] as hospital_arrive
-            from questionnaire_responses
-          where "linkId" = 'hospital_arrive'
-        ),
-
-        hospital_leave as (
-          select encounter_id,
-                 date_response[1] as hospital_leave
-            from questionnaire_responses
-          where "linkId" = 'hospital_leave'
-        ),
-
-        smoking as (
-          select encounter_id,
-                 string_response as smoking
-            from questionnaire_responses
-          where "linkId" = 'smoke_9a005a'
-        ),
-
-        chronic_illness as (
-          select encounter_id,
-                 string_response as chronic_illness
-            from questionnaire_responses
-          where "linkId" = 'chronic_illness'
-        ),
-
-        overall_risk_health as (
-          select encounter_id,
-                 string_response as overall_risk_health
-            from questionnaire_responses
-          where "linkId" = 'overall_risk_health'
-        ),
-
-        overall_risk_setting as (
-          select encounter_id,
-                 string_response as overall_risk_setting
-            from questionnaire_responses
-          where "linkId" = 'overall_risk_setting'
-        ),
-
-        long_term_type as (
-          select encounter_id,
-                 string_response as long_term_type
-            from questionnaire_responses
-          where "linkId" = 'longterm_type'
-        ),
-
-        ace as (
-          select encounter_id,
-                 string_response as ace_inhibitor
-            from questionnaire_responses
-          where "linkId" = 'ace'
-        )
-
-    select
-        encounter_id,
-        scan_study_arm,
-        priority_code,
-        symptoms,
-        symptom_onset,
-        symptoms_2,
-        symptom_onset_2,
-        vaccine,
-        vaccine_date,
-        race,
-        insurance,
-        hispanic_or_latino,
-        travel_countries,
-        countries,
-        travel_states,
-        states,
-        pregnant,
-        income,
-        housing_type,
-        house_members,
-        clinical_care,
-        hospital_where,
-        hospital_visit_type,
-        hospital_arrive,
-        hospital_leave,
-        smoking,
-        chronic_illness,
-        overall_risk_health,
-        overall_risk_setting,
-        long_term_type,
-        ace_inhibitor
-
-      from warehouse.encounter
-      left join scan_study_arm using (encounter_id)
-      left join priority_code using (encounter_id)
-      left join symptoms using (encounter_id)
-      left join symptoms_2 using (encounter_id)
-      left join vaccine using (encounter_id)
-      left join race using (encounter_id)
-      left join insurance using (encounter_id)
-      left join ethnicity using (encounter_id)
-      left join travel_countries using (encounter_id)
-      left join countries using (encounter_id)
-      left join travel_states using (encounter_id)
-      left join states using (encounter_id)
-      left join pregnant using (encounter_id)
-      left join income using (encounter_id)
-      left join housing_type using (encounter_id)
-      left join house_members using (encounter_id)
-      left join clinical_care using (encounter_id)
-      left join hospital_where using (encounter_id)
-      left join hospital_visit_type using (encounter_id)
-      left join hospital_arrive using (encounter_id)
-      left join hospital_leave using (encounter_id)
-      left join smoking using (encounter_id)
-      left join chronic_illness using (encounter_id)
-      left join overall_risk_health using (encounter_id)
-      left join overall_risk_setting using (encounter_id)
-      left join long_term_type using (encounter_id)
-      left join ace using (encounter_id)
-;
-
-comment on view shipping.fhir_encounter_details_v2 is
-  'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
-
-revoke all
-    on shipping.fhir_encounter_details_v2
-  from "incidence-modeler";
-
-grant select
-   on shipping.fhir_encounter_details_v2
-   to "incidence-modeler";
-
-
-drop view shipping.hcov19_observation_v1;
 create or replace view shipping.hcov19_observation_v1 as
 
     with hcov19_presence_absence_bbi as (
@@ -1261,6 +987,859 @@ comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
 
+create or replace view shipping.scan_encounters_v1 as
+
+    select
+        encounter_id,
+        scan_study_arm,
+        priority_code,
+
+        encountered,
+        to_char(encountered, 'IYYY-"W"IW') as encountered_week,
+
+        site.identifier as site,
+        site.details ->> 'type' as site_type,
+
+        individual.identifier as individual,
+        individual.sex,
+
+        age_in_years(age) as age,
+
+        age_bin_fine_v2.range as age_range_fine,
+        age_in_years(lower(age_bin_fine_v2.range)) as age_range_fine_lower,
+        age_in_years(upper(age_bin_fine_v2.range)) as age_range_fine_upper,
+
+        age_bin_coarse_v2.range as age_range_coarse,
+        age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
+        age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
+
+        location.hierarchy -> 'puma' as puma,
+
+        symptoms,
+        symptom_onset,
+        symptoms_2,
+        symptom_onset_2,
+        race,
+        hispanic_or_latino,
+        travel_countries,
+        countries,
+        travel_states,
+        states,
+        pregnant,
+        income,
+        housing_type,
+        house_members,
+        clinical_care,
+        hospital_where,
+        hospital_visit_type,
+        hospital_arrive,
+        hospital_leave,
+        smoking,
+        chronic_illness,
+        overall_risk_health,
+        overall_risk_setting,
+        long_term_type,
+        ace_inhibitor,
+
+        sample.identifier as sample,
+        sample.details @> '{"note": "never-tested"}' as never_tested
+
+    from warehouse.encounter
+    join warehouse.site using (site_id)
+    join warehouse.individual using (individual_id)
+    left join warehouse.primary_encounter_location using (encounter_id)
+    left join warehouse.location using (location_id)
+    left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
+    left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
+    left join shipping.fhir_encounter_details_v2 using (encounter_id)
+    left join warehouse.sample using (encounter_id)
+    where site.identifier = 'SCAN'
+    -- Filter out follow up encounters
+    and not encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
+;
+
+comment on view shipping.scan_encounters_v1 is
+  'A view of encounter data that are from the SCAN project';
+
+revoke all
+    on shipping.scan_encounters_v1
+  from "incidence-modeler";
+
+grant select
+   on shipping.scan_encounters_v1
+   to "incidence-modeler";
+
+
+create or replace view shipping.scan_follow_up_encounters_v1 as
+
+    with
+        fu_illness as (
+          select encounter_id,
+                 boolean_response as fu_illness
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_illness'
+        ),
+
+        fu_change as (
+          select encounter_id,
+                 boolean_response as fu_change
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_change'
+        ),
+
+        fu_fever as (
+          select encounter_id,
+                 string_response[1] as fu_feelingFeverish
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_fever'
+        ),
+
+        fu_headache as (
+          select encounter_id,
+                 string_response[1] as fu_headaches
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_headache'
+        ),
+
+        fu_cough as (
+          select encounter_id,
+                 string_response[1] as fu_cough
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_cough'
+        ),
+
+        fu_chills as (
+          select encounter_id,
+                 string_response[1] as fu_chillsOrShivering
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_chills'
+        ),
+
+        fu_sweat as (
+          select encounter_id,
+                 string_response[1] as fu_sweats
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_sweat'
+        ),
+
+        fu_throat as (
+          select encounter_id,
+                 string_response[1] as fu_soreThroat
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_throat'
+        ),
+
+        fu_nausea as (
+          select encounter_id,
+                 string_response[1] as fu_nauseaOrVomiting
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_nausea'
+        ),
+
+        fu_nose as (
+          select encounter_id,
+                 string_response[1] as fu_runnyOrStuffyNose
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_nose'
+        ),
+
+        fu_tired as (
+          select encounter_id,
+                 string_response[1] as fu_fatigue
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_tired'
+        ),
+
+        fu_ache as (
+          select encounter_id,
+                 string_response[1] as fu_muscleOrBodyAches
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_ache'
+        ),
+
+        fu_breathe as (
+          select encounter_id,
+                 string_response[1] as fu_increasedTroubleBreathing
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_breathe'
+        ),
+
+        fu_diarrhea as (
+          select encounter_id,
+                 string_response[1] as fu_diarrhea
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_diarrhea'
+        ),
+
+        fu_rash as (
+          select encounter_id,
+                 string_response[1] as fu_rash
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_rash'
+        ),
+
+        fu_ear as (
+          select encounter_id,
+                 string_response[1] as fu_earPainOrDischarge
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_ear'
+        ),
+
+        fu_eye as (
+          select encounter_id,
+                 string_response[1] as fu_eyePain
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_eye'
+        ),
+
+        fu_smell_taste as (
+          select encounter_id,
+                 string_response[1] as fu_lossOfSmellOrTaste
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_smell_taste'
+        ),
+
+        fu_feel_normal as (
+          select encounter_id,
+                 boolean_response as fu_feel_normal
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_feel_normal'
+        ),
+
+        fu_symptom_duration as (
+          select encounter_id,
+                 date_response[1] as fu_symptom_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_symptom_duration'
+        ),
+
+        fu_care as (
+          select encounter_id,
+                 string_response as fu_care
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_care'
+        ),
+
+        fu_date_care as (
+          select encounter_id,
+                 date_response[1] as fu_date_care
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_date_care'
+        ),
+
+        fu_hospital_where as (
+          select encounter_id,
+                 string_response[1] as fu_hospital_where
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_hospital_where'
+        ),
+
+        fu_hospital_ed as (
+          select encounter_id,
+                 string_response[1] as fu_hospital_ed
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_hospital_ed'
+        ),
+
+        fu_work_school as (
+          select encounter_id,
+                 string_response[1] as fu_work_school
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_work_school'
+        ),
+
+        fu_activities as (
+          select encounter_id,
+                 string_response[1] as fu_activities
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_activities'
+        ),
+
+        fu_which_activities as (
+          select encounter_id,
+                 string_response as fu_which_activities
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_which_activites'
+        ),
+
+        fu_missed_activities as (
+          select encounter_id,
+                 string_response as fu_missed_activities
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_missed_activites'
+        ),
+
+        fu_test_result as (
+          select encounter_id,
+                 string_response[1] as fu_test_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_test_result'
+        ),
+
+        fu_behaviors_no as (
+          select encounter_id,
+                 string_response as fu_behaviors_no
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_behaviors_no'
+        ),
+
+        fu_behaviors_inconclusive as (
+          select encounter_id,
+                 string_response as fu_behaviors_inconclusive
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_behaviors_inconclusive'
+        ),
+
+        fu_behaviors as (
+          select encounter_id,
+                 string_response as fu_behaviors
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_behaviors'
+        ),
+
+        fu_household_sick as (
+          select encounter_id,
+                 boolean_response as fu_household_sick
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_household_sick'
+        ),
+
+        fu_number_sick as (
+          select encounter_id,
+                 integer_response[1] as fu_number_sick
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_number_sick'
+        ),
+
+        fu_1_date as (
+          select encounter_id,
+                 date_response[1] as household_1_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_date'
+        ),
+
+        fu_1_symptoms as (
+          select encounter_id,
+                 string_response as household_1_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_symptoms'
+        ),
+
+        fu_1_test as (
+          select encounter_id,
+                 string_response[1] as household_1_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_test'
+        ),
+
+        fu_1_result as (
+          select encounter_id,
+                 string_response[1] as household_1_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_1_result'
+        ),
+
+        fu_2_date as (
+          select encounter_id,
+                 date_response[1] as household_2_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_date'
+        ),
+
+        fu_2_symptoms as (
+          select encounter_id,
+                 string_response as household_2_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_symptoms'
+        ),
+
+        fu_2_test as (
+          select encounter_id,
+                 string_response[1] as household_2_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_test'
+        ),
+
+        fu_2_result as (
+          select encounter_id,
+                 string_response[1] as household_2_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_2_result'
+        ),
+
+        fu_3_date as (
+          select encounter_id,
+                 date_response[1] as household_3_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_date'
+        ),
+
+        fu_3_symptoms as (
+          select encounter_id,
+                 string_response as household_3_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_symptoms'
+        ),
+
+        fu_3_test as (
+          select encounter_id,
+                 string_response[1] as household_3_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_test'
+        ),
+
+        fu_3_result as (
+          select encounter_id,
+                 string_response[1] as household_3_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_3_result'
+        ),
+
+        fu_4_date as (
+          select encounter_id,
+                 date_response[1] as household_4_illness_onset
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_date'
+        ),
+
+        fu_4_symptoms as (
+          select encounter_id,
+                 string_response as household_4_symptoms
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_symptoms'
+        ),
+
+        fu_4_test as (
+          select encounter_id,
+                 string_response[1] as household_4_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_test'
+        ),
+
+        fu_4_result as (
+          select encounter_id,
+                 string_response[1] as household_4_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_4_result'
+        ),
+
+        fu_healthy_test as (
+          select encounter_id,
+                 string_response[1] as household_healthy_tested
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_healthy_test'
+        ),
+
+        fu_healthy_result as (
+          select encounter_id,
+                 string_response[1] as household_healthy_result
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'fu_healthy_result'
+        )
+
+    select
+        initial.encounter_id as encounter_id,
+        encounter.encounter_id as fu_encounter_id,
+        encounter.encountered as fu_encountered,
+        individual.identifier as fu_individual,
+
+        fu_illness,
+        fu_change,
+        fu_feelingFeverish,
+        fu_headaches,
+        fu_cough,
+        fu_chillsOrShivering,
+        fu_sweats,
+        fu_soreThroat,
+        fu_nauseaOrVomiting,
+        fu_runnyOrStuffyNose,
+        fu_fatigue,
+        fu_muscleOrBodyAches,
+        fu_increasedTroubleBreathing,
+        fu_diarrhea,
+        fu_rash,
+        fu_earPainOrDischarge,
+        fu_eyePain,
+        fu_lossOfSmellOrTaste,
+        fu_feel_normal,
+        fu_symptom_onset,
+        fu_care,
+        fu_date_care,
+        fu_hospital_where,
+        fu_hospital_ed,
+        fu_work_school,
+        fu_activities,
+        fu_which_activities,
+        fu_missed_activities,
+        fu_test_result,
+        fu_behaviors_no,
+        fu_behaviors_inconclusive,
+        fu_behaviors,
+        fu_household_sick,
+        fu_number_sick,
+        household_1_illness_onset,
+        household_1_symptoms,
+        household_1_tested,
+        household_1_result,
+        household_2_illness_onset,
+        household_2_symptoms,
+        household_2_tested,
+        household_2_result,
+        household_3_illness_onset,
+        household_3_symptoms,
+        household_3_tested,
+        household_3_result,
+        household_4_illness_onset,
+        household_4_symptoms,
+        household_4_tested,
+        household_4_result,
+        household_healthy_tested,
+        household_healthy_result
+
+      from warehouse.encounter
+      join warehouse.site using (site_id)
+      join warehouse.individual using (individual_id)
+      left join fu_illness using (encounter_id)
+      left join fu_change using (encounter_id)
+      left join fu_fever using (encounter_id)
+      left join fu_headache using (encounter_id)
+      left join fu_cough using (encounter_id)
+      left join fu_chills using (encounter_id)
+      left join fu_sweat using (encounter_id)
+      left join fu_throat using (encounter_id)
+      left join fu_nausea using (encounter_id)
+      left join fu_nose using (encounter_id)
+      left join fu_tired using (encounter_id)
+      left join fu_ache using (encounter_id)
+      left join fu_breathe using (encounter_id)
+      left join fu_diarrhea using (encounter_id)
+      left join fu_rash using (encounter_id)
+      left join fu_ear using (encounter_id)
+      left join fu_eye using (encounter_id)
+      left join fu_smell_taste using (encounter_id)
+      left join fu_feel_normal using (encounter_id)
+      left join fu_symptom_duration using (encounter_id)
+      left join fu_care using (encounter_id)
+      left join fu_date_care using (encounter_id)
+      left join fu_hospital_where using (encounter_id)
+      left join fu_hospital_ed using (encounter_id)
+      left join fu_work_school using (encounter_id)
+      left join fu_activities using (encounter_id)
+      left join fu_which_activities using (encounter_id)
+      left join fu_missed_activities using (encounter_id)
+      left join fu_test_result using (encounter_id)
+      left join fu_behaviors_no using (encounter_id)
+      left join fu_behaviors_inconclusive using (encounter_id)
+      left join fu_behaviors using (encounter_id)
+      left join fu_household_sick using (encounter_id)
+      left join fu_number_sick using (encounter_id)
+      left join fu_1_date using (encounter_id)
+      left join fu_1_symptoms using (encounter_id)
+      left join fu_1_test using (encounter_id)
+      left join fu_1_result using (encounter_id)
+      left join fu_2_date using (encounter_id)
+      left join fu_2_symptoms using (encounter_id)
+      left join fu_2_test using (encounter_id)
+      left join fu_2_result using (encounter_id)
+      left join fu_3_date using (encounter_id)
+      left join fu_3_symptoms using (encounter_id)
+      left join fu_3_test using (encounter_id)
+      left join fu_3_result using (encounter_id)
+      left join fu_4_date using (encounter_id)
+      left join fu_4_symptoms using (encounter_id)
+      left join fu_4_test using (encounter_id)
+      left join fu_4_result using (encounter_id)
+      left join fu_healthy_test using (encounter_id)
+      left join fu_healthy_result using (encounter_id)
+      left join warehouse.encounter initial on initial.identifier = encounter.details ->> 'part_of'
+
+    where site.identifier = 'SCAN'
+    and encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
+;
+
+comment on view shipping.scan_follow_up_encounters_v1 is
+  'A view of follow-up encounter date that are from the SCAN project';
+
+revoke all
+    on shipping.scan_follow_up_encounters_v1
+  from "incidence-modeler";
+
+grant select
+    on shipping.scan_follow_up_encounters_v1
+  to "incidence-modeler";
+
+
+/******************** VIEWS FOR GENOMIC DATA ********************/
+create or replace view shipping.flu_assembly_jobs_v1 as
+
+    select sample.identifier as sfs_uuid,
+           sample.details ->> 'nwgc_id' as nwgc_id,
+           sequence_read_set.urls,
+           target.identifier as target,
+           o1.lineage as target_linked_organism,
+           coalesce(o2.lineage, o1.lineage) as assembly_job_organism,
+           sequence_read_set.details
+
+      from warehouse.sequence_read_set
+      join warehouse.sample using (sample_id)
+      join warehouse.presence_absence using (sample_id)
+      join warehouse.target using (target_id)
+      join warehouse.organism o1 using (organism_id)
+      -- Reason for o2 join: For pan-subtype targets like Flu_A_pan,
+      -- we want to spread out to the more specific lineages for assembly jobs.
+      -- Since this view is Flu specific, we are hard-coding it to spread just one level down.
+      left join warehouse.organism o2 on (o2.lineage ~ concat(o1.lineage::text, '.*{1}')::lquery)
+
+    where o1.lineage ~ 'Influenza.*'
+    and present
+    -- The sequence read set details currently holds the state of assembly jobs for each lineage.
+    -- So if null, then definitely no jobs have been completed.
+    -- If not null, then check if the assembly job organism matches any key in the sequence read set details.
+    and (sequence_read_set.details is null
+         or not sequence_read_set.details ? coalesce(o2.lineage, o1.lineage)::text)
+
+    order by sample.details ->> 'nwgc_id';
+
+comment on view shipping.flu_assembly_jobs_v1 is
+    'View of flu jobs that still need to be run through the assembly pipeline';
+
+-- Does not need HCoV-19 visibility and should filter it out
+-- anyway, but be safe.
+alter view shipping.flu_assembly_jobs_v1 owner to "view-owner";
+
+
+create or replace view shipping.genomic_sequences_for_augur_build_v1 as
+
+    select distinct on (sample.identifier, organism.lineage, segment)
+           sample.identifier as sample,
+           organism.lineage as organism,
+           genomic_sequence.segment,
+           round(((length(replace(seq, 'N', '')) * 1.0 / length(seq))), 4) as coverage,
+           genomic_sequence.seq
+      from warehouse.sample
+      join warehouse.consensus_genome using (sample_id)
+      join warehouse.genomic_sequence using (consensus_genome_id)
+      join warehouse.organism using (organism_id)
+
+      order by sample.identifier, organism.lineage, segment, coverage desc;
+
+comment on view shipping.genomic_sequences_for_augur_build_v1 is
+    'View of genomic sequences for SFS augur build';
+
+
+create or replace view shipping.metadata_for_augur_build_v2 as
+
+    select sample as strain,
+            cast(encountered as date) as date,
+            'seattle' as region,
+            -- XXX TODO: Change to PUMA and neighborhoods
+            residence_census_tract as location,
+            'Seattle Flu Study' as authors,
+            age_range_coarse,
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
+            end as age_category,
+            case
+                when site_type in ('childrensHospital', 'childrensClinic', 'childrensHospital', 'clinic', 'hospital', 'retrospective') then 'clinical'
+                when site_type in ('childcare' , 'collegeCampus' , 'homelessShelter' , 'port', 'publicSpace', 'workplace') then 'community'
+            end as site_category,
+            residence_census_tract,
+            flu_shot,
+            sex
+
+      from shipping.incidence_model_observation_v3
+      join warehouse.encounter on encounter.identifier = incidence_model_observation_v3.encounter;
+
+comment on view shipping.metadata_for_augur_build_v2 is
+		'View of metadata necessary for SFS augur build';
+
+
+create or replace view shipping.metadata_for_augur_build_v3 as
+
+    select sample.identifier as strain,
+            coalesce(
+              encountered_date,
+              case
+                when date_or_null(sample.details->>'date') <= current_date
+                  then date_or_null(sample.details->>'date')
+              end
+            ) as date,
+            'seattle' as region,
+            -- XXX TODO: Change to PUMA and neighborhoods
+            residence_census_tract as location,
+            'Seattle Flu Study' as authors,
+            age_range_coarse,
+            case age_range_coarse <@ '[0 mon, 18 years)'::intervalrange
+                when 't' then 'child'
+                when 'f' then 'adult'
+            end as age_category,
+            warehouse.site.details->>'category' as site_category,
+            residence_census_tract,
+            flu_shot,
+            sex
+
+      from warehouse.sample
+      left join shipping.incidence_model_observation_v2 on sample.identifier = incidence_model_observation_v2.sample
+      left join warehouse.site on site.identifier = incidence_model_observation_v2.site
+
+     where sample.identifier is not null;
+
+comment on view shipping.metadata_for_augur_build_v3 is
+		'View of metadata necessary for SFS augur build';
+
+
+/******************** VIEWS FOR REPORTING RESULTS ********************/
+create or replace view shipping.reportable_condition_v1 as
+
+    with reportable as (
+        select array_agg(lineage) as lineages
+        from warehouse.organism
+        where details @> '{"report_to_public_health":true}'
+    )
+
+    select
+        presence_absence.presence_absence_id,
+        organism.lineage::text,
+        sample.identifier as sample,
+        sample_id.barcode as sample_barcode,
+        collection_id.barcode as collection_barcode,
+        sample.details ->> 'clia_barcode' as clia_barcode,
+        site.identifier as site,
+        presence_absence.details->>'reporting_log' as reporting_log,
+        sample.details->'_provenance'->>'workbook' as workbook,
+        sample.details->'_provenance'->>'sheet' as sheet,
+        sample.details->>'sample_origin' as sample_origin,
+        sample.details->>'swab_site' as swab_site,
+        encounter.details ->> 'language' as language,
+        age_in_years(encounter.age) as age,
+        case
+          when present then 'positive'
+          when present is null then 'inconclusive'
+        end as result
+
+    from warehouse.presence_absence
+    join warehouse.target using (target_id)
+    join warehouse.organism using (organism_id)
+    join warehouse.sample using (sample_id)
+    join warehouse.identifier sample_id on (sample.identifier = cast(sample_id.uuid as text))
+    join warehouse.identifier collection_id on (sample.collection_identifier = cast(collection_id.uuid as text))
+    join warehouse.identifier_set collection_id_set on (collection_id.identifier_set_id = collection_id_set.identifier_set_id)
+    left join warehouse.encounter using (encounter_id)
+    left join warehouse.site using (site_id)
+
+    where organism.lineage <@ (table reportable)
+    and (present or present is null)
+     -- Only report on SCAN samples and SFS prospective samples
+    -- We don't have to worry about SFS consent date because the
+    -- clinical team checks this before they contact the participant.
+    and collection_id_set.name in ('collections-scan',
+                                   'collections-household-observation',
+                                   'collections-household-intervention',
+                                   'collections-swab&send',
+                                   'collections-kiosks',
+                                   'collections-self-test',
+                                   'collections-swab&send-asymptomatic',
+                                   'collections-kiosks-asymptomatic',
+                                   'collections-environmental')
+    and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
+    order by encountered desc;
+
+/* The shipping.reportable_condition_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by
+ * reportable-condition-notifier.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.reportable_condition_v1 from reporter;
+
+grant select
+   on shipping.reportable_condition_v1
+   to "reportable-condition-notifier";
+
+
+create or replace view shipping.return_results_v1 as
+
+    select barcode,
+           case
+             when sample_id is null then 'notReceived'
+             when sample_id is not null and count(present) = 0 then 'processing'
+             when count(present) > 0 then 'complete'
+           end as status,
+           -- We only return the top level organisms for results so we want to omit subtypes
+           array_agg(distinct subpath(organism, 0, 1)::text)
+            filter (where present and organism is not null)  as organisms_present,
+           array_agg(distinct subpath(organism, 0, 1)::text)
+            filter (where not present and organism is not null) as organisms_absent
+
+      from warehouse.identifier
+      join warehouse.identifier_set using (identifier_set_id)
+      left join warehouse.sample on uuid::text = sample.collection_identifier
+      left join shipping.presence_absence_result_v1 on sample.identifier = presence_absence_result_v1.sample
+
+    --These are all past and current collection identifier sets not including self-test
+    where identifier_set.name in ('collections-seattleflu.org',
+                                  'collections-kiosks',
+                                  'collections-environmental',
+                                  'collections-swab&send',
+                                  'collections-household-observation',
+                                  'collections-household-intervention') and
+          (organism is null or
+          -- We only return results for these organisms, so omit all other presence/absence results
+          organism <@ '{"Adenovirus", "Human_coronavirus", "Enterovirus", "Influenza", "Human_metapneumovirus", "Human_parainfluenza", "Rhinovirus", "RSV"}'::ltree[])
+    group by barcode, sample_id
+    order by barcode;
+
+comment on view shipping.return_results_v1 is
+    'View of barcodes and presence/absence results for return of results on website';
+
+
+create or replace view shipping.return_results_v2 as
+
+    select barcode,
+           case
+             when sample_id is null then 'notReceived'
+             when sample_id is not null and count(present) = 0 then 'processing'
+             when count(present) > 0 then 'complete'
+           end as status,
+           array_agg(distinct organism::text)
+            filter (where present and organism is not null)  as organisms_present,
+           array_agg(distinct organism::text)
+            filter (where not present and organism is not null) as organisms_absent
+
+      from warehouse.identifier
+      join warehouse.identifier_set using (identifier_set_id)
+      left join warehouse.sample on uuid::text = sample.collection_identifier
+      left join warehouse.encounter using (encounter_id)
+      left join shipping.presence_absence_result_v2 on sample.identifier = presence_absence_result_v2.sample
+
+    --These are all past and current collection identifier sets not including self-test
+    where identifier_set.name in ('collections-swab&send', 'collections-self-test')
+      and (organism is null or
+          -- We only return results for COVID-19, so omit all other presence/absence results
+          organism <@ '{"Human_coronavirus.2019"}'::ltree[])
+          -- We only want results collected after Izzy updated the REDCap consent form in swab & send.
+          -- This filter-by timestamp comes from REDCap
+      and coalesce(encountered, date_or_null(warehouse.sample.details->>'date')) > '2020-03-04 08:35:00-8'::timestamp with time zone
+    group by barcode, sample_id
+    order by barcode;
+
+comment on view shipping.return_results_v2 is
+    'Version 2 of view of barcodes and presence/absence results for return of results on website';
+
+
 create or replace view shipping.scan_return_results_v1 as
 
     with hcov19_presence_absence as (
@@ -1351,93 +1930,7 @@ grant select
     on shipping.scan_return_results_v1
     to "hcov19-visibility";
 
-
 comment on view shipping.scan_return_results_v1 is
   'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
-
-
-create or replace view shipping.scan_encounters_v1 as
-
-    select
-        encounter_id,
-        scan_study_arm,
-        priority_code,
-
-        encountered,
-        to_char(encountered, 'IYYY-"W"IW') as encountered_week,
-
-        site.identifier as site,
-        site.details ->> 'type' as site_type,
-
-        individual.identifier as individual,
-        individual.sex,
-
-        age_in_years(age) as age,
-
-        age_bin_fine_v2.range as age_range_fine,
-        age_in_years(lower(age_bin_fine_v2.range)) as age_range_fine_lower,
-        age_in_years(upper(age_bin_fine_v2.range)) as age_range_fine_upper,
-
-        age_bin_coarse_v2.range as age_range_coarse,
-        age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
-        age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
-
-        location.hierarchy -> 'puma' as puma,
-
-        symptoms,
-        symptom_onset,
-        symptoms_2,
-        symptom_onset_2,
-        race,
-        hispanic_or_latino,
-        travel_countries,
-        countries,
-        travel_states,
-        states,
-        pregnant,
-        income,
-        housing_type,
-        house_members,
-        clinical_care,
-        hospital_where,
-        hospital_visit_type,
-        hospital_arrive,
-        hospital_leave,
-        smoking,
-        chronic_illness,
-        overall_risk_health,
-        overall_risk_setting,
-        long_term_type,
-        ace_inhibitor,
-
-        sample.identifier as sample,
-        sample.details @> '{"note": "never-tested"}' as never_tested
-
-    from warehouse.encounter
-    join warehouse.site using (site_id)
-    join warehouse.individual using (individual_id)
-    left join warehouse.primary_encounter_location using (encounter_id)
-    left join warehouse.location using (location_id)
-    left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
-    left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
-    left join shipping.fhir_encounter_details_v2 using (encounter_id)
-    left join warehouse.sample using (encounter_id)
-    where site.identifier = 'SCAN'
-;
-
-comment on view shipping.scan_encounters_v1 is
-  'A view of encounter data that are from the SCAN project';
-
-revoke all
-    on shipping.scan_encounters_v1
-  from "incidence-modeler";
-
-grant select
-   on shipping.scan_encounters_v1
-   to "incidence-modeler";
-
-
-drop view shipping.scan_follow_up_encounters_v1;
-drop materialized view shipping.fhir_questionnaire_responses_v1;
 
 commit;
