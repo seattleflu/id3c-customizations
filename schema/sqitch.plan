@@ -183,3 +183,4 @@ shipping/views [shipping/views@2020-05-08] 2020-05-08T22:40:06Z Jover Lee <jover
 @2020-05-13 2020-05-13T21:44:16Z Jover Lee <joverlee@fredhutch.org> # Schema as of 13 May 2020
 
 shipping/views [shipping/views@2020-05-13] 2020-06-04T23:50:52Z Jover Lee <joverlee@fredhutch.org> # Add date cutoff to scan_return_results_v1
+@2020-06-06 2020-06-05T01:39:28Z Jover Lee <joverlee@fredhutch.org> # Schema as of 04 June 2020
