@@ -306,6 +306,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'ltc: disch/transferred to long-term care hosp'         : 'long',
         'disch/trans to court/law enforcement'                  : 'oth',
         'disch/trans : disch/trans to court/law enforcement'    : 'oth',
+        'disch/trans/planned readm to court/law enforcement'    : 'oth',
         'other institution - not defined elsewhere'             : 'oth',
         'transfer to hospital'                                  : 'other-hcf',
         'transfer to : transfer to hospital'                    : 'other-hcf',
@@ -506,6 +507,7 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
         'Duplicate request'                 : None,
         'Inconclusive.'                     : None, # XXX: Ingest this someday as present = null?
         'Indeterminate'                     : None, # XXX: Ingest this someday as present = null?
+        'PENDING'                           : None,
         'Test not applicable'               : None,
         'Wrong test ordered by practitioner': None,
     }
