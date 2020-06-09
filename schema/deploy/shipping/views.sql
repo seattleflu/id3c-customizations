@@ -1887,8 +1887,8 @@ create or replace view shipping.scan_return_results_v1 as
       where
         identifier_set.name in('collections-scan')
         -- Add a date cutoff so that we only return results to participants
-        -- that are in the SCAN research study.
-        and encountered::date >= '2020-06-08'
+        -- that are in the SCAN research study (launch date: 2020-06-10)
+        and encountered >= '2020-06-10 00:00:00 US/Pacific'
       order by encountered, barcode
     )
 
