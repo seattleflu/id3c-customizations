@@ -26,6 +26,7 @@ LOG = logging.getLogger(__name__)
 class ScanProject(NamedTuple):
     id: int
     lang: str
+    type: Optional[str] = None
 
 PROJECTS = [
     ScanProject(20759, "en"),
@@ -39,6 +40,7 @@ PROJECTS = [
     ScanProject(21953, "tl"),
     ScanProject(21950, "am"),
     ScanProject(21951, "ti"),
+    ScanProject(22461, "en", "irb"),
 
 ]
 
@@ -68,14 +70,22 @@ def command_for_each_project(function):
     Used for side-effects only; the original *function* is unmodified.
     """
     for project in PROJECTS:
+        help_message = "Process REDCap DETs for SCAN "
+        if project.type:
+            command_name = f"scan-{project.type}-{project.lang}"
+            help_message += f"{project.type.upper()} ({project.lang})"
+        else:
+            command_name = f"scan-{project.lang}"
+            help_message += f"({project.lang})"
+
         redcap_det.command_for_project(
-            f"scan-{project.lang}",
+            name = command_name,
             redcap_url = REDCAP_URL,
             project_id = project.id,
             required_instruments = REQUIRED_INSTRUMENTS,
             raw_coded_values = True,
             revision = REVISION,
-            help = f"Process REDCap DETs for SCAN ({project.lang})")(function)
+            help = help_message)(function)
 
     return function
 
