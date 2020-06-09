@@ -812,7 +812,8 @@ def create_follow_up_questionnaire_response(record: dict, patient_reference: dic
         'fu_illness',
         'fu_change',
         'fu_feel_normal',
-        'fu_household_sick'
+        'fu_household_sick',
+        'result_changes',
     ]
 
     integer_questions = [
