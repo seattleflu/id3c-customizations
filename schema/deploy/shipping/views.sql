@@ -1436,6 +1436,13 @@ create or replace view shipping.scan_follow_up_encounters_v1 as
           where link_id = 'fu_test_result'
         ),
 
+        result_changes as (
+          select encounter_id,
+                 boolean_response as result_changes
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'result_changes'
+        ),
+
         fu_behaviors_no as (
           select encounter_id,
                  string_response as fu_behaviors_no
@@ -1632,6 +1639,7 @@ create or replace view shipping.scan_follow_up_encounters_v1 as
         fu_which_activities,
         fu_missed_activities,
         fu_test_result,
+        result_changes,
         fu_behaviors_no,
         fu_behaviors_inconclusive,
         fu_behaviors,
@@ -1688,6 +1696,7 @@ create or replace view shipping.scan_follow_up_encounters_v1 as
       left join fu_which_activities using (encounter_id)
       left join fu_missed_activities using (encounter_id)
       left join fu_test_result using (encounter_id)
+      left join result_changes using (encounter_id)
       left join fu_behaviors_no using (encounter_id)
       left join fu_behaviors_inconclusive using (encounter_id)
       left join fu_behaviors using (encounter_id)
