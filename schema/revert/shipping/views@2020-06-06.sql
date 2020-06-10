@@ -1626,14 +1626,6 @@ create or replace view shipping.genomic_sequences_for_augur_build_v1 as
 comment on view shipping.genomic_sequences_for_augur_build_v1 is
     'View of genomic sequences for SFS augur build';
 
-revoke all
-    on shipping.genomic_sequences_for_augur_build_v1
-  from "augur-build-exporter";
-
-grant select
-    on shipping.genomic_sequences_for_augur_build_v1
-  to "augur-build-exporter";
-
 
 create or replace view shipping.metadata_for_augur_build_v2 as
 
@@ -1661,14 +1653,6 @@ create or replace view shipping.metadata_for_augur_build_v2 as
 
 comment on view shipping.metadata_for_augur_build_v2 is
 		'View of metadata necessary for SFS augur build';
-
-revoke all
-    on shipping.metadata_for_augur_build_v2
-  from "augur-build-exporter";
-
-grant select
-    on shipping.metadata_for_augur_build_v2
-  to "augur-build-exporter";
 
 
 create or replace view shipping.metadata_for_augur_build_v3 as
@@ -1703,14 +1687,6 @@ create or replace view shipping.metadata_for_augur_build_v3 as
 
 comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
-
-revoke all
-    on shipping.metadata_for_augur_build_v3
-  from "augur-build-exporter";
-
-grant select
-    on shipping.metadata_for_augur_build_v3
-  to "augur-build-exporter";
 
 
 /******************** VIEWS FOR REPORTING RESULTS ********************/
@@ -1910,9 +1886,6 @@ create or replace view shipping.scan_return_results_v1 as
         left join warehouse.encounter using (encounter_id)
       where
         identifier_set.name in('collections-scan')
-        -- Add a date cutoff so that we only return results to participants
-        -- that are in the SCAN research study (launch date: 2020-06-10)
-        and encountered >= '2020-06-10 00:00:00 US/Pacific'
       order by encountered, barcode
     )
 
