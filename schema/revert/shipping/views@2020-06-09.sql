@@ -450,118 +450,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  string_response as ace_inhibitor
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'ace'
-        ),
-
-        website_id as (
-          select encounter_id,
-                 string_response[1] as website_id
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'website_id'
-        ),
-
-        prior_test as (
-          select encounter_id,
-                 boolean_response as prior_test
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'prior_test'
-        ),
-
-        prior_test_positive as (
-          select encounter_id,
-                 string_response as prior_test_positive
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'prior_test_positive'
-        ),
-
-        prior_test_positive_date as (
-          select encounter_id,
-                 date_response[1] as prior_test_positive_date
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'prior_test_positive_date'
-        ),
-
-        prior_test_type as (
-          select encounter_id,
-                 string_response as prior_test_type
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'prior_test_type'
-        ),
-
-        prior_test_number as (
-          select encounter_id,
-                 integer_response[1] as prior_test_number
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'prior_test_number'
-        ),
-
-        prior_test_result as (
-          select encounter_id,
-                 string_response[1] as prior_test_result
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'prior_test_result'
-        ),
-
-        contact as (
-          select encounter_id,
-                 string_response as contact
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'contact'
-        ),
-
-        wash_hands as (
-          select encounter_id,
-                 string_response[1] as wash_hands
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'wash_hands'
-        ),
-
-        clean_surfaces as (
-          select encounter_id,
-                 string_response[1] as clean_surfaces
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'clean_surfaces'
-        ),
-
-        hide_cough as (
-          select encounter_id,
-                 string_response[1] as hide_cough
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'hide_cough'
-        ),
-
-        mask as (
-          select encounter_id,
-                 string_response[1] as mask
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'mask'
-        ),
-
-        distance as (
-          select encounter_id,
-                 string_response[1] as distance
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'distance'
-        ),
-
-        attend_event as (
-          select encounter_id,
-                 string_response[1] as attend_event
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'attend_event'
-        ),
-
-        wfh as (
-          select encounter_id,
-                 string_response[1] as wfh
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'wfh'
-        ),
-
-        industry as (
-          select encounter_id,
-                 string_response as industry
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'industry'
         )
 
     select
@@ -595,23 +483,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
         overall_risk_health,
         overall_risk_setting,
         long_term_type,
-        ace_inhibitor,
-        website_id,
-        prior_test,
-        prior_test_positive,
-        prior_test_positive_date,
-        prior_test_type,
-        prior_test_number,
-        prior_test_result,
-        contact,
-        wash_hands,
-        clean_surfaces,
-        hide_cough,
-        mask,
-        distance,
-        attend_event,
-        wfh,
-        industry
+        ace_inhibitor
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -641,22 +513,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join overall_risk_setting using (encounter_id)
       left join long_term_type using (encounter_id)
       left join ace using (encounter_id)
-      left join website_id using (encounter_id)
-      left join prior_test using (encounter_id)
-      left join prior_test_positive using (encounter_id)
-      left join prior_test_positive_date using (encounter_id)
-      left join prior_test_type using (encounter_id)
-      left join prior_test_number using (encounter_id)
-      left join prior_test_result using (encounter_id)
-      left join contact using (encounter_id)
-      left join wash_hands using (encounter_id)
-      left join clean_surfaces using (encounter_id)
-      left join hide_cough using (encounter_id)
-      left join mask using (encounter_id)
-      left join distance using (encounter_id)
-      left join attend_event using (encounter_id)
-      left join wfh using (encounter_id)
-      left join industry using (encounter_id)
   ;
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
@@ -1770,14 +1626,6 @@ create or replace view shipping.genomic_sequences_for_augur_build_v1 as
 comment on view shipping.genomic_sequences_for_augur_build_v1 is
     'View of genomic sequences for SFS augur build';
 
-revoke all
-    on shipping.genomic_sequences_for_augur_build_v1
-  from "augur-build-exporter";
-
-grant select
-    on shipping.genomic_sequences_for_augur_build_v1
-  to "augur-build-exporter";
-
 
 create or replace view shipping.metadata_for_augur_build_v2 as
 
@@ -1805,14 +1653,6 @@ create or replace view shipping.metadata_for_augur_build_v2 as
 
 comment on view shipping.metadata_for_augur_build_v2 is
 		'View of metadata necessary for SFS augur build';
-
-revoke all
-    on shipping.metadata_for_augur_build_v2
-  from "augur-build-exporter";
-
-grant select
-    on shipping.metadata_for_augur_build_v2
-  to "augur-build-exporter";
 
 
 create or replace view shipping.metadata_for_augur_build_v3 as
@@ -1847,14 +1687,6 @@ create or replace view shipping.metadata_for_augur_build_v3 as
 
 comment on view shipping.metadata_for_augur_build_v3 is
 		'View of metadata necessary for SFS augur build';
-
-revoke all
-    on shipping.metadata_for_augur_build_v3
-  from "augur-build-exporter";
-
-grant select
-    on shipping.metadata_for_augur_build_v3
-  to "augur-build-exporter";
 
 
 /******************** VIEWS FOR REPORTING RESULTS ********************/

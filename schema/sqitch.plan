@@ -186,3 +186,5 @@ shipping/views [shipping/views@2020-05-13] 2020-06-04T23:50:52Z Jover Lee <jover
 @2020-06-06 2020-06-05T01:39:28Z Jover Lee <joverlee@fredhutch.org> # Schema as of 04 June 2020
 shipping/views [shipping/views@2020-06-06] 2020-06-10T01:25:25Z Jover Lee <joverlee@fredhutch.org> # Add missing grants to views file
 @2020-06-09 2020-06-10T01:32:05Z Jover Lee <joverlee@fredhutch.org> # Schema as of 09 June 2020
+
+shipping/views [shipping/views@2020-06-09] 2020-06-10T17:07:09Z Jover Lee <joverlee@fredhutch.org> # Add new fields to SCAN views
