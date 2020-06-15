@@ -44,7 +44,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 11
+REVISION = 12
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -552,11 +552,13 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'pregnant_yesno',
         'travel_countries_phs',
         'travel_states_phs',
+        'prior_test',
     ]
 
     integer_questions = [
         'age',
         'age_months',
+        'prior_test_number',
     ]
 
     string_questions = [
@@ -576,11 +578,25 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'country',
         'state',
         'ace',
+        'website_id',
+        'prior_test_positive',
+        'prior_test_type',
+        'prior_test_result',
+        'contact',
+        'wash_hands',
+        'clean_surfaces',
+        'hide_cough',
+        'mask',
+        'distance',
+        'attend_event',
+        'wfh',
+        'industry',
     ]
 
     date_questions = [
         'hospital_arrive',
         'hospital_leave',
+        'prior_test_positive_date',
     ]
 
     question_categories = {
@@ -602,6 +618,10 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'overall_risk_setting',
         'longterm_type',
         'ace',
+        'prior_test_positive',
+        'prior_test_type',
+        'contact',
+        'industry',
     ]
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(record, field)
@@ -792,7 +812,8 @@ def create_follow_up_questionnaire_response(record: dict, patient_reference: dic
         'fu_illness',
         'fu_change',
         'fu_feel_normal',
-        'fu_household_sick'
+        'fu_household_sick',
+        'result_changes',
     ]
 
     integer_questions = [
