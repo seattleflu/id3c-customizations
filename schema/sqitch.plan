@@ -189,3 +189,6 @@ shipping/views [shipping/views@2020-06-06] 2020-06-10T01:25:25Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-06-09] 2020-06-10T17:07:09Z Jover Lee <joverlee@fredhutch.org> # Add new fields to SCAN views
 @2020-06-10 2020-06-10T18:29:29Z Jover Lee <joverlee@fredhutch.org> # Schema as of 10 June 2020
+
+shipping/views [shipping/views@2020-06-10] 2020-06-15T20:52:16Z Kairsten Fay <kfay@fredhutch.org> # Add census tract to SCAN encounters
+@2020-06-15 2020-06-15T20:54:12Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 15 Jun 2020

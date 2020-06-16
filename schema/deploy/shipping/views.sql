@@ -1042,6 +1042,7 @@ create or replace view shipping.hcov19_observation_v1 as
         best_available_site as site,
         best_available_site_type as site_type,
 
+        location.hierarchy->'tract' as census_tract,
         location.hierarchy->'puma' as puma,
         case location.scale
           -- Only include address identifiers as those are used to identify
@@ -1158,6 +1159,7 @@ create or replace view shipping.scan_encounters_v1 as
         age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
 
         location.hierarchy -> 'puma' as puma,
+        location.hierarchy -> 'tract' as census_tract,
 
         symptoms,
         symptom_onset,
