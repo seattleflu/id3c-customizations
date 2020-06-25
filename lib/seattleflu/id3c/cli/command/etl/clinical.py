@@ -241,14 +241,31 @@ def hispanic_latino(ethnic_group: Optional[Any]) -> list:
 def flu_shot(flu_shot_response: Optional[Any]) -> list:
     """
     Given a *flu_shot_response*, returns yes/no value for FluShot key.
+
+    >>> flu_shot(0.0)
+    ['no']
+
+    >>> flu_shot('TRUE')
+    ['yes']
+
+    >>> flu_shot('maybe')
+    Traceback (most recent call last):
+        ...
+    id3c.cli.command.etl.UnknownFluShotResponseError: Unknown flu shot response «maybe»
+
     """
     if flu_shot_response is None:
         LOG.debug("No flu shot response found.")
         return [None]
 
+    if isinstance(flu_shot_response, str):
+        flu_shot_response = flu_shot_response.lower()
+
     flu_shot_map = {
         0.0 : "no",
-        1.0 : "yes"
+        1.0 : "yes",
+        "false": "no",
+        "true": "yes",
     }
 
     if flu_shot_response not in flu_shot_map:
@@ -259,10 +276,22 @@ def flu_shot(flu_shot_response: Optional[Any]) -> list:
 
 def insurance(insurance_response: Optional[Any]) -> list:
     """
-    Given an *insurance_response*, returns corresponding insurance
-    identifier.
+    Given a case-insensitive *insurance_response*, returns corresponding
+    insurance identifier.
 
     Raises an :class:`Exception` if the given insurance name is unknown.
+
+    >>> insurance('medicaid')
+    ['government']
+
+    >>> insurance('PRIVATE')
+    ['privateInsurance']
+
+    >>> insurance('some scammy insurance company')
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown insurance name «some scammy insurance company»
+
     """
     if insurance_response is None:
         LOG.debug("No insurance response found.")
@@ -274,6 +303,7 @@ def insurance(insurance_response: Optional[Any]) -> list:
     insurance_map = {
         "commercial": "privateInsurance",
         "comm": "privateInsurance",
+        "private": "privateInsurance",
         "medicaid": "government",
         "medicare": "government",
         "tricare": "government",

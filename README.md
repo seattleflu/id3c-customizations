@@ -16,3 +16,11 @@ otherwise be managed manually.
 Changes in this Sqitch project can rely on changes in the ID3C Sqitch project
 by prefixing them with the project name (`seattleflu/schema` currently, but
 subject to change after reorganization).
+
+
+## Dev tools
+### Doctests
+Run doctests with:
+```sh
+pytest tests/docstrings.py
+```
