@@ -24,6 +24,15 @@ def race(races: Optional[Any]) -> list:
     >>> race(["ASIAN", "bLaCk", "white"])
     ['asian', 'blackOrAfricanAmerican', 'white']
 
+    Strings with pipe "|" or forward slash "/" delimeters are converted to
+    lists:
+
+    >>> race("black|white")
+    ['blackOrAfricanAmerican', 'white']
+
+    >>> race("asian/amerind")
+    ['asian', 'americanIndianOrAlaskaNative']
+
     Leading and trailing space is ignored:
 
     >>> race("   amerind ")
@@ -64,7 +73,8 @@ def race(races: Optional[Any]) -> list:
         return [None]
 
     if not isinstance(races, list):
-        races = races.split("|")
+        # Split on "|" or "/"
+        races = re.split(r"\||/", races)
 
     # Keys must be lowercase for case-insensitive lookup
     race_map = {
