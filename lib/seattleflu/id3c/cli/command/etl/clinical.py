@@ -276,10 +276,22 @@ def flu_shot(flu_shot_response: Optional[Any]) -> list:
 
 def insurance(insurance_response: Optional[Any]) -> list:
     """
-    Given an *insurance_response*, returns corresponding insurance
-    identifier.
+    Given a case-insensitive *insurance_response*, returns corresponding
+    insurance identifier.
 
     Raises an :class:`Exception` if the given insurance name is unknown.
+
+    >>> insurance('medicaid')
+    ['government']
+
+    >>> insurance('PRIVATE')
+    ['privateInsurance']
+
+    >>> insurance('some scammy insurance company')
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown insurance name «some scammy insurance company»
+
     """
     if insurance_response is None:
         LOG.debug("No insurance response found.")
@@ -291,6 +303,7 @@ def insurance(insurance_response: Optional[Any]) -> list:
     insurance_map = {
         "commercial": "privateInsurance",
         "comm": "privateInsurance",
+        "private": "privateInsurance",
         "medicaid": "government",
         "medicare": "government",
         "tricare": "government",
