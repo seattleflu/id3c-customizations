@@ -507,6 +507,7 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
         'Cancel, order changed'             : None,
         'Canceled by practitioner'          : None,
         'Duplicate request'                 : None,
+        'Inconclusive'                      : None, # XXX: Ingest this someday as present = null?
         'Inconclusive.'                     : None, # XXX: Ingest this someday as present = null?
         'Indeterminate'                     : None, # XXX: Ingest this someday as present = null?
         'PENDING'                           : None,
