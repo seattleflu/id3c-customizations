@@ -102,7 +102,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     # By verifying illness_questionnaire is complete first, we minimize the
     # delay in data ingestion since the back_end_mail_scans is completed the day after enrollment.
     #   -Jover, 29 June 2020
-    if not redcap_record['illness_q_date'] and redcap_record['back_end_mail_scans_complete'] != '2':
+    if not redcap_record['illness_q_date'] and not is_complete('back_end_mail_scans', redcap_record):
         LOG.debug("Skipping incomplete enrollment")
         return None
 
