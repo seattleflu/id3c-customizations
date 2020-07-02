@@ -47,7 +47,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 12
+REVISION = 13
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -94,6 +94,19 @@ def command_for_each_project(function):
 
 @command_for_each_project
 def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
+    # Skip record if the illness_questionnaire is not complete, because this is
+    # a "false" enrollment where the participant was not mailed a swab kit.
+    # We must verify illness_questionnaire with the `illness_q_date` field
+    # since there is a bug in REDCap that sometimes leaves the questionnaire marked incomplete/unverified.
+    # We must have another check of the back_end_mail_scans because sometimes
+    # the `illness_q_date` field is not filled in due to a bug in REDCap.
+    # By verifying illness_questionnaire is complete first, we minimize the
+    # delay in data ingestion since the back_end_mail_scans is completed the day after enrollment.
+    #   -Jover, 29 June 2020
+    if not redcap_record['illness_q_date'] and not is_complete('back_end_mail_scans', redcap_record):
+        LOG.debug("Skipping incomplete enrollment")
+        return None
+
     site_reference = create_site_reference()
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
