@@ -44,6 +44,7 @@ PROJECTS = [
     ScanProject(22475, "es", "irb"),
     ScanProject(22474, "zh-Hant", "irb"),
     ScanProject(22477, "vi", "irb"),
+    ScanProject(22472, "ru", "irb"),
 
 ]
 
