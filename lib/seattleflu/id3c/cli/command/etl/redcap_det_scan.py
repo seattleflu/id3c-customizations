@@ -316,6 +316,7 @@ def zipcode_map(redcap_code: str) -> str:
         '95': '98077',
         '96': '98053',
         '97': '98024',
+        '98': '98072',
     }
 
     if redcap_code not in zipcode_map:
