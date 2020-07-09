@@ -194,3 +194,4 @@ shipping/views [shipping/views@2020-06-10] 2020-06-15T20:52:16Z Kairsten Fay <kf
 @2020-06-15 2020-06-15T20:54:12Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 15 Jun 2020
 
 roles/scan-dashboard-exporter/create 2020-07-09T19:58:57Z Jover Lee <joverlee@fredhutch.org> # Role for exporting data for SCAN dashboards
+roles/scan-dashboard-exporter/grants [roles/scan-dashboard-exporter/create seattleflu/schema:shipping/schema] 2020-07-09T21:44:11Z Jover Lee <joverlee@fredhutch.org> # Add basic grants to scan-dashboard-exporter role
