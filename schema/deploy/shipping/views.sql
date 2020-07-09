@@ -15,6 +15,7 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
+drop view if exists shipping.scan_hcov19_positives_v1;
 drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.scan_return_results_v1;
@@ -2159,6 +2160,96 @@ revoke all
 
 grant select
     on shipping.scan_demographics_v1
+    to "scan-dashboard-exporter";
+
+
+create or replace view shipping.scan_hcov19_positives_v1 as
+
+    with hcov19_presence_absence as (
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample.identifier as sample,
+            presence_absence_id,
+            pa.present as hcov19_present,
+            pa.created::date as hcov19_result_release_date
+        from
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+            join warehouse.sample using (sample_id)
+        where
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and pa.details @> '{"assay_type": "Clia"}'
+            and not control
+            -- We shouldn't be receiving these results from Samplify, but they
+            -- sometimes sneak in. Be sure to block them from this view so as
+            -- to not return inaccurate results to participants.
+            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
+        /*
+          Keep only the most recent push. According to Lea, samples are only
+          retested if there is a failed result. A positive, negative, or
+          indeterminate result would not be retested.
+
+          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
+        */
+        order by
+            sample_id, presence_absence_id desc
+    ),
+
+    scan_hcov19_results as (
+      select
+          case
+              when hcov19_present is true then 'positive'
+              when hcov19_present is false then 'negative'
+              when hcov19_present is null then 'inconclusive'
+          end as hcov19_result,
+          hcov19_result_release_date,
+          case
+              when puma in ('5310901', '5310902') then 'yakima'
+              when puma in ('5311701', '5311702', '5311703',
+                            '5311704', '5311705', '5311706') then 'snohomish'
+              when puma in ('5311601', '5311602', '5311603', '5311604',
+                            '5311605', '5311606', '5311607', '5311608',
+                            '5311609', '5311610', '5311611', '5311612',
+                            '5311613', '5311614', '5311615', '5311616') then 'king'
+              else null
+          end as county
+
+      from shipping.scan_encounters_v1
+      join hcov19_presence_absence using (sample)
+
+    )
+
+    select
+        hcov19_result_release_date,
+        count(*) filter (where hcov19_result in ('positive', 'inconclusive')) as total_hcov19_positives,
+        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'king') as king_county_positives,
+        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'snohomish') as snohomish_county_positives,
+        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'yakima') as yakima_county_positives,
+        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county is null) as other_positives
+    from scan_hcov19_results
+    group by hcov19_result_release_date
+;
+
+comment on view shipping.scan_hcov19_positives_v1 is
+  'A view of counts of hcov19 positives from the SCAN project grouped by date results were released.';
+
+-- Even if it's just aggregate counts of hcov19 positives,
+-- we should probably restrict access to this view to only hcov19-visibility
+-- and scan-dashboard-exporter.
+--  -Jover, 9 July 2020
+revoke all on shipping.scan_return_results_v1 from reporter;
+
+grant select
+    on shipping.scan_return_results_v1
+    to "hcov19-visibility";
+
+revoke all
+    on shipping.scan_hcov19_positives_v1
+  from "scan-dashboard-exporter";
+
+grant select
+    on shipping.scan_hcov19_positives_v1
     to "scan-dashboard-exporter";
 
 
