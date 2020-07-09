@@ -192,3 +192,5 @@ shipping/views [shipping/views@2020-06-09] 2020-06-10T17:07:09Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-06-10] 2020-06-15T20:52:16Z Kairsten Fay <kfay@fredhutch.org> # Add census tract to SCAN encounters
 @2020-06-15 2020-06-15T20:54:12Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 15 Jun 2020
+
+roles/scan-dashboard-exporter/create 2020-07-09T19:58:57Z Jover Lee <joverlee@fredhutch.org> # Role for exporting data for SCAN dashboards
