@@ -15,6 +15,8 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
+drop view if exists shipping.scan_demographics_v1;
+
 drop view if exists shipping.scan_return_results_v1;
 drop view if exists shipping.return_results_v2;
 drop view if exists shipping.return_results_v1;
@@ -2130,5 +2132,34 @@ grant select
 
 comment on view shipping.scan_return_results_v1 is
   'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
+
+
+/******************** VIEWS FOR POWER BI DASHBOARDS ********************/
+create or replace view shipping.scan_demographics_v1 as
+
+    select
+        encountered_week,
+        sex,
+        age_range_fine,
+        age_range_fine_lower,
+        age_range_fine_upper,
+        race,
+        hispanic_or_latino,
+        income,
+        puma
+    from shipping.scan_encounters_v1
+;
+
+comment on view shipping.scan_demographics_v1 is
+  'A view of basic demographic data from the SCAN project for Power BI dashboards.';
+
+revoke all
+    on shipping.scan_demographics_v1
+  from "scan-dashboard-exporter";
+
+grant select
+    on shipping.scan_demographics_v1
+    to "scan-dashboard-exporter";
+
 
 commit;

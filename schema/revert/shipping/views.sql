@@ -15,6 +15,8 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
+drop view if exists shipping.scan_demographics_v1;
+
 drop view if exists shipping.scan_return_results_v1;
 drop view if exists shipping.return_results_v2;
 drop view if exists shipping.return_results_v1;
