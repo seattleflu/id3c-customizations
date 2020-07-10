@@ -565,6 +565,13 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  string_response as industry
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'industry'
+        ),
+
+        illness_questionnaire_date as (
+          select encounter_id,
+                 date_response[1] as illness_questionnaire_date
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'illness_q_date'
         )
 
     select
@@ -614,7 +621,8 @@ create or replace view shipping.fhir_encounter_details_v2 as
         distance,
         attend_event,
         wfh,
-        industry
+        industry,
+        illness_questionnaire_date
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -660,6 +668,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join attend_event using (encounter_id)
       left join wfh using (encounter_id)
       left join industry using (encounter_id)
+      left join illness_questionnaire_date using (encounter_id)
   ;
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
