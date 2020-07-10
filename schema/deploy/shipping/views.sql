@@ -15,6 +15,7 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
+drop view if exists shipping.scan_enrollments_v1;
 drop view if exists shipping.seattle_neighborhood_districts_v1;
 drop view if exists shipping.scan_hcov19_positives_v1;
 drop view if exists shipping.scan_demographics_v1;
@@ -2285,6 +2286,30 @@ revoke all
 
 grant select
     on shipping.seattle_neighborhood_districts_v1
+    to "scan-dashboard-exporter";
+
+
+create or replace view shipping.scan_enrollments_v1 as
+
+    select
+        illness_questionnaire_date,
+        scan_study_arm,
+        priority_code,
+        puma,
+        neighborhood_district
+
+    from shipping.scan_encounters_v1
+;
+
+comment on view shipping.scan_enrollments_v1 is
+  'A view of enrollment data from the SCAN project for Power BI dashboards';
+
+revoke all
+    on shipping.scan_enrollments_v1
+  from "scan-dashboard-exporter";
+
+grant select
+    on shipping.scan_enrollments_v1
     to "scan-dashboard-exporter";
 
 commit;
