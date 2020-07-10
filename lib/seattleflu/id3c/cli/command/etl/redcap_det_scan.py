@@ -50,7 +50,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 13
+REVISION = 14
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -639,6 +639,7 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
     ]
 
     date_questions = [
+        'illness_q_date',
         'hospital_arrive',
         'hospital_leave',
         'prior_test_positive_date',
