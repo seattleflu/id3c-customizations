@@ -1153,6 +1153,7 @@ create or replace view shipping.scan_encounters_v1 as
 
         encountered,
         to_char(encountered, 'IYYY-"W"IW') as encountered_week,
+        illness_questionnaire_date,
 
         site.identifier as site,
         site.details ->> 'type' as site_type,
@@ -1172,6 +1173,7 @@ create or replace view shipping.scan_encounters_v1 as
 
         location.hierarchy -> 'puma' as puma,
         location.hierarchy -> 'tract' as census_tract,
+        location.hierarchy -> 'neighborhood_district' as neighborhood_district,
 
         symptoms,
         symptom_onset,
