@@ -15,6 +15,7 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
+drop view if exists shipping.seattle_neighborhood_districts_v1;
 drop view if exists shipping.scan_hcov19_positives_v1;
 drop view if exists shipping.scan_demographics_v1;
 
@@ -2263,5 +2264,27 @@ grant select
     on shipping.scan_hcov19_positives_v1
     to "scan-dashboard-exporter";
 
+
+create or replace view shipping.seattle_neighborhood_districts_v1 as
+
+    select
+        identifier,
+        st_assvg(point, rel=>1, maxdecimaldigits=>5) as centroid,
+        st_assvg(polygon, rel=>1, maxdecimaldigits=>5) as svg_path
+    from warehouse.location
+    where scale = 'neighborhood_district'
+    and hierarchy -> 'city' = 'seattle'
+;
+
+comment on view shipping.seattle_neighborhood_districts_v1 is
+  'A view of Seattle neighborhood district polygons as SVG paths';
+
+revoke all
+    on shipping.seattle_neighborhood_districts_v1
+  from "scan-dashboard-exporter";
+
+grant select
+    on shipping.seattle_neighborhood_districts_v1
+    to "scan-dashboard-exporter";
 
 commit;
