@@ -90,3 +90,42 @@ def get_genomic_data(lineage, segment, session):
     sequences = datastore.fetch_genomic_sequences(session, lineage, segment)
 
     return Response((row[0] + '\n' for row in sequences), mimetype="application/x-ndjson")
+
+
+@api_v1.route("/shipping/scan-demographics", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_scan_demographics(session):
+    """
+    Export basic demographics for SCAN
+    """
+    LOG.debug("Exporting demographics for SCAN")
+
+    demographics = datastore.fetch_rows_from_table(session, ("shipping", "scan_demographics_v1"))
+
+    return Response((row[0] + '\n' for row in demographics), mimetype="application/x-ndjson")
+
+
+@api_v1.route("/shipping/scan-hcov19-positives", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_scan_positives(session):
+    """
+    Export aggregate numbers of hCoV-19 positives for SCAN
+    """
+    LOG.debug("Exporting hCoV-19 positives for SCAN")
+
+    positives = datastore.fetch_rows_from_table(session, ("shipping", "scan_hcov19_positives_v1"))
+
+    return Response((row[0] + '\n' for row in positives), mimetype="application/x-ndjson")
+
+
+@api_v1.route("/shipping/scan-enrollments", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_scan_positives(session):
+    """
+    Export basic enrollment metadata for SCAN
+    """
+    LOG.debug("Exporting enrollment metadata for SCAN")
+
+    enrollments = datastore.fetch_rows_from_table(session, ("shipping", "scan_enrollments_v1"))
+
+    return Response((row[0] + '\n' for row in enrollments), mimetype="application/x-ndjson")
