@@ -47,6 +47,7 @@ PROJECTS = [
     ScanProject(22472, "ru", "irb"),
     ScanProject(22476, "ko", "irb"),
     ScanProject(22471, "so", "irb"),
+    ScanProject(23089, "en", "irb-kiosk"),
 
 ]
 
@@ -106,7 +107,14 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     # By verifying illness_questionnaire is complete first, we minimize the
     # delay in data ingestion since the back_end_mail_scans is completed the day after enrollment.
     #   -Jover, 29 June 2020
-    if not redcap_record['illness_q_date'] and not is_complete('back_end_mail_scans', redcap_record):
+
+    # Add check for `illness_questionnaire` is complete because the new
+    # SCAN In-Person Enrollment project does not have the `illness_q_date` field
+    # and it does not have the `back_end_mail_scans` instrument.
+    #   -Jover, 16 July 2020
+    if not (redcap_record.get('illness_q_date') or
+            is_complete('illness_questionnaire', redcap_record) or
+            is_complete('back_end_mail_scans', redcap_record)):
         LOG.debug("Skipping incomplete enrollment")
         return None
 
@@ -131,7 +139,13 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
 
     specimen_entry = None
     specimen_observation_entry = None
-    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record)
+    # Mail in SCAN projects have `post_collection_data_entry_qc` instrument to
+    # indicate a specimen is received. The SCAN In-Person Enrollmen project
+    # does not have that instrument. So we rely on `nasal_swab_collection`
+    # instrument to know that we have sample data to ingest.
+    #   -Jover, 16 July 2020
+    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record) or \
+                        is_complete('nasal_swab_collection', redcap_record)
 
     if specimen_received:
         specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
@@ -478,7 +492,10 @@ def create_initial_encounter(record: REDCapRecord, patient_reference: dict, site
     )
 
     # YYYY-MM-DD in REDCap
-    encounter_date = record['enrollment_date']
+    # SCAN: In-Person Enrollments do not have the `enrollment_date` field.
+    # For in person enrollments, the consent date is the same as enrollment date.
+    # -Jover, 16 July 2020
+    encounter_date = record.get('enrollment_date') or record.get('consent_date')
     if not encounter_date:
         return None, None
 
@@ -534,7 +551,11 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
 
 def create_specimen(record: dict, patient_reference: dict) -> tuple:
     """ Returns a FHIR Specimen resource entry and reference """
-    barcode = record['return_utm_barcode']
+    # SCAN In-Person Enrollments project does not have the `return_utm_barcode`
+    # field, so use `utm_tube_barcode_2` instead.
+    # -Jover, 16 July 2020
+    barcode = record.get('return_utm_barcode') or record.get('utm_tube_barcode_2')
+
     if not barcode:
         LOG.warning("Could not create Specimen Resource due to lack of barcode.")
         return None, None
@@ -548,7 +569,9 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     collected_time = record['collection_date'] or None
 
     # YYYY-MM-DD HH:MM:SS in REDCap
-    received_time = record['samp_process_date'].split()[0] if record['samp_process_date'] else None
+    # `samp_process_date`field does not exist in new SCAN In-Person Enrollments
+    #   -Jover, 17 July 2020
+    received_time = record['samp_process_date'].split()[0] if record.get('samp_process_date') else None
 
     note = None
 
