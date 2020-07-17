@@ -120,7 +120,7 @@ def get_scan_positives(session):
 
 @api_v1.route("/shipping/scan-enrollments", methods = ['GET'])
 @authenticated_datastore_session_required
-def get_scan_positives(session):
+def get_scan_enrollments(session):
     """
     Export basic enrollment metadata for SCAN
     """
