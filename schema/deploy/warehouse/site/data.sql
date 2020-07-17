@@ -53,6 +53,8 @@ insert into warehouse.site(identifier, details)
         ('swabNSend',                               '{"category": "community",  "type": "swab-n-send",
             "swab_site": "swab_and_send"}'),
         ('UWDaycare',                               '{"category": "community",  "type": "childcare"}'),
+        ('UWGreek',                                 '{"category": "community",  "type": "collegeCampus",
+            "swab_site": "uw_greek"}'),
         ('UWHallHealth',                            '{"category": "clinic",     "type": "clinic",
             "swab_site": "hall_health"}'),
         ('UWSeaMar',                                '{"category": "clinic",     "type": "clinic",
