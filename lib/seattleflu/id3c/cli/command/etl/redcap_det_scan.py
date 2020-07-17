@@ -595,7 +595,10 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     )
 
     # YYYY-MM-DD in REDCap
-    collected_time = record['collection_date'] or None
+    # The `collection_date` field is being removed from the SCAN REDCap projects
+    # on 22 July 2020.
+    #   -Jover, 16 July 2020.
+    collected_time = record.get('collection_date')
 
     # YYYY-MM-DD HH:MM:SS in REDCap
     # `samp_process_date`field does not exist in new SCAN In-Person Enrollments
