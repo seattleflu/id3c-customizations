@@ -62,7 +62,6 @@ LANGUAGE_CODE = {
 
 REQUIRED_INSTRUMENTS = [
     'consent_form',
-    'enrollment_questionnaire',
 ]
 
 
@@ -98,6 +97,15 @@ def command_for_each_project(function):
 
 @command_for_each_project
 def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
+    # Add check for `enrollment_questionnaire` is complete because we cannot
+    # include it in the top list of REQUIRED_INSTRUMENTS since the new
+    # SCAN In-Person Enrollment project does not have this instrument.
+    #   -Jover, 17 July 2020
+    if ('enrollment_questionnaire_complete' in redcap_record and
+        not is_complete('enrollment_questionnaire', redcap_record)):
+        LOG.debug("Skipping enrollment with incomplete `enrollment_questionnaire` instrument")
+        return None
+
     # Skip record if the illness_questionnaire is not complete, because this is
     # a "false" enrollment where the participant was not mailed a swab kit.
     # We must verify illness_questionnaire with the `illness_q_date` field
