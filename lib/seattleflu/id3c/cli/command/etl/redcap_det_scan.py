@@ -732,8 +732,11 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
     record['state'] = combine_multiple_fields('state')
 
     # Age Ceiling
-    record['age'] = age_ceiling(int(record['age']))
-    record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
+    try:
+        record['age'] = age_ceiling(int(record['age']))
+        record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
+    except ValueError:
+        record['age'] = record['age_months'] = None
 
     return questionnaire_response(record, question_categories, patient_reference, encounter_reference)
 
