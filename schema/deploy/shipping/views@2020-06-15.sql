@@ -15,37 +15,32 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
-drop view if exists shipping.scan_enrollments_v1;
-drop view if exists shipping.seattle_neighborhood_districts_v1;
-drop view if exists shipping.scan_hcov19_positives_v1;
-drop view if exists shipping.scan_demographics_v1;
+drop view shipping.scan_return_results_v1;
+drop view shipping.return_results_v2;
+drop view shipping.return_results_v1;
+drop view shipping.reportable_condition_v1;
 
-drop view if exists shipping.scan_return_results_v1;
-drop view if exists shipping.return_results_v2;
-drop view if exists shipping.return_results_v1;
-drop view if exists shipping.reportable_condition_v1;
+drop view shipping.metadata_for_augur_build_v3;
+drop view shipping.metadata_for_augur_build_v2;
+drop view shipping.genomic_sequences_for_augur_build_v1;
+drop view shipping.flu_assembly_jobs_v1;
 
-drop view if exists shipping.metadata_for_augur_build_v3;
-drop view if exists shipping.metadata_for_augur_build_v2;
-drop view if exists shipping.genomic_sequences_for_augur_build_v1;
-drop view if exists shipping.flu_assembly_jobs_v1;
+drop view shipping.scan_follow_up_encounters_v1;
+drop view shipping.scan_encounters_v1;
+drop view shipping.hcov19_observation_v1;
 
-drop view if exists shipping.scan_follow_up_encounters_v1;
-drop view if exists shipping.scan_encounters_v1;
-drop view if exists shipping.hcov19_observation_v1;
+drop view shipping.observation_with_presence_absence_result_v2;
+drop view shipping.observation_with_presence_absence_result_v1;
 
-drop view if exists shipping.observation_with_presence_absence_result_v2;
-drop view if exists shipping.observation_with_presence_absence_result_v1;
+drop view shipping.incidence_model_observation_v3;
+drop view shipping.incidence_model_observation_v2;
+drop view shipping.incidence_model_observation_v1;
 
-drop view if exists shipping.incidence_model_observation_v3;
-drop view if exists shipping.incidence_model_observation_v2;
-drop view if exists shipping.incidence_model_observation_v1;
+drop view shipping.fhir_encounter_details_v2;
+drop view shipping.fhir_encounter_details_v1;
+drop materialized view shipping.fhir_questionnaire_responses_v1;
 
-drop view if exists shipping.fhir_encounter_details_v2;
-drop view if exists shipping.fhir_encounter_details_v1;
-drop materialized view if exists shipping.fhir_questionnaire_responses_v1;
-
-drop view if exists shipping.sample_with_best_available_encounter_data_v1;
+drop view shipping.sample_with_best_available_encounter_data_v1;
 
 /******************** VIEWS FOR INTERNAL USE ********************/
 create or replace view shipping.sample_with_best_available_encounter_data_v1 as
