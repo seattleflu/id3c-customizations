@@ -118,7 +118,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
         LOG.debug("Skipping incomplete enrollment")
         return None
 
-    site_reference = create_site_reference()
+    site_reference = create_site_reference(redcap_record)
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -187,17 +187,38 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     )
 
 
-def create_site_reference() -> Dict[str,dict]:
+def create_site_reference(record: dict) -> Dict[str,dict]:
     """
     Create a Location reference for site of encounter.
-    Site for all SCAN Encounters is 'SCAN'.
+    If `location_type` is available in *record*, then return site according
+    to the provided location. Site for all other SCAN Encounters is 'SCAN'.
     """
+    site = 'SCAN'
+
+    record_location = record.get('location_type')
+    if record_location:
+        site = site_map(record_location)
+
     return {
         "location": create_reference(
             reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", "SCAN")
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", site)
         )
     }
+
+
+def site_map(record_location: str) -> str:
+    """
+    Maps *record_location* to the corresponding site name.
+    """
+    location_site_map = {
+        'greek': 'UWGreek'
+    }
+
+    if record_location not in location_site_map:
+        raise UnknownRedcapRecordLocation(f"Found unknown location type «{record_location}»")
+
+    return location_site_map[record_location]
 
 
 def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
@@ -972,6 +993,14 @@ def create_follow_up_questionnaire_response(record: dict, patient_reference: dic
 class UnknownRedcapZipCode(ValueError):
     """
     Raised by :function: `zipcode_map` if a provided *redcap_code* is not
+    among a set of expected values.
+    """
+    pass
+
+
+class UnknownRedcapRecordLocation(ValueError):
+    """
+    Raised by :function: `site_map` if a provided *redcap_location* is not
     among a set of expected values.
     """
     pass
