@@ -2089,7 +2089,17 @@ create or replace view shipping.scan_return_results_v1 as
         barcode as qrcode,
         encountered::date as collect_ts,
         sample.details @> '{"note": "never-tested"}' as never_tested,
-        sample.details ->> 'swab_type' as swab_type
+        sample.details ->> 'swab_type' as swab_type,
+        -- The identifier set of the sample's collection identifier determines
+        -- if the sample was collected under staff observation.
+        -- In-person kiosk enrollment samples are collected under staff
+        -- observation while mail-in samples are done without staff observation.
+        --  Jover, 22 July 2020
+        case identifier_set.name
+          when 'collections-scan-kiosks' then true
+          when 'collections-scan' then false
+          else null
+        end as staff_observed
 
       from
         warehouse.identifier
@@ -2116,7 +2126,8 @@ create or replace view shipping.scan_return_results_v1 as
             when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
         end as status_code,
         result_ts,
-        swab_type
+        swab_type,
+        staff_observed
     from
       scan_samples
       left join hcov19_presence_absence using (sample_id)
