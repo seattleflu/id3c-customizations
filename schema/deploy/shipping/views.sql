@@ -2088,7 +2088,8 @@ create or replace view shipping.scan_return_results_v1 as
         sample_id,
         barcode as qrcode,
         encountered::date as collect_ts,
-        sample.details @> '{"note": "never-tested"}' as never_tested
+        sample.details @> '{"note": "never-tested"}' as never_tested,
+        sample.details ->> 'swab_type' as swab_type
 
       from
         warehouse.identifier
@@ -2114,7 +2115,8 @@ create or replace view shipping.scan_return_results_v1 as
             when hcov19_present is false then 'negative'
             when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
         end as status_code,
-        result_ts
+        result_ts,
+        swab_type
     from
       scan_samples
       left join hcov19_presence_absence using (sample_id)
