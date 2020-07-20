@@ -2096,7 +2096,7 @@ create or replace view shipping.scan_return_results_v1 as
         left join warehouse.sample on uuid::text = sample.collection_identifier
         left join warehouse.encounter using (encounter_id)
       where
-        identifier_set.name in('collections-scan')
+        identifier_set.name in('collections-scan', 'collections-scan-kiosks')
         -- Add a date cutoff so that we only return results to participants
         -- that are in the SCAN research study (launch date: 2020-06-10)
         and encountered >= '2020-06-10 00:00:00 US/Pacific'
