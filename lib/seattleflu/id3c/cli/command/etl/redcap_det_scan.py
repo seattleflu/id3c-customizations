@@ -580,10 +580,48 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
 
 def create_specimen(record: dict, patient_reference: dict) -> tuple:
     """ Returns a FHIR Specimen resource entry and reference """
-    # SCAN In-Person Enrollments project does not have the `return_utm_barcode`
-    # field, so use `utm_tube_barcode_2` instead.
-    # -Jover, 16 July 2020
-    barcode = record.get('return_utm_barcode') or record.get('utm_tube_barcode_2')
+    def specimen_barcode() -> Optional[str]:
+        """
+        Return specimen barcode from REDCap record.
+        """
+         # Normalize all barcode fields upfront.
+        barcode_fields = {
+            "return_utm_barcode",
+            "utm_tube_barcode_2",
+            "reenter_barcode",
+            "reenter_barcode_2"}
+
+        for barcode_field in barcode_fields:
+            if barcode_field in record:
+                record[barcode_field] = record[barcode_field].strip().lower()
+
+        # The `return_utm_barcode` field is most reliable in our mail-in kits
+        # because this is the barcode that gets scanned during unboxing.
+        # If the field exists in the record, then use its value.
+        # - Jover, 22 July 2020
+        if 'return_utm_barcode' in record:
+            return record['return_utm_barcode']
+
+        # SCAN In-Person Enrollments project does not have the `return_utm_barcode`
+        # field, so use `utm_tube_barcode_2` instead.
+        # -Jover, 16 July 2020
+        barcode = record.get('utm_tube_barcode_2')
+        manual_barcodes_match = (record['reenter_barcode'] == record['reenter_barcode_2'])
+
+        # If the `utm_tube_barcode_2` field is blank, use the manually
+        # entered barcode in `reenter_barcode` field. If this doesn't match
+        # the value in `reenter_barcode_2` then return None to err on the
+        # side of caution.
+        # -Jover, 22 July 2020
+        if not barcode:
+            if manual_barcodes_match:
+                barcode = record['reenter_barcode']
+            else:
+                barcode = None
+
+        return barcode
+
+    barcode = specimen_barcode()
 
     if not barcode:
         LOG.warning("Could not create Specimen Resource due to lack of barcode.")
