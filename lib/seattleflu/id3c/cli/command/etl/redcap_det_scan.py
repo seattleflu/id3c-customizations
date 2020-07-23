@@ -101,8 +101,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     # include it in the top list of REQUIRED_INSTRUMENTS since the new
     # SCAN In-Person Enrollment project does not have this instrument.
     #   -Jover, 17 July 2020
-    if ('enrollment_questionnaire_complete' in redcap_record and
-        not is_complete('enrollment_questionnaire', redcap_record)):
+    if is_complete('enrollment_questionnaire', redcap_record) == False:
         LOG.debug("Skipping enrollment with incomplete `enrollment_questionnaire` instrument")
         return None
 
