@@ -67,8 +67,4 @@ insert into warehouse.site(identifier, details)
         set details = EXCLUDED.details
 ;
 
-delete from warehouse.site
-    where identifier = 'UWGreek'
-;
-
 commit;

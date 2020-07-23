@@ -47,6 +47,7 @@ PROJECTS = [
     ScanProject(22472, "ru", "irb"),
     ScanProject(22476, "ko", "irb"),
     ScanProject(22471, "so", "irb"),
+    ScanProject(23089, "en", "irb-kiosk"),
 
 ]
 
@@ -61,7 +62,6 @@ LANGUAGE_CODE = {
 
 REQUIRED_INSTRUMENTS = [
     'consent_form',
-    'enrollment_questionnaire',
 ]
 
 
@@ -97,6 +97,15 @@ def command_for_each_project(function):
 
 @command_for_each_project
 def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
+    # Add check for `enrollment_questionnaire` is complete because we cannot
+    # include it in the top list of REQUIRED_INSTRUMENTS since the new
+    # SCAN In-Person Enrollment project does not have this instrument.
+    #   -Jover, 17 July 2020
+    if ('enrollment_questionnaire_complete' in redcap_record and
+        not is_complete('enrollment_questionnaire', redcap_record)):
+        LOG.debug("Skipping enrollment with incomplete `enrollment_questionnaire` instrument")
+        return None
+
     # Skip record if the illness_questionnaire is not complete, because this is
     # a "false" enrollment where the participant was not mailed a swab kit.
     # We must verify illness_questionnaire with the `illness_q_date` field
@@ -106,11 +115,18 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     # By verifying illness_questionnaire is complete first, we minimize the
     # delay in data ingestion since the back_end_mail_scans is completed the day after enrollment.
     #   -Jover, 29 June 2020
-    if not redcap_record['illness_q_date'] and not is_complete('back_end_mail_scans', redcap_record):
+
+    # Add check for `illness_questionnaire` is complete because the new
+    # SCAN In-Person Enrollment project does not have the `illness_q_date` field
+    # and it does not have the `back_end_mail_scans` instrument.
+    #   -Jover, 16 July 2020
+    if not (redcap_record.get('illness_q_date') or
+            is_complete('illness_questionnaire', redcap_record) or
+            is_complete('back_end_mail_scans', redcap_record)):
         LOG.debug("Skipping incomplete enrollment")
         return None
 
-    site_reference = create_site_reference()
+    site_reference = create_site_reference(redcap_record)
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -131,7 +147,13 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
 
     specimen_entry = None
     specimen_observation_entry = None
-    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record)
+    # Mail in SCAN projects have `post_collection_data_entry_qc` instrument to
+    # indicate a specimen is received. The SCAN In-Person Enrollmen project
+    # does not have that instrument. So we rely on `nasal_swab_collection`
+    # instrument to know that we have sample data to ingest.
+    #   -Jover, 16 July 2020
+    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record) or \
+                        is_complete('nasal_swab_collection', redcap_record)
 
     if specimen_received:
         specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
@@ -173,17 +195,38 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     )
 
 
-def create_site_reference() -> Dict[str,dict]:
+def create_site_reference(record: dict) -> Dict[str,dict]:
     """
     Create a Location reference for site of encounter.
-    Site for all SCAN Encounters is 'SCAN'.
+    If `location_type` is available in *record*, then return site according
+    to the provided location. Site for all other SCAN Encounters is 'SCAN'.
     """
+    site = 'SCAN'
+
+    record_location = record.get('location_type')
+    if record_location:
+        site = site_map(record_location)
+
     return {
         "location": create_reference(
             reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", "SCAN")
+            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", site)
         )
     }
+
+
+def site_map(record_location: str) -> str:
+    """
+    Maps *record_location* to the corresponding site name.
+    """
+    location_site_map = {
+        'greek': 'UWGreek'
+    }
+
+    if record_location not in location_site_map:
+        raise UnknownRedcapRecordLocation(f"Found unknown location type «{record_location}»")
+
+    return location_site_map[record_location]
 
 
 def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
@@ -478,7 +521,10 @@ def create_initial_encounter(record: REDCapRecord, patient_reference: dict, site
     )
 
     # YYYY-MM-DD in REDCap
-    encounter_date = record['enrollment_date']
+    # SCAN: In-Person Enrollments do not have the `enrollment_date` field.
+    # For in person enrollments, the consent date is the same as enrollment date.
+    # -Jover, 16 July 2020
+    encounter_date = record.get('enrollment_date') or record.get('consent_date')
     if not encounter_date:
         return None, None
 
@@ -534,7 +580,49 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
 
 def create_specimen(record: dict, patient_reference: dict) -> tuple:
     """ Returns a FHIR Specimen resource entry and reference """
-    barcode = record['return_utm_barcode']
+    def specimen_barcode() -> Optional[str]:
+        """
+        Return specimen barcode from REDCap record.
+        """
+         # Normalize all barcode fields upfront.
+        barcode_fields = {
+            "return_utm_barcode",
+            "utm_tube_barcode_2",
+            "reenter_barcode",
+            "reenter_barcode_2"}
+
+        for barcode_field in barcode_fields:
+            if barcode_field in record:
+                record[barcode_field] = record[barcode_field].strip().lower()
+
+        # The `return_utm_barcode` field is most reliable in our mail-in kits
+        # because this is the barcode that gets scanned during unboxing.
+        # If the field exists in the record, then use its value.
+        # - Jover, 22 July 2020
+        if 'return_utm_barcode' in record:
+            return record['return_utm_barcode']
+
+        # SCAN In-Person Enrollments project does not have the `return_utm_barcode`
+        # field, so use `utm_tube_barcode_2` instead.
+        # -Jover, 16 July 2020
+        barcode = record.get('utm_tube_barcode_2')
+        manual_barcodes_match = (record['reenter_barcode'] == record['reenter_barcode_2'])
+
+        # If the `utm_tube_barcode_2` field is blank, use the manually
+        # entered barcode in `reenter_barcode` field. If this doesn't match
+        # the value in `reenter_barcode_2` then return None to err on the
+        # side of caution.
+        # -Jover, 22 July 2020
+        if not barcode:
+            if manual_barcodes_match:
+                barcode = record['reenter_barcode']
+            else:
+                barcode = None
+
+        return barcode
+
+    barcode = specimen_barcode()
+
     if not barcode:
         LOG.warning("Could not create Specimen Resource due to lack of barcode.")
         return None, None
@@ -545,10 +633,15 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     )
 
     # YYYY-MM-DD in REDCap
-    collected_time = record['collection_date'] or None
+    # The `collection_date` field is being removed from the SCAN REDCap projects
+    # on 22 July 2020.
+    #   -Jover, 16 July 2020.
+    collected_time = record.get('collection_date')
 
     # YYYY-MM-DD HH:MM:SS in REDCap
-    received_time = record['samp_process_date'].split()[0] if record['samp_process_date'] else None
+    # `samp_process_date`field does not exist in new SCAN In-Person Enrollments
+    #   -Jover, 17 July 2020
+    received_time = record['samp_process_date'].split()[0] if record.get('samp_process_date') else None
 
     note = None
 
@@ -677,8 +770,11 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
     record['state'] = combine_multiple_fields('state')
 
     # Age Ceiling
-    record['age'] = age_ceiling(int(record['age']))
-    record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
+    try:
+        record['age'] = age_ceiling(int(record['age']))
+        record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
+    except ValueError:
+        record['age'] = record['age_months'] = None
 
     return questionnaire_response(record, question_categories, patient_reference, encounter_reference)
 
@@ -949,6 +1045,14 @@ def create_follow_up_questionnaire_response(record: dict, patient_reference: dic
 class UnknownRedcapZipCode(ValueError):
     """
     Raised by :function: `zipcode_map` if a provided *redcap_code* is not
+    among a set of expected values.
+    """
+    pass
+
+
+class UnknownRedcapRecordLocation(ValueError):
+    """
+    Raised by :function: `site_map` if a provided *redcap_location* is not
     among a set of expected values.
     """
     pass
