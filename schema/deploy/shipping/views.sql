@@ -1945,6 +1945,7 @@ create or replace view shipping.reportable_condition_v1 as
     -- We don't have to worry about SFS consent date because the
     -- clinical team checks this before they contact the participant.
     and collection_id_set.name in ('collections-scan',
+                                   'collections-scan-kiosks',
                                    'collections-household-observation',
                                    'collections-household-intervention',
                                    'collections-swab&send',
