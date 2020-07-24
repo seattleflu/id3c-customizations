@@ -101,8 +101,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     # include it in the top list of REQUIRED_INSTRUMENTS since the new
     # SCAN In-Person Enrollment project does not have this instrument.
     #   -Jover, 17 July 2020
-    if ('enrollment_questionnaire_complete' in redcap_record and
-        not is_complete('enrollment_questionnaire', redcap_record)):
+    if is_complete('enrollment_questionnaire', redcap_record) == False:
         LOG.debug("Skipping enrollment with incomplete `enrollment_questionnaire` instrument")
         return None
 
@@ -147,13 +146,15 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
 
     specimen_entry = None
     specimen_observation_entry = None
+    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record)
+
     # Mail in SCAN projects have `post_collection_data_entry_qc` instrument to
     # indicate a specimen is received. The SCAN In-Person Enrollmen project
     # does not have that instrument. So we rely on `nasal_swab_collection`
     # instrument to know that we have sample data to ingest.
     #   -Jover, 16 July 2020
-    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record) or \
-                        is_complete('nasal_swab_collection', redcap_record)
+    if specimen_received is None:
+        specimen_recieved = is_complete('nasal_swab_collection', redcap_record)
 
     if specimen_received:
         specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
