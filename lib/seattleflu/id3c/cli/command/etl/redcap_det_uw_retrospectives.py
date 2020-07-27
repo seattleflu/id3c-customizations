@@ -286,6 +286,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     Encounter.hospitalization.dischargeDisposition code
     (https://www.hl7.org/fhir/valueset-encounter-discharge-disposition.html)
     """
+
     disposition = redcap_record['discharge_disposition']
     if not disposition:
         return None
@@ -328,6 +329,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'dis/trans: disch/trans to a distinct rehab unit/hospital': 'rehab',
         'snf-skilled nursing facility'                          : 'snf',
         'snf: snf-skilled nursing facility'                     : 'snf',
+        'still a patient'                                       : None,
     }
 
     standardized_disposition = standardize_whitespace(disposition.lower())
