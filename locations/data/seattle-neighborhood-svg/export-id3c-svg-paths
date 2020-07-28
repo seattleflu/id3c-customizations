@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+psql --quiet --no-align --tuples-only --set ON_ERROR_STOP= <<<"
+    \copy (select identifier, st_assvg(st_transform(polygon, 5070)) from warehouse.location where scale = 'neighborhood_district') to pstdout with (format csv, header);
+"

@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""
+Create a bare-bones SVG element of locations in ID3C. Uses a hard-coded viewBox
+of "0 0 100 100" and performs no transformations, so you'll almost certainly
+want to manually manipulate the produced file in an SVG editor like Inkscape.
+Prints to stdout, so you'll likely want to redirect output to a new file.
+"""
+import argparse
+import pandas as pd
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description= __doc__,
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+
+    parser.add_argument("input",
+        metavar="<input.csv>",
+        help="A CSV export of ID3C locations and their paths in the format of "
+        "one column named «identifier» and one named «st_assvg».")
+
+    args = parser.parse_args()
+
+    neighborhoods = pd.read_csv(args.input)
+    neighborhoods['svg'] = neighborhoods.apply(
+        lambda row:
+        f'<path id="{row.identifier}" d="{row.st_assvg}" />',
+            axis='columns'
+    )
+
+    # Write a file with a valid <svg> element including indentation and line
+    # breaks
+    print(f'<svg viewBox="0 0 100 100">\n')
+    for _, row in neighborhoods.iterrows():
+        print('\t')
+        print(row.svg)
+        print('\n')
+
+    print('</svg>')
