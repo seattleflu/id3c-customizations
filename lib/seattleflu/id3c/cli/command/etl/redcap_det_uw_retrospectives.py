@@ -300,6 +300,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'ama: against medical advice'                           : 'aadvice',
         'expired'                                               : 'exp',
         'expired: expired'                                      : 'exp',
+        'deceased - o: deceased - organ donor'                  : 'exp',
         'home health care'                                      : 'home',
         'home hlth: home health care'                           : 'home',
         'home/self care'                                        : 'home',
