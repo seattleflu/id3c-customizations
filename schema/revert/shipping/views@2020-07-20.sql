@@ -1945,7 +1945,6 @@ create or replace view shipping.reportable_condition_v1 as
     -- We don't have to worry about SFS consent date because the
     -- clinical team checks this before they contact the participant.
     and collection_id_set.name in ('collections-scan',
-                                   'collections-scan-kiosks',
                                    'collections-household-observation',
                                    'collections-household-intervention',
                                    'collections-swab&send',
@@ -2089,18 +2088,7 @@ create or replace view shipping.scan_return_results_v1 as
         sample_id,
         barcode as qrcode,
         encountered::date as collect_ts,
-        sample.details @> '{"note": "never-tested"}' as never_tested,
-        sample.details ->> 'swab_type' as swab_type,
-        -- The identifier set of the sample's collection identifier determines
-        -- if the sample was collected under staff observation.
-        -- In-person kiosk enrollment samples are collected under staff
-        -- observation while mail-in samples are done without staff observation.
-        --  Jover, 22 July 2020
-        case identifier_set.name
-          when 'collections-scan-kiosks' then true
-          when 'collections-scan' then false
-          else null
-        end as staff_observed
+        sample.details @> '{"note": "never-tested"}' as never_tested
 
       from
         warehouse.identifier
@@ -2108,7 +2096,7 @@ create or replace view shipping.scan_return_results_v1 as
         left join warehouse.sample on uuid::text = sample.collection_identifier
         left join warehouse.encounter using (encounter_id)
       where
-        identifier_set.name in('collections-scan', 'collections-scan-kiosks')
+        identifier_set.name in('collections-scan')
         -- Add a date cutoff so that we only return results to participants
         -- that are in the SCAN research study (launch date: 2020-06-10)
         and encountered >= '2020-06-10 00:00:00 US/Pacific'
@@ -2126,9 +2114,7 @@ create or replace view shipping.scan_return_results_v1 as
             when hcov19_present is false then 'negative'
             when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
         end as status_code,
-        result_ts,
-        swab_type,
-        staff_observed
+        result_ts
     from
       scan_samples
       left join hcov19_presence_absence using (sample_id)

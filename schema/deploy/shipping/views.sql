@@ -2310,7 +2310,8 @@ create or replace view shipping.scan_enrollments_v1 as
         scan_study_arm,
         priority_code,
         puma,
-        neighborhood_district
+        neighborhood_district,
+        sample is not null or never_tested is not null as kit_received
 
     from shipping.scan_encounters_v1
 ;

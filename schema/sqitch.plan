@@ -203,3 +203,6 @@ warehouse/site/data [warehouse/site/data@2020-07-13] 2020-07-17T22:48:31Z Jover 
 
 shipping/views [shipping/views@2020-07-17] 2020-07-20T20:56:28Z Jover Lee <joverlee@fredhutch.org> # Update SCAN return results view to include sample type & scan-kiosks samples
 @2020-07-20 2020-07-20T23:30:59Z Jover Lee <joverlee@fredhutch.org> # Schema as of 20 July 2020
+
+shipping/views [shipping/views@2020-07-20] 2020-07-29T18:37:58Z Kairsten Fay <kfay@fredhutch.org> # Add kit received to SCAN enrollments
+@2020-07-29 2020-07-29T18:42:32Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 29 July 2020
