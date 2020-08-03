@@ -330,6 +330,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'disch/trans/planned readm to a distinct psych unit/hospital': 'psy',
         'disch/trans to a distinct rehab unit/hospital'         : 'rehab',
         'dis/trans: disch/trans to a distinct rehab unit/hospital': 'rehab',
+        'disch/trans/planned readm to snf-skilled nursing facility': 'snf',
         'snf-skilled nursing facility'                          : 'snf',
         'snf: snf-skilled nursing facility'                     : 'snf',
         'still a patient'                                       : None,
