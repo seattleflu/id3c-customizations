@@ -16,8 +16,9 @@ begin;
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
 drop view if exists shipping.scan_enrollments_v1;
-drop view if exists shipping.seattle_neighborhood_districts_v1;
-drop view if exists shipping.scan_hcov19_positives_v1;
+drop view if exists shipping.seattle_neighborhood_districts_v1; -- Can be deleted in next rework -Jover, 06 Aug 2020
+drop view if exists shipping.scan_hcov19_positives_v1; -- Can be deleted in next rework -Jover, 06 Aug 2020
+drop view if exists shipping.scan_hcov19_result_counts_v1;
 drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.scan_return_results_v1;
@@ -2190,7 +2191,7 @@ grant select
     to "scan-dashboard-exporter";
 
 
-create or replace view shipping.scan_hcov19_positives_v1 as
+create or replace view shipping.scan_hcov19_result_counts_v1 as
 
     with hcov19_presence_absence as (
         -- Collapse potentially multiple hCoV-19 results
@@ -2250,56 +2251,38 @@ create or replace view shipping.scan_hcov19_positives_v1 as
     select
         hcov19_result_release_date,
         count(*) filter (where hcov19_result in ('positive', 'inconclusive')) as total_hcov19_positives,
+        count(*) filter (where hcov19_result = 'negative') as total_hcov19_negatives,
         count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'king') as king_county_positives,
+        count(*) filter (where hcov19_result = 'negative' and county = 'king') as king_county_negatives,
         count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'snohomish') as snohomish_county_positives,
+        count(*) filter (where hcov19_result = 'negative' and county = 'snohomish') as snohomish_county_negatives,
         count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'yakima') as yakima_county_positives,
-        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county is null) as other_positives
+        count(*) filter (where hcov19_result = 'negative' and county = 'yakima') as yakima_county_negatives,
+        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county is null) as other_positives,
+        count(*) filter (where hcov19_result = 'negative' and county is null) as other_negatives
     from scan_hcov19_results
     group by hcov19_result_release_date
 ;
 
-comment on view shipping.scan_hcov19_positives_v1 is
-  'A view of counts of hcov19 positives from the SCAN project grouped by date results were released.';
+comment on view shipping.scan_hcov19_result_counts_v1 is
+  'A view of counts of hcov19 results from the SCAN project grouped by date results were released.';
 
--- Even if it's just aggregate counts of hcov19 positives,
+-- Even if it's just aggregate counts of hcov19 results,
 -- we should probably restrict access to this view to only hcov19-visibility
 -- and scan-dashboard-exporter.
 --  -Jover, 9 July 2020
-revoke all on shipping.scan_return_results_v1 from reporter;
+revoke all on shipping.scan_hcov19_result_counts_v1 from reporter;
 
 grant select
-    on shipping.scan_return_results_v1
+    on shipping.scan_hcov19_result_counts_v1
     to "hcov19-visibility";
 
 revoke all
-    on shipping.scan_hcov19_positives_v1
+    on shipping.scan_hcov19_result_counts_v1
   from "scan-dashboard-exporter";
 
 grant select
-    on shipping.scan_hcov19_positives_v1
-    to "scan-dashboard-exporter";
-
-
-create or replace view shipping.seattle_neighborhood_districts_v1 as
-
-    select
-        identifier,
-        st_assvg(point, rel=>1, maxdecimaldigits=>5) as centroid,
-        st_assvg(polygon, rel=>1, maxdecimaldigits=>5) as svg_path
-    from warehouse.location
-    where scale = 'neighborhood_district'
-    and hierarchy -> 'city' = 'seattle'
-;
-
-comment on view shipping.seattle_neighborhood_districts_v1 is
-  'A view of Seattle neighborhood district polygons as SVG paths';
-
-revoke all
-    on shipping.seattle_neighborhood_districts_v1
-  from "scan-dashboard-exporter";
-
-grant select
-    on shipping.seattle_neighborhood_districts_v1
+    on shipping.scan_hcov19_result_counts_v1
     to "scan-dashboard-exporter";
 
 

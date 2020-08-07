@@ -109,11 +109,11 @@ def get_scan_demographics(session):
 @authenticated_datastore_session_required
 def get_scan_positives(session):
     """
-    Export aggregate numbers of hCoV-19 positives for SCAN
+    Export aggregate numbers of hCoV-19 result counts for SCAN
     """
-    LOG.debug("Exporting hCoV-19 positives for SCAN")
+    LOG.debug("Exporting hCoV-19 result counts for SCAN")
 
-    positives = datastore.fetch_rows_from_table(session, ("shipping", "scan_hcov19_positives_v1"))
+    positives = datastore.fetch_rows_from_table(session, ("shipping", "scan_hcov19_result_counts_v1"))
 
     return Response((row[0] + '\n' for row in positives), mimetype="application/x-ndjson")
 

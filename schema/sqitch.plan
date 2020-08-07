@@ -206,3 +206,6 @@ shipping/views [shipping/views@2020-07-17] 2020-07-20T20:56:28Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-07-20] 2020-07-29T18:37:58Z Kairsten Fay <kfay@fredhutch.org> # Add kit received to SCAN enrollments
 @2020-07-29 2020-07-29T18:42:32Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 29 July 2020
+
+shipping/views [shipping/views@2020-07-29] 2020-08-05T20:40:42Z Jover Lee <joverlee@fredhutch.org> # Add new view shipping.scan_hcov19_results_counts_v1 that includes both positive and negative counts
+@2020-08-05 2020-08-05T22:14:21Z Jover Lee <joverlee@fredhutch.org> # Schema as of 08 August 2020
