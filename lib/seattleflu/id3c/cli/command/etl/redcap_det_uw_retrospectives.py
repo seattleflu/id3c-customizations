@@ -508,6 +508,7 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
 
     test_result_map = {
         'Negative'                          : False,
+        'None detected'                     : False,
         'None detected.'                    : False,
         'Not detected (qualifier value)'    : False,
         'Detected'                          : True,
