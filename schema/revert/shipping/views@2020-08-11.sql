@@ -2087,10 +2087,7 @@ create or replace view shipping.scan_return_results_v1 as
       select
         sample_id,
         barcode as qrcode,
-        case when encountered::date >= '2020-08-19'
-            then collected
-            else encountered::date
-        end as collect_ts,
+        encountered::date as collect_ts,
         sample.details @> '{"note": "never-tested"}' as never_tested,
         sample.details ->> 'swab_type' as swab_type,
         -- The identifier set of the sample's collection identifier determines
@@ -2289,31 +2286,15 @@ grant select
 
 create or replace view shipping.scan_enrollments_v1 as
 
-    with location_names as (
-        select
-            scale,
-            identifier,
-            case scale
-                when 'neighborhood_district' then details->>'name'
-                when 'puma' then details->>'NAMELSAD10'
-            end as geo_location_name
-        from warehouse.location
-        where scale in ('neighborhood_district', 'puma')
-        and hierarchy @> 'state => washington'
-    )
-
     select
         illness_questionnaire_date,
         scan_study_arm,
         priority_code,
         puma,
         neighborhood_district,
-        geo_location_name,
         sample is not null or never_tested is not null as kit_received
 
     from shipping.scan_encounters_v1
-    join location_names on coalesce(neighborhood_district,puma) = lower(location_names.identifier)
-
 ;
 
 comment on view shipping.scan_enrollments_v1 is
