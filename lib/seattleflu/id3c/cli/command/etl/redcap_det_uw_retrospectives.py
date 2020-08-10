@@ -310,6 +310,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'hospice-hm: hospice - home'                            : 'hosp',
         'hospice - medical facility'                            : 'hosp',
         'disch/transferred to long-term care hosp'              : 'long',
+        'disch/trans/planned readm to long term care hospital'  : 'long',
         'ltc: disch/transferred to long-term care hosp'         : 'long',
         'disch/trans to court/law enforcement'                  : 'oth',
         'disch/trans : disch/trans to court/law enforcement'    : 'oth',
