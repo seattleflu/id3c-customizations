@@ -206,7 +206,8 @@ rule cra_to_neighborhood_district:
     params:
         query = """
             SELECT
-                replace(replace(NEIGHDIST,' ','_'), '/', '_') as NEIGHDIST,
+                replace(replace(NEIGHDIST,' ','_'), '/', '_') as identifier,
+                'Seattle--' || NEIGHDIST as name,
                 ST_Union(geometry) as geometry
             FROM
                 seattle_cra
@@ -233,7 +234,7 @@ rule import_neighborhood_district:
         {id3c:q} location import \
             {input.geojson:q} \
             --scale neighborhood_district \
-            --identifier-from NEIGHDIST \
+            --identifier-from identifier \
             --hierarchy 'country=>united_states,state=>washington,city=>seattle' \
             --if-exists update
         """
