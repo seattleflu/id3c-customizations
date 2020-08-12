@@ -209,3 +209,5 @@ shipping/views [shipping/views@2020-07-20] 2020-07-29T18:37:58Z Kairsten Fay <kf
 
 shipping/views [shipping/views@2020-07-29] 2020-08-05T20:40:42Z Jover Lee <joverlee@fredhutch.org> # Add new view shipping.scan_hcov19_results_counts_v1 that includes both positive and negative counts
 @2020-08-05 2020-08-05T22:14:21Z Jover Lee <joverlee@fredhutch.org> # Schema as of 08 August 2020
+
+shipping/views [shipping/views@2020-08-05] 2020-08-11T23:40:20Z Jover Lee <joverlee@fredhutch.org> # Add location names to shipping.scan_enrollments_v1
