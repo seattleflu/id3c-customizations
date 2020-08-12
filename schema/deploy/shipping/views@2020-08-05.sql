@@ -16,6 +16,8 @@ begin;
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
 drop view if exists shipping.scan_enrollments_v1;
+drop view if exists shipping.seattle_neighborhood_districts_v1; -- Can be deleted in next rework -Jover, 06 Aug 2020
+drop view if exists shipping.scan_hcov19_positives_v1; -- Can be deleted in next rework -Jover, 06 Aug 2020
 drop view if exists shipping.scan_hcov19_result_counts_v1;
 drop view if exists shipping.scan_demographics_v1;
 
