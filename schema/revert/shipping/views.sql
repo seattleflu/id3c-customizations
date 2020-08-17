@@ -17,6 +17,7 @@ begin;
 -- worry about view dependencies when reworking view definitions.
 drop view if exists shipping.scan_enrollments_v1;
 drop view if exists shipping.scan_hcov19_result_counts_v1;
+drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.scan_return_results_v1;
