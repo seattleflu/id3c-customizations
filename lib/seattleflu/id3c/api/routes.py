@@ -105,6 +105,19 @@ def get_scan_demographics(session):
     return Response((row[0] + '\n' for row in demographics), mimetype="application/x-ndjson")
 
 
+@api_v2.route("/shipping/scan-demographics", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_scan_demographics__v2(session):
+    """
+    Export basic demographics for SCAN
+    """
+    LOG.debug("Exporting demographics with COVID status for SCAN")
+
+    demographics = datastore.fetch_rows_from_table(session, ("shipping", "scan_demographics_v2"))
+
+    return Response((row[0] + '\n' for row in demographics), mimetype="application/x-ndjson")
+
+
 @api_v1.route("/shipping/scan-hcov19-positives", methods = ['GET'])
 @authenticated_datastore_session_required
 def get_scan_positives(session):
@@ -127,5 +140,18 @@ def get_scan_enrollments(session):
     LOG.debug("Exporting enrollment metadata for SCAN")
 
     enrollments = datastore.fetch_rows_from_table(session, ("shipping", "scan_enrollments_v1"))
+
+    return Response((row[0] + '\n' for row in enrollments), mimetype="application/x-ndjson")
+
+
+@api_v1.route("/shipping/scan-enrollments-internal", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_scan_enrollments_internal(session):
+    """
+    Export basic enrollment metadata for SCAN
+    """
+    LOG.debug("Exporting enrollment metadata for SCAN internal dashboard")
+
+    enrollments = datastore.fetch_rows_from_table(session, ("shipping", "scan_redcap_enrollments_v1"))
 
     return Response((row[0] + '\n' for row in enrollments), mimetype="application/x-ndjson")
