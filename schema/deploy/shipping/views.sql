@@ -15,6 +15,7 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
+drop view if exists shipping.scan_redcap_enrollments_v1;
 drop view if exists shipping.scan_enrollments_v1;
 drop view if exists shipping.scan_hcov19_result_counts_v1;
 drop view if exists shipping.scan_demographics_v2;
@@ -2422,6 +2423,30 @@ revoke all
 
 grant select
     on shipping.scan_enrollments_v1
+    to "scan-dashboard-exporter";
+
+
+create or replace view shipping.scan_redcap_enrollments_v1 as
+
+    select
+        illness_questionnaire_date,
+        scan_study_arm,
+        puma,
+        age_range_fine,
+        age_range_fine_lower,
+        age_range_fine_upper
+    from shipping.scan_encounters_v1
+;
+
+comment on view shipping.scan_redcap_enrollments_v1 is
+  'A view of SCAN REDCap enrollments for internal Power BI dashboards';
+
+revoke all
+    on shipping.scan_redcap_enrollments_v1
+    from "scan-dashboard-exporter";
+
+grant select
+    on shipping.scan_redcap_enrollments_v1
     to "scan-dashboard-exporter";
 
 commit;
