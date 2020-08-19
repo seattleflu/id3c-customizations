@@ -51,7 +51,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 14
+REVISION = 15
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -633,12 +633,6 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
         value = barcode
     )
 
-    # YYYY-MM-DD in REDCap
-    # The `collection_date` field is being removed from the SCAN REDCap projects
-    # on 22 July 2020.
-    #   -Jover, 16 July 2020.
-    collected_time = record.get('collection_date')
-
     # YYYY-MM-DD HH:MM:SS in REDCap
     # `samp_process_date`field does not exist in new SCAN In-Person Enrollments
     #   -Jover, 17 July 2020
@@ -656,10 +650,43 @@ def create_specimen(record: dict, patient_reference: dict) -> tuple:
     specimen_type = 'NSECR'  # Nasal swab.  TODO we may want shared mapping function
     specimen_resource = create_specimen_resource(
         [specimen_identifier], patient_reference, specimen_type, received_time,
-        collected_time, note
+        collection_date(record), note
     )
 
     return create_entry_and_reference(specimen_resource, "Specimen")
+
+
+def collection_date(record: dict) -> Optional[str]:
+    """
+    Determine sample/specimen collection date from the given REDCap *record*.
+    """
+    # The "PCDEQC" filled out by the unboxing team in the lab.  This instrument
+    # records the date written on the specimen tube if it does not match our
+    # other fields.  It is only used for mail-in samples.
+    qc_complete = is_complete('post_collection_data_entry_qc', record)
+
+    if qc_complete is None:
+        # An in-person/kiosk record.
+        return record.get("consent_date")
+
+    else:
+        # A mail-in record.
+
+        # Older records pre-dating the scan_kit_reg instrument may have a value
+        # in the collection_date field from PCDEQC.  The field stopped being
+        # used on 22 July 2020.
+        if record.get("collection_date"):
+            return record.get("collection_date")
+
+        elif is_complete('scan_kit_reg', record):
+            return (
+                record.get("date_on_tube") or
+                record.get("kit_reg_date"))
+
+        else:
+            return (
+                record.get("date_on_tube") or
+                record.get("back_end_scan_date"))
 
 
 def create_initial_questionnaire_response(record: dict, patient_reference: dict,

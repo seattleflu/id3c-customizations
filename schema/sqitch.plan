@@ -212,3 +212,4 @@ shipping/views [shipping/views@2020-07-29] 2020-08-05T20:40:42Z Jover Lee <jover
 
 shipping/views [shipping/views@2020-08-05] 2020-08-11T23:40:20Z Jover Lee <joverlee@fredhutch.org> # Add location names to shipping.scan_enrollments_v1
 @2020-08-11 2020-08-12T00:41:32Z Jover Lee <joverlee@fredhutch.org> # Schema as of 11 August 2020
+shipping/views [shipping/views@2020-08-11] 2020-08-17T21:57:43Z Thomas Sibley <tsibley@fredhutch.org> # Use collected instead of encountered in SCAN return of results view
