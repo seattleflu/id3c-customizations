@@ -30,7 +30,7 @@ drop view if exists shipping.genomic_sequences_for_augur_build_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
-drop view if exists shipping.scan_encounters_v1;
+drop materialized view if exists shipping.scan_encounters_v1;
 drop view if exists shipping.hcov19_observation_v1;
 
 drop view if exists shipping.observation_with_presence_absence_result_v2;
@@ -2087,7 +2087,10 @@ create or replace view shipping.scan_return_results_v1 as
       select
         sample_id,
         barcode as qrcode,
-        encountered::date as collect_ts,
+        case when encountered::date >= '2020-08-19'
+            then collected
+            else encountered::date
+        end as collect_ts,
         sample.details @> '{"note": "never-tested"}' as never_tested,
         sample.details ->> 'swab_type' as swab_type,
         -- The identifier set of the sample's collection identifier determines

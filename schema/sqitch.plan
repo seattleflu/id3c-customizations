@@ -214,3 +214,5 @@ shipping/views [shipping/views@2020-08-05] 2020-08-11T23:40:20Z Jover Lee <jover
 @2020-08-11 2020-08-12T00:41:32Z Jover Lee <joverlee@fredhutch.org> # Schema as of 11 August 2020
 shipping/views [shipping/views@2020-08-11] 2020-08-17T21:57:43Z Thomas Sibley <tsibley@fredhutch.org> # Use collected instead of encountered in SCAN return of results view
 @2020-08-19 2020-08-19T17:01:56Z Thomas Sibley <tsibley@fredhutch.org> # Schema as of 19 Aug 2020
+
+shipping/views [shipping/views@2020-08-19 seattleflu/schema:shipping/age-bin-decade] 2020-08-19T20:23:05Z Jover Lee <joverlee@fredhutch.org> # Update shipping views for Formative to include hcov19 result with demographics
