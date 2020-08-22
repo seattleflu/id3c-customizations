@@ -182,7 +182,11 @@ def create_encounter(db: DatabaseSession,
     if not encounter_location_references:
         return None, None
 
-    hospitalization = create_encounter_hospitalization(record)
+    try:
+        hospitalization = create_encounter_hospitalization(record)
+    except UnknownHospitalDischargeDisposition as exc:
+        LOG.warning(exc)
+        return None, None
 
     encounter_date = record["collection_date"]
     if not encounter_date:
@@ -340,7 +344,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     standardized_disposition = standardize_whitespace(disposition.lower())
 
     if standardized_disposition not in mapper:
-        raise Exception(f"Unknown discharge disposition value «{standardized_disposition}».")
+        raise UnknownHospitalDischargeDisposition(f"Unknown discharge disposition value «{standardized_disposition}» for RedCAP record «{redcap_record.id}».")
 
     return mapper[standardized_disposition]
 
@@ -583,5 +587,12 @@ class UnknownSampleOrigin(ValueError):
     """
     Raised by :function: `create_encounter_location_references` if it finds
     a sample_origin that is not among a set of expected values
+    """
+    pass
+
+class UnknownHospitalDischargeDisposition(ValueError):
+    """
+    Raised by :function: `discharge_disposition` if it finds
+    a discharge disposition value that is not among a set of mapped values
     """
     pass
