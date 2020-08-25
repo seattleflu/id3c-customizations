@@ -5,6 +5,7 @@ import re
 import click
 import json
 import logging
+from typing import Union
 from uuid import uuid4
 from typing import Any, Callable, Dict, List, Mapping, Match, NamedTuple, Optional, Union, Tuple
 from datetime import datetime
@@ -881,7 +882,6 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         return None
 
     def cast_to_integer(string: str) -> Optional[int]:
-        value: Union[str, float] = string
         try:
             # Age Ceiling
             if question_id == 'age':
