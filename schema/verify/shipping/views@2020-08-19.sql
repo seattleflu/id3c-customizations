@@ -100,8 +100,8 @@ select 1/(count(*) = 1)::int
      = pg_catalog.parse_ident('shipping.scan_return_results_v1');
 
 select 1/(count(*) = 1)::int
-  from pg_matviews
- where array[schemaname, matviewname]::text[]
+  from information_schema.views
+ where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.scan_encounters_v1');
 
 select 1/(count(*) = 1)::int
@@ -117,21 +117,11 @@ select 1/(count(*) = 1)::int
 select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.scan_demographics_v2');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.scan_hcov19_result_counts_v1');
 
 select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.scan_enrollments_v1');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.scan_redcap_enrollments_v1');
 
 rollback;

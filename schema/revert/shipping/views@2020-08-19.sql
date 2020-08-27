@@ -15,10 +15,8 @@ begin;
 
 -- Drop all views at the top in order of dependency so we don't have to
 -- worry about view dependencies when reworking view definitions.
-drop view if exists shipping.scan_redcap_enrollments_v1;
 drop view if exists shipping.scan_enrollments_v1;
 drop view if exists shipping.scan_hcov19_result_counts_v1;
-drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.scan_return_results_v1;
@@ -32,8 +30,7 @@ drop view if exists shipping.genomic_sequences_for_augur_build_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
-drop view if exists shipping.scan_encounters_v1; -- Delete in next rework -Jover, 19 August 2020
-drop materialized view if exists shipping.scan_encounters_v1;
+drop view if exists shipping.scan_encounters_v1;
 drop view if exists shipping.hcov19_observation_v1;
 
 drop view if exists shipping.observation_with_presence_absence_result_v2;
@@ -1148,7 +1145,7 @@ comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
 
-create materialized view shipping.scan_encounters_v1 as
+create or replace view shipping.scan_encounters_v1 as
 
     select
         encounter_id,
@@ -1174,10 +1171,6 @@ create materialized view shipping.scan_encounters_v1 as
         age_bin_coarse_v2.range as age_range_coarse,
         age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
         age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
-
-        age_bin_decade_v1.range as age_range_decade,
-        age_in_years(lower(age_bin_decade_v1.range)) as age_range_decade_lower,
-        age_in_years(upper(age_bin_decade_v1.range)) as age_range_decade_upper,
 
         location.hierarchy -> 'puma' as puma,
         location.hierarchy -> 'tract' as census_tract,
@@ -1235,7 +1228,6 @@ create materialized view shipping.scan_encounters_v1 as
     left join warehouse.location using (location_id)
     left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
     left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
-    left join shipping.age_bin_decade_v1 on age_bin_decade_v1.range @> age
     left join shipping.fhir_encounter_details_v2 using (encounter_id)
     left join warehouse.sample using (encounter_id)
     where site.identifier = 'SCAN'
@@ -1243,7 +1235,7 @@ create materialized view shipping.scan_encounters_v1 as
     and not encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
 ;
 
-comment on materialized view shipping.scan_encounters_v1 is
+comment on view shipping.scan_encounters_v1 is
   'A view of encounter data that are from the SCAN project';
 
 revoke all
@@ -2095,10 +2087,7 @@ create or replace view shipping.scan_return_results_v1 as
       select
         sample_id,
         barcode as qrcode,
-        case when encountered::date >= '2020-08-19'
-            then collected
-            else encountered::date
-        end as collect_ts,
+        encountered::date as collect_ts,
         sample.details @> '{"note": "never-tested"}' as never_tested,
         sample.details ->> 'swab_type' as swab_type,
         -- The identifier set of the sample's collection identifier determines
@@ -2197,96 +2186,6 @@ revoke all
 
 grant select
     on shipping.scan_demographics_v1
-    to "scan-dashboard-exporter";
-
-
-create or replace view shipping.scan_demographics_v2 as
-
-    with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample.identifier as sample,
-            presence_absence_id,
-            case
-              when present is true then 'positive'
-              when present is false then 'negative'
-              when present is null then 'positive'
-            end as hcov19_result,
-            pa.created::date as hcov19_result_release_date
-        from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-            join warehouse.sample using (sample_id)
-        where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and pa.details @> '{"assay_type": "Clia"}'
-            and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
-        /*
-          Keep only the most recent push. According to Lea, samples are only
-          retested if there is a failed result. A positive, negative, or
-          indeterminate result would not be retested.
-
-          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-        */
-        order by
-            sample_id, presence_absence_id desc
-    ),
-
-    king_county_demographics as (
-        select
-            encountered_week,
-            sex,
-            age_range_decade,
-            age_range_decade_lower,
-            age_range_decade_upper,
-            race,
-            hispanic_or_latino,
-            income,
-            sample
-        from shipping.scan_encounters_v1
-        -- Limit to King County participants only since the dashboard
-        -- is only for King County.
-        where puma in (
-          '5311601', '5311602', '5311603', '5311604',
-          '5311605', '5311606', '5311607', '5311608',
-          '5311609', '5311610', '5311611', '5311612',
-          '5311613', '5311614', '5311615', '5311616')
-    )
-
-    select
-        encountered_week,
-        sex,
-        age_range_decade,
-        age_range_decade_lower,
-        age_range_decade_upper,
-        race,
-        hispanic_or_latino,
-        income,
-        hcov19_result
-    from king_county_demographics
-    left join hcov19_presence_absence using (sample)
-;
-
-comment on view shipping.scan_demographics_v2 is
-  'A view of basic demographic data with hcov19 results from the SCAN project for Power BI dashboards.';
-
-revoke all on shipping.scan_demographics_v2 from reporter;
-
-grant select
-    on shipping.scan_demographics_v2
-    to "hcov19-visibility";
-
-revoke all
-    on shipping.scan_demographics_v2
-  from "scan-dashboard-exporter";
-
-grant select
-    on shipping.scan_demographics_v2
     to "scan-dashboard-exporter";
 
 
@@ -2423,30 +2322,6 @@ revoke all
 
 grant select
     on shipping.scan_enrollments_v1
-    to "scan-dashboard-exporter";
-
-
-create or replace view shipping.scan_redcap_enrollments_v1 as
-
-    select
-        illness_questionnaire_date,
-        scan_study_arm,
-        puma,
-        age_range_fine,
-        age_range_fine_lower,
-        age_range_fine_upper
-    from shipping.scan_encounters_v1
-;
-
-comment on view shipping.scan_redcap_enrollments_v1 is
-  'A view of SCAN REDCap enrollments for internal Power BI dashboards';
-
-revoke all
-    on shipping.scan_redcap_enrollments_v1
-    from "scan-dashboard-exporter";
-
-grant select
-    on shipping.scan_redcap_enrollments_v1
     to "scan-dashboard-exporter";
 
 commit;
