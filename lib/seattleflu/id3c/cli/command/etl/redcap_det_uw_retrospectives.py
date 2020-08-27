@@ -310,6 +310,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'home hlth: home health care'                           : 'home',
         'home/self care'                                        : 'home',
         'home: home/self care'                                  : 'home',
+        'hosp-med fac: hospice - medical facility'              : 'hosp',
         'hospice - home'                                        : 'hosp',
         'hospice-hm: hospice - home'                            : 'hosp',
         'hospice - medical facility'                            : 'hosp',
