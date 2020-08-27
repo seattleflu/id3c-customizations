@@ -32,6 +32,7 @@ drop view if exists shipping.genomic_sequences_for_augur_build_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
+drop view if exists shipping.scan_encounters_v1; -- Delete in next rework -Jover, 19 August 2020
 drop materialized view if exists shipping.scan_encounters_v1;
 drop view if exists shipping.hcov19_observation_v1;
 
@@ -1224,7 +1225,6 @@ create materialized view shipping.scan_encounters_v1 as
         wfh,
         industry,
 
-        sample.sample_id,
         sample.identifier as sample,
         sample.details @> '{"note": "never-tested"}' as never_tested
 
@@ -1242,9 +1242,6 @@ create materialized view shipping.scan_encounters_v1 as
     -- Filter out follow up encounters
     and not encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
 ;
-
--- Must have at least one unique index in order to refresh concurrently!
-create unique index scan_encounters_unique_encounter_id on shipping.scan_encounters_v1 (sample_id);
 
 comment on materialized view shipping.scan_encounters_v1 is
   'A view of encounter data that are from the SCAN project';
