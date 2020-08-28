@@ -13,7 +13,7 @@ from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from seattleflu.id3c.cli.command import age_ceiling
-from . import standardize_whitespace
+from . import standardize_whitespace, first_record_instance
 from .fhir import *
 from .redcap_map import *
 
@@ -33,6 +33,7 @@ REVISION = 2
     include_incomplete = True,
     help = __doc__)
 
+@first_record_instance
 def redcap_det_uw_retrospectives(*,
                                    db: DatabaseSession,
                                    cache: TTLCache,
