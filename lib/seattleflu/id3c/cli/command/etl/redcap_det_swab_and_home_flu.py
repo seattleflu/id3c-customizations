@@ -43,7 +43,6 @@ REQUIRED_INSTRUMENTS = [
     "swab-and-home-flu",
     redcap_url = REDCAP_URL,
     project_id = PROJECT_ID,
-    required_instruments = REQUIRED_INSTRUMENTS,
     revision = REVISION,
     help = __doc__)
 

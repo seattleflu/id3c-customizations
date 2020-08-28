@@ -90,7 +90,6 @@ def command_for_each_project(function):
             name = command_name,
             redcap_url = REDCAP_URL,
             project_id = project.id,
-            required_instruments = REQUIRED_INSTRUMENTS,
             raw_coded_values = True,
             revision = REVISION,
             help = help_message)(function)
