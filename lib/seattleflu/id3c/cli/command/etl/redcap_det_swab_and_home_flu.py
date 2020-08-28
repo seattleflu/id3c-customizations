@@ -23,7 +23,7 @@ from . import race
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 1
+REVISION = 2
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"

@@ -81,8 +81,8 @@ def map_symptom(symptom_name: str) -> Optional[str]:
         'eye':                                  'eyePain',
         'smell_taste':                          'lossOfSmellOrTaste',
         'other':                                'other',
-        'none':                                 None,
-        'none of the above':                    None
+        'none':                                 'none',
+        'none of the above':                    'none',
     }
 
     if symptom_name.lower() not in symptom_map:
