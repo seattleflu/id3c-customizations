@@ -1,34 +1,36 @@
 """
-Process presence-absence tests into the relational warehouse
+Process presence-absence tests that are specific to the custom JSON dump
+from Samplify to create standardized FHIR bundles that are inserted into
+the receiving FHIR table.
 
-The ETL process performs a `find_or_create` for targets, as we anticipate the same targets to be tested, but leave room for the addition of new targets.
-
-The ETL process performs a `find_or_create` for samples to allow the processing of re-tested samples. We do not expect to update information of a sample itself.
-
-The ETL process performs an `upsert` for presence_absence to allow the update of results should there be a re-test on an old sample.
+Each FHIR bundle will contain results for one sample so that if errors arise,
+results for each sample can get processed separately without blocking ingestion
+of results of other samples.
 
 The presence-absence ETL process will abort under these conditions:
 
-1. If a sample's barcode matches with a UUID that is of the incorrect identifier set
+1. If we receive an unexpected value for the top-level key
 
-2. If we receive an unexpected value for the "controlStatus" of a target
+2. If we receive a bogus "chip" value
 
-3. If we receive an unexpected value for the "targetResult" of a specific test
+3. If we receive an unexpected value for the "controlStatus" of a target
+
+4. If we receive an unexpected value for the "targetResult" of a specific test
+
+5. If we receive an unexpected value for the "assayName"
+
+6. If we receive an unexpected value for the "assayType"
 """
 import click
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 from id3c.cli.command import with_database_session
-from id3c.db import find_identifier
 from id3c.db.session import DatabaseSession
-from id3c.db.datatypes import Json
-from id3c.cli.command.etl import (
-    etl,
-    find_or_create_target,
-    SampleNotFoundError,
-    upsert_presence_absence,
-)
+from id3c.db.datatypes import Json, as_json
+from id3c.cli.command.etl import etl
+from id3c.cli.command.etl.redcap_det import insert_fhir_bundle
+from .fhir import *
 
 
 LOG = logging.getLogger(__name__)
@@ -42,6 +44,8 @@ LOG = logging.getLogger(__name__)
 # this revision number should be incremented.
 REVISION = 8
 
+INTERNAL_SYSTEM = "https://seattleflu.org"
+SNOMED_SYSTEM = 'http://snomed.info/sct'
 
 @etl.command("presence-absence", help = __doc__)
 @with_database_session
@@ -96,244 +100,185 @@ def etl_presence_absence(*, db: DatabaseSession):
                     raise error from None
 
             for received_sample in received_samples:
+
                 received_sample_barcode = received_sample.get("investigatorId")
+                received_sample_id = received_sample["sampleId"]
+
                 if not received_sample_barcode:
-                    LOG.info(f"Skipping sample «{received_sample['sampleId']}» without SFS barcode")
+                    LOG.warning(f"Skipping sample «{received_sample_id}» without investigatorId (SFS barcode)")
                     continue
 
-                # Don't go any further if there are no results to import.
+                # Don't go process if sample doesn't have results.
                 test_results = received_sample["targetResults"]
-
                 if not test_results:
                     LOG.warning(f"Skipping sample «{received_sample_barcode}» without any results")
                     continue
 
-                received_sample_id = str(received_sample["sampleId"])
-                chip = received_sample.get("chip")
-                extraction_date = received_sample.get("extractionDate")
-                assay_name = received_sample.get("assayName")
-                assay_date = received_sample.get("assayDate")
-                assay_type = received_sample.get("assayType")
-
-                # Guard against empty chip values
-                assert chip or "chip" not in received_sample, "Received bogus chip id"
-
                 # Must be current results
-                LOG.info(f"Processing sample «{received_sample_barcode}»")
-
                 if not received_sample.get("isCurrentExpressionResult"):
                     LOG.warning(f"Skipping out-of-date results for sample «{received_sample_barcode}»")
                     continue
 
-                # Barcode must match a known identifier
-                received_sample_identifier = sample_identifier(db, received_sample_barcode)
+                # Guard against empty chip values
+                chip = received_sample.get("chip")
+                assert chip or "chip" not in received_sample, "Received bogus chip id"
 
-                if not received_sample_identifier:
-                    LOG.warning(f"Skipping results for sample without a known identifier «{received_sample_barcode}»")
-                    continue
+                LOG.info(f"Processing sample «{received_sample_barcode}»")
+                specimen_entry, specimen_reference = create_specimen(received_sample)
 
-                # Track Samplify's internal ids for our samples, which is
-                # unfortunately necessary for linking genomic data NWGC also
-                # sends.
-                sample = update_sample(db,
-                    identifier = received_sample_identifier,
-                    additional_details = sample_details(received_sample))
+                results: List[dict] = []
+                results_references: List[dict] = []
+                # Process all results for this sample.
+                for index, test_result in enumerate(test_results):
+                    result_id = f"result-{index+1}"
 
-                # Finally, process all results.
-                for test_result in test_results:
-                    test_result_target_id = test_result["geneTarget"]
-                    LOG.debug(f"Processing target «{test_result_target_id}» for \
-                    sample «{received_sample_barcode}»")
+                    result_observation_resource = create_result_observation(
+                        received_sample = received_sample,
+                        test_result = test_result,
+                        result_id = result_id
+                    )
 
-                    # Skip this result if it's actually a non-result
-                    present = target_present(test_result)
-
-                    if present is ...:
-                        LOG.debug(f"No test result for «{test_result_target_id}», skipping")
+                    if not result_observation_resource:
                         continue
 
-                    # Most of the time we expect to see existing targets so a
-                    # select-first approach makes the most sense to avoid useless
-                    # updates.
-                    target = find_or_create_target(db,
-                        identifier = test_result_target_id,
-                        control = target_control(test_result["controlStatus"]))
+                    results.append(result_observation_resource)
+                    results_references.append({"reference": f"#{result_id}"})
 
-                    # The unique identifier for each result.  If chip is
-                    # applicable, then it's included to differentiate the same
-                    # sample being run on multiple chips (uncommon, but it
-                    # happens).
-                    if chip:
-                        identifier = f"NWGC/{received_sample_id}/{target.identifier}/{chip}"
-                    else:
-                        identifier = f"NWGC/{received_sample_id}/{target.identifier}"
+                # Skip sample if there are no valid results
+                if not results:
+                    LOG.debug(f"Sample «{received_sample_barcode} did not have any valid results")
+                    continue
 
-                    # Most of the time we expect to see new samples and new
-                    # presence_absence tests, so an insert-first approach makes more sense.
-                    # Presence-absence tests we see more than once are presumed to be
-                    # corrections.
-                    upsert_presence_absence(db,
-                        identifier = identifier,
-                        sample_id  = sample.id,
-                        target_id  = target.id,
-                        present    = present,
-                        details    = presence_absence_details(test_result,
-                                                              chip,
-                                                              extraction_date,
-                                                              assay_name,
-                                                              assay_date,
-                                                              assay_type))
+                # Create FHIR Diagnostic Report Resource and Bundle entry
+                diagnostic_report_resource = create_diagnostic_report_resource(
+                    diagnostic_code = create_codeable_concept(
+                        system = f"{INTERNAL_SYSTEM}/presence-absence-panel",
+                        code = 'NWGC'
+                    ),
+                    specimen_reference = specimen_reference,
+                    result = results_references,
+                    contained = results,
+                    datetime = received_sample.get("assayDate")
+                )
+
+                diagnostic_report_entry = create_resource_entry(
+                    resource = diagnostic_report_resource,
+                    full_url = generate_full_url_uuid()
+                )
+
+                # Create FHIR Bundle
+                fhir_bundle = create_bundle_resource(
+                    bundle_id = str(uuid4()),
+                    timestamp = datetime.now().astimezone().isoformat(),
+                    source = f"receiving/presence_absence/{group.id}",
+                    entries = [specimen_entry, diagnostic_report_entry]
+                )
+
+                # Insert FHIR Bundle into receiving.fhir
+                insert_fhir_bundle(db, fhir_bundle)
 
             mark_processed(db, group.id)
 
             LOG.info(f"Finished processing presence_absence group {group.id}")
 
 
-def target_control(control: str) -> bool:
-    """
-    Determine the control status of the target.
-    """
-    expected_values = ["NotControl", "PositiveControl"]
-    if not control or control not in expected_values:
-        raise UnknownControlStatusError(f"Unknown control status «{control}».")
-    return control == "PositiveControl"
+def create_specimen(received_sample: dict) -> tuple:
+    """ Returns a FHIR Specimen resource entry and reference """
+    # SFS sample barcode
+    sfs_identifier = create_identifier(
+        system = f"{INTERNAL_SYSTEM}/sample",
+        value = received_sample.get("investigatorId")
+    )
 
+    # NWGC ID
+    nwgc_identifier = create_identifier(
+        system = f"{INTERNAL_SYSTEM}/nwgc_id",
+        value = str(received_sample["sampleId"])
+    )
 
-def update_sample(db: DatabaseSession,
-                  identifier: str,
-                  additional_details: dict) -> Any:
-    """
-    Find sample by *identifier* and update with any *additional_details*.
-
-    The provided *additional_details* are merged (at the top-level only) into
-    the existing sample details, if any.
-
-    Raises an :class:`SampleNotFoundError` if there is no sample known by
-    *identifier*.
-    """
-    LOG.debug(f"Looking up sample «{identifier}»")
-
-    sample = db.fetch_row("""
-        select sample_id as id, identifier, details
-          from warehouse.sample
-         where identifier = %s
-           for update
-        """, (identifier,))
-
-    if not sample:
-        LOG.error(f"No sample with identifier «{identifier}» found")
-        raise SampleNotFoundError(identifier)
-
-    LOG.info(f"Found sample {sample.id} «{sample.identifier}»")
-
-    if additional_details:
-        LOG.info(f"Updating sample {sample.id} «{sample.identifier}» details")
-
-        update_details_nwgc_id(sample, additional_details)
-
-        sample = db.fetch_row("""
-            update warehouse.sample
-               set details = coalesce(details, '{}') || %s
-             where sample_id = %s
-            returning sample_id as id, identifier
-            """, (Json(additional_details), sample.id))
-
-        assert sample.id, "Updating details affected no rows!"
-
-    return sample
-
-
-def update_details_nwgc_id(sample: Any, additional_details: dict) -> None:
-    """
-    Given a *sample* fetched from `warehouse.sample`,
-    extend `sample.details.nwgc_id` to an array if needed.
-
-    Add provided "nwgc_id" within *additional_details* to the existing array
-    if it doesn't already exist
-    """
-    if not sample.details:
-        return
-
-    existing_nwgc_ids = sample.details.get("nwgc_id", [])
-    new_nwgc_ids = additional_details["nwgc_id"]
-
-    # Extend details.nwgc_id to an array
-    if not isinstance(existing_nwgc_ids, list):
-        existing_nwgc_ids = [existing_nwgc_ids]
-
-    # Concatenate exisiting and new nwgc_ids and deduplicate
-    additional_details["nwgc_id"] = list(set(existing_nwgc_ids + new_nwgc_ids))
-
-
-def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
-    """
-    Find corresponding UUID for scanned sample barcode within
-    warehouse.identifier.
-    """
-    identifier = find_identifier(db, barcode)
-
-    if identifier:
-        assert identifier.set_name == "samples", \
-            f"Identifier found in set «{identifier.set_name}», not «samples»"
-
-    return identifier.uuid if identifier else None
-
-
-def sample_details(document: dict) -> dict:
-    """
-    Capture NWGC sample ID.
-    Capture details about the go/no-go sequencing call for this sample.
-    """
-    return {
-        "nwgc_id": [document['sampleId']],
+    # Capture details about the go/no-go sequencing call for this sample.
+    sample_details = as_json({
         "sequencing_call": {
-            "comment": document['sampleComment'],
-            "initial": document['initialProceedToSequencingCall'],
-            "final": document["sampleProceedToSequencing"],
+            "comment": received_sample["sampleComment"],
+            "initial": received_sample["initialProceedToSequencingCall"],
+            "final": received_sample["sampleProceedToSequencing"],
         },
-    }
+    })
+    specimen_extension = create_extension_element(
+        url = f"{INTERNAL_SYSTEM}/sample_details",
+        value = { "valueString" : sample_details }
+    )
 
-def presence_absence_details(document: dict,
-                             chip: Any = None,
-                             extraction_date: Any = None,
-                             assay_name: Any = None,
-                             assay_date: Any = None,
-                             assay_type: Any = None) -> dict:
+    specimen_resource = create_specimen_resource(
+        specimen_identifier = [sfs_identifier, nwgc_identifier],
+        extension = [specimen_extension]
+    )
+
+    return create_entry_and_reference(specimen_resource, "Specimen")
+
+
+def create_result_observation(received_sample: dict,
+                              test_result: dict,
+                              result_id: str) -> Optional[Dict[str, Any]]:
     """
-    Describe presence/absence details in a simple data structure designed to
-    be used from SQL.
-
-    Raises `AssertionError` if we find an unknown *assay_name* or unknown
-    *assay_type*.
+    Returns a FHIR Observation Resource for the given *test_result* of the
+    *received_sample*.
     """
-    device = None
+    test_result_target_id = test_result["geneTarget"]
+    received_sample_barcode = received_sample["investigatorId"]
+    received_sample_id = received_sample["sampleId"]
 
-    if assay_name:
-        assert assay_name in {'OpenArray', 'TaqmanQPCR'}, f"Found unknown assay name «{assay_name}»"
-        device = assay_name
-    elif chip:
-        device = "OpenArray"
+    LOG.debug(f"Processing target «{test_result_target_id}» for sample «{received_sample_barcode}»")
 
-    if assay_type:
-        assert assay_type in {'Clia', 'Research'}, f"Found unknown assay type «{assay_type}»"
+    # Skip this result if it's actually a non-result
+    present = target_present(test_result)
+    if present is None:
+        LOG.debug(f"No test result for «{test_result_target_id}», skipping")
+        return None
+
+    # The unique identifier for each result.  If chip is
+    # applicable, then it's included to differentiate the same
+    # sample being run on multiple chips (uncommon, but it
+    # happens).
+    chip = received_sample.get("chip")
+    if chip:
+        identifier = f"NWGC/{received_sample_id}/{test_result_target_id}/{chip}"
     else:
-        # Assumes anything with 4 wellResults is "Clia" and everything else
-        # "Research" assays
-        assay_type = 'Clia' if len(document['wellResults']) == 4 else 'Research'
+        identifier = f"NWGC/{received_sample_id}/{test_result_target_id}"
 
-    return {
-        "device": device,
-        "assay_date": assay_date,
-        "assay_type": assay_type,
-        "extraction_date": extraction_date,
-        "replicates": document['wellResults']
+    result_observation = {
+        "resourceType": "Observation",
+        "id": result_id,
+        "status": "final",
+        'code': create_result_code(test_result),
+        "valueCodeableConcept": create_codeable_concept(
+            system = SNOMED_SYSTEM,
+            code = present
+        ),
+        "identifier": [create_identifier(
+            system = f"{INTERNAL_SYSTEM}/presence-absence",
+            value = identifier
+        )],
+        "extension": create_observation_extensions(received_sample, test_result)
     }
 
-def target_present(test_result: dict) -> Any:
+    device_reference = create_device_reference(received_sample)
+
+    if device_reference:
+        result_observation["device"] = device_reference
+
+    return result_observation
+
+
+def target_present(test_result: dict) -> Optional[str]:
     """
-    Returns a value for ``warehouse.presence_absence.present``
-    for the given received *test_result*, or ``...``
-    (``Ellipsis``) if the test should be skipped.
+    Returns a SNOMED code for the given received *test_result*, or None if the
+    test should be skipped.
+
+    SNOMED codes for qualifier values are:
+    "10828004": Positive
+    "260385009": Negative
+    "82334004": Indeterminate
 
     Raises a :py:class:`ValueError` if a value cannot be determined.
     """
@@ -343,14 +288,14 @@ def target_present(test_result: dict) -> Any:
     )
 
     mapping = {
-        "Detected": True,
-        "NotDetected": False,
+        "Detected": "10828004",
+        "NotDetected": "260385009",
 
-        "Positive": True,
-        "PositiveControlPass": True,
-        "Negative": False,
-        "Indeterminate": None,
-        "Inconclusive": None,
+        "Positive": "10828004",
+        "PositiveControlPass": "10828004",
+        "Negative": "260385009",
+        "Indeterminate": "82334004",
+        "Inconclusive": "82334004",
 
         # These are valid _workflow_ statuses, but they're not really test
         # results; they describe the circumstances around performing the test,
@@ -364,15 +309,121 @@ def target_present(test_result: dict) -> Any:
         # is to aim for simpler data models which are easier to reckon about,
         # not track everything that's performed like a LIMS/LIS does.
         #   -trs, 20 Mar 2020
-        "Fail": ...,
-        "Repeat": ...,
-        "Review": ...,
+        "Fail": None,
+        "Repeat": None,
+        "Review": None,
+
+        # Control samples get a specific `sampleState` of 'ControlPass`
+        # since we don't ingest results for control samples, these results
+        # can be skipped.
+        #   -Jover, 14 September 2020
+        "ControlPass": None,
     }
 
     if not status or status not in mapping:
         raise ValueError(f"Unable to determine target presence given «{test_result}»")
 
     return mapping[status]
+
+
+def create_result_code(test_result: dict) -> Dict[str, Any]:
+    """
+    Returns a FHIR codeable concept that with the codes for the provided
+    *test_result*.
+
+    The codes include the target identifier and control status of the target.
+    """
+    identifier_coding = create_coding(
+        system = f"{INTERNAL_SYSTEM}/target/identifier",
+        code = test_result["geneTarget"]
+    )
+
+    control_coding = create_coding(
+        system = f"{INTERNAL_SYSTEM}/target/control",
+        code = str(target_control(test_result["controlStatus"]))
+    )
+
+    return {
+        "coding": [identifier_coding, control_coding]
+    }
+
+
+def target_control(control: str) -> bool:
+    """
+    Determine the control status of the target.
+    """
+    expected_values = ["NotControl", "PositiveControl"]
+    if not control or control not in expected_values:
+        raise UnknownControlStatusError(f"Unknown control status «{control}».")
+    return control == "PositiveControl"
+
+
+def create_device_reference(received_sample: dict) -> Optional[Dict[str, Any]]:
+    """
+    Returns a FHIR Reference to the device used to generate results for
+    the *received_sample*.
+
+    Device is determined based on the `assay_name` or `chip`
+    in *received_sample*. If neither exists, then returns None.
+    """
+    assay_name = received_sample.get("assayName")
+    chip = received_sample.get("chip")
+
+    if assay_name:
+        assert assay_name in {"OpenArray", "TaqmanQPCR"}, f"Found unknown assay name «{assay_name}»"
+        device = assay_name
+    elif chip:
+        device = "OpenArray"
+    else:
+        return None
+
+    return create_reference(
+        reference_type = 'Device',
+        identifier = create_identifier(
+            system = f'{SFS}/device',
+            value = device
+        )
+    )
+
+
+def create_observation_extensions(received_sample: dict,
+                                  test_result: dict) -> List[Dict[str, Any]]:
+    """
+    Create a list of FHIR extension elements related to the *received_sample*
+    and *test_result* that do not fit in the standard fields of the
+    FHIR Observation Resource.
+    """
+    replicates = test_result["wellResults"]
+    assay_type = received_sample.get("assayType")
+
+    if assay_type:
+        assert assay_type in {'Clia', 'Research'}, f"Found unknown assay type «{assay_type}»"
+    else:
+        # Assumes anything with 4 wellResults is "Clia" and everything else
+        # "Research" assays
+        assay_type = 'Clia' if len(replicates) == 4 else 'Research'
+
+    assay_type_extension = create_extension_element(
+        url = f"{INTERNAL_SYSTEM}/assay_type",
+        value = {"valueString": assay_type}
+    )
+
+    replicates_extension = create_extension_element(
+        url = f"{INTERNAL_SYSTEM}/replicates",
+        value = {"valueString": as_json(replicates)}
+    )
+
+    extensions = [assay_type_extension, replicates_extension]
+
+    extraction_date = received_sample.get("extractionDate")
+    if extraction_date:
+        extraction_date_extension = create_extension_element(
+            url = f"{INTERNAL_SYSTEM}/extraction_date",
+            value = {"valueDate": extraction_date}
+        )
+        extensions.append(extraction_date_extension)
+
+    return extensions
 
 
 def mark_processed(db, group_id: int) -> None:
