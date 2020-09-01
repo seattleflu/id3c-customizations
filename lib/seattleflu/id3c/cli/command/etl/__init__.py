@@ -204,6 +204,7 @@ class UnknownRaceError(ValueError):
 from . import (
     clinical,
     longitudinal,
+    presence_absence,
     redcap_det_kiosk,
     redcap_det_swab_n_send,
     redcap_det_swab_and_home_flu,
