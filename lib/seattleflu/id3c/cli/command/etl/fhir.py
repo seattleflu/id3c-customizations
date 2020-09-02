@@ -259,8 +259,8 @@ def create_encounter_resource(encounter_identifier: List[dict],
 
 
 def create_specimen_resource(specimen_identifier: List[dict],
-                             patient_reference: dict,
-                             specimen_type: str,
+                             patient_reference: dict = None,
+                             specimen_type: str = None,
                              received_datetime: str = None,
                              collection_datetime: str = None,
                              note: str = None) -> dict:
@@ -272,9 +272,14 @@ def create_specimen_resource(specimen_identifier: List[dict],
     specimen_resource = {
         "resourceType": "Specimen",
         "identifier": specimen_identifier,
-        "subject": patient_reference,
-        "type": create_codeable_concept(specimen_type_system, specimen_type)
     }
+
+    if patient_reference:
+        specimen_resource["subject"] = patient_reference
+
+    if specimen_type:
+        specimen_resource["type"] = create_codeable_concept(specimen_type_system, specimen_type)
+
     if received_datetime:
         specimen_resource["receivedTime"] = received_datetime
 
