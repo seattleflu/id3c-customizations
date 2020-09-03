@@ -2095,7 +2095,7 @@ create or replace view shipping.return_results_v3 as
             sample_id, presence_absence_id desc
     ),
 
-    scan_samples as (
+    samples as (
       select
         sample_id,
         barcode as qrcode,
@@ -2112,7 +2112,9 @@ create or replace view shipping.return_results_v3 as
         --  Jover, 22 July 2020
         case identifier_set.name
           when 'collections-scan-kiosks' then true
+          when 'collections-uw-observed' then true
           when 'collections-scan' then false
+          when 'collections-uw-home' then false
           else null
         end as staff_observed
 
@@ -2122,9 +2124,14 @@ create or replace view shipping.return_results_v3 as
         left join warehouse.sample on uuid::text = sample.collection_identifier
         left join warehouse.encounter using (encounter_id)
       where
-        identifier_set.name in('collections-scan', 'collections-scan-kiosks')
-        -- Add a date cutoff so that we only return results to participants
-        -- that are in the SCAN research study (launch date: 2020-06-10)
+        identifier_set.name in (
+          'collections-scan',
+          'collections-scan-kiosks',
+          'collections-uw-home',
+          'collections-uw-observed'
+        )
+        -- Add a date cutoff so that we only return results from samples
+        -- collected after the SCAN IRB study launched on 2020-06-10.
         and encountered >= '2020-06-10 00:00:00 US/Pacific'
       order by encountered, barcode
     )
@@ -2144,7 +2151,7 @@ create or replace view shipping.return_results_v3 as
         swab_type,
         staff_observed
     from
-      scan_samples
+      samples
       left join hcov19_presence_absence using (sample_id)
     ;
 
@@ -2173,7 +2180,7 @@ grant select
     to "hcov19-visibility";
 
 comment on view shipping.return_results_v3 is
-  'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
+  'View of barcodes and presence/absence results for SFS return of results on the UW Lab Med site';
 
 
 create or replace view shipping.scan_return_results_v1 as
