@@ -4,7 +4,7 @@ REDCap DET ETL shared functions to create FHIR documents
 import logging
 import regex
 from itertools import filterfalse
-from typing import Iterable, NamedTuple, Optional, List, Any, Callable
+from typing import Iterable, NamedTuple, Optional, List, Any, Callable, Dict
 from uuid import uuid4
 from datetime import datetime
 from id3c.cli.command.de_identify import generate_hash
@@ -562,3 +562,32 @@ def observation_resource(device: str) -> Any:
             )
         )
     }
+
+
+def create_extension_element(url: str,
+                             value: Dict[str, Any] = None,
+                             sub_extensions: List[dict] = None) -> dict:
+    """
+    Create an extension element following the FHIR format
+    https://www.hl7.org/fhir/extensibility.html#extension
+    """
+    assert value or sub_extensions, \
+        "Please provide either a value or sub-extensions to create an extension element"
+
+    assert not (value and sub_extensions), \
+        "An extension element can have either value or sub-extensions, but not both"
+
+    extension_element: Dict[str, Any] = {
+        'url': url,
+    }
+
+    if value:
+        assert (len(value)) == 1, \
+            "Each extension element can only have one value[x] element"
+
+        extension_element.update(value)
+
+    if sub_extensions:
+        extension_element['extension'] = sub_extensions
+
+    return extension_element
