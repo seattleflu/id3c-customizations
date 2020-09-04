@@ -13,6 +13,7 @@ from id3c.db.session import DatabaseSession
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
+from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
@@ -48,6 +49,7 @@ PROJECTS = [
     ScanProject(22476, "ko", "irb"),
     ScanProject(22471, "so", "irb"),
     ScanProject(23089, "en", "irb-kiosk"),
+    ScanProject(23959, "en", "irb-husky"),
 
 ]
 
@@ -103,6 +105,20 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     #   -Jover, 17 July 2020
     if is_complete('enrollment_questionnaire', redcap_record) == False:
         LOG.debug("Skipping enrollment with incomplete `enrollment_questionnaire` instrument")
+        return None
+
+    # If the `location_type` field exists, but is not filled in (empty string)
+    # then skip record. Added check because the new SCAN Husky Project
+    # has a different survey flow where participants are asked to fill in their
+    # consent & illness questionnaire online before the doing the in-person
+    # swab. We don't know the site of the swab until this field is completed in
+    # person, so `location_type` is recorded in the nasal_swab_collection
+    # instrument which is completed at the time of the swab.
+    # We cannot check nasal_swab_collection is complete because it exists in
+    # other projects and would delay ingestion of from them.
+    #   -Jover, 04 September 2020
+    if redcap_record.get('location_type') == '':
+        LOG.debug("Skipping enrollment without completed `location_type`")
         return None
 
     # Skip record if the illness_questionnaire is not complete, because this is
@@ -221,7 +237,8 @@ def site_map(record_location: str) -> str:
     Maps *record_location* to the corresponding site name.
     """
     location_site_map = {
-        'greek': 'UWGreek'
+        'greek': 'UWGreek',
+        'uw_study': 'UWClub',
     }
 
     if record_location not in location_site_map:
@@ -243,7 +260,7 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         'none'
     ]
 
-    if record['housing_type'] in lodging_options:
+    if record.get('housing_type') in lodging_options:
         housing_type = 'lodging'
     else:
         housing_type = 'residence'
@@ -444,11 +461,20 @@ def create_patient(record: REDCapRecord) -> tuple:
         'preferred': True # Assumes that the project language is the patient's preferred language
     }]
 
-    patient_id = generate_patient_hash(
-        names       = (record['participant_first_name'], record['participant_last_name']),
-        gender      = gender,
-        birth_date  = record['birthday'],
-        postal_code = record['home_zipcode_2'])
+    # Use the UW NetID to generate patient id if it's available.
+    # This is the stable identifier that can allow us to match UW reopening
+    # participants.
+    #   -Jover, 04 September 2020
+    net_id = record.get('netid')
+    net_id = net_id.strip().lower() if net_id else None
+    if net_id:
+        patient_id = generate_hash(net_id)
+    else:
+        patient_id = generate_patient_hash(
+            names       = (record['participant_first_name'], record['participant_last_name']),
+            gender      = gender,
+            birth_date  = record['birthday'],
+            postal_code = record['home_zipcode_2'])
 
     if not patient_id:
         # Some piece of information was missing, so we couldn't generate a
@@ -660,14 +686,13 @@ def collection_date(record: dict) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
-    # The "PCDEQC" filled out by the unboxing team in the lab.  This instrument
-    # records the date written on the specimen tube if it does not match our
-    # other fields.  It is only used for mail-in samples.
-    qc_complete = is_complete('post_collection_data_entry_qc', record)
+    # The back_end_mail_scans is filled out by the logistics team for shipping.
+    # It is only used for mail-in samples.
+    back_end_complete = is_complete('back_end_mail_scans', record)
 
-    if qc_complete is None:
+    if back_end_complete is None:
         # An in-person/kiosk record.
-        return record.get("consent_date")
+        return record.get("nasal_swab_q")
 
     else:
         # A mail-in record.
