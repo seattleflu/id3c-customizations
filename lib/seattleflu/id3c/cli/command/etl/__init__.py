@@ -3,10 +3,10 @@ Run ETL routines
 """
 import logging
 import re
-from typing import Any, Optional
+from typing import Any, Optional, List
 from textwrap import dedent
 from functools import wraps
-from id3c.cli.redcap import Record as REDCapRecord
+from id3c.cli.redcap import Record as REDCapRecord, is_complete
 
 
 LOG = logging.getLogger(__name__)
@@ -158,6 +158,39 @@ def first_record_instance(routine):
         LOG.debug(f"Only processing the first instance of the REDCap record «{kwargs['redcap_record'].id}»")
         return routine(*args, **kwargs)
     return decorated
+
+
+def required_instruments(required_instruments: List[str]):
+    """
+    A decorator that checks the *redcap_record* being processed by the
+    ETL routine has completed all *required_instruments*.
+
+    Returns `None` if not all *required_instruments* are completed.
+
+    The decorated function should be an ETL routine for REDCap records that
+    must accept a dictionary *redcap_record* argument.
+    """
+    def decorator(routine):
+        @wraps(routine)
+        def decorated(*args, **kwargs):
+            redcap_record = kwargs["redcap_record"]
+
+            incomplete_instruments = {
+                instrument
+                    for instrument
+                    in required_instruments
+                    if not is_complete(instrument, redcap_record)
+            }
+
+            if incomplete_instruments:
+                LOG.debug(f"The following required instruments «{incomplete_instruments}» are not yet marked complete.")
+                return None
+
+            return routine(*args, **kwargs)
+
+        return decorated
+
+    return decorator
 
 
 class UnknownRaceError(ValueError):
