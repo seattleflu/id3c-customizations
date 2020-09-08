@@ -223,3 +223,5 @@ shipping/views [shipping/views@2020-08-19b] 2020-08-27T20:51:56Z Jover Lee <jove
 
 warehouse/site/data [warehouse/site/data@2020-08-27] 2020-09-04T18:46:23Z Jover Lee <joverlee@fredhutch.org> # Add new UWClub site
 @2020-09-04 2020-09-04T19:07:40Z Jover Lee <joverlee@fredhutch.org> # Schema as of 04 September 2020
+
+shipping/views [shipping/views@2020-09-04] 2020-09-08T18:58:09Z Kairsten Fay <kfay@fredhutch.org> # Create SFS RoR v3 view

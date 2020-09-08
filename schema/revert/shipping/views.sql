@@ -22,6 +22,7 @@ drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.scan_return_results_v1;
+drop view if exists shipping.return_results_v3;
 drop view if exists shipping.return_results_v2;
 drop view if exists shipping.return_results_v1;
 drop view if exists shipping.reportable_condition_v1;
@@ -1224,6 +1225,7 @@ create materialized view shipping.scan_encounters_v1 as
         wfh,
         industry,
 
+        sample.sample_id,
         sample.identifier as sample,
         sample.details @> '{"note": "never-tested"}' as never_tested
 
@@ -1241,6 +1243,9 @@ create materialized view shipping.scan_encounters_v1 as
     -- Filter out follow up encounters
     and not encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
 ;
+
+-- Must have at least one unique index in order to refresh concurrently!
+create unique index scan_encounters_unique_encounter_id on shipping.scan_encounters_v1 (sample_id);
 
 comment on materialized view shipping.scan_encounters_v1 is
   'A view of encounter data that are from the SCAN project';
