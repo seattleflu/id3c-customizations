@@ -52,10 +52,7 @@ insert into warehouse.site(identifier, details)
         ('StMartins',                               '{"category": "community",  "type": "shelter"}'),
         ('swabNSend',                               '{"category": "community",  "type": "swab-n-send",
             "swab_site": "swab_and_send"}'),
-        ('UWClub',                                  '{"category": "community",  "type": "collegeCampus"}'),
         ('UWDaycare',                               '{"category": "community",  "type": "childcare"}'),
-        ('UWGreek',                                 '{"category": "community",  "type": "collegeCampus",
-            "swab_site": "uw_greek"}'),
         ('UWHallHealth',                            '{"category": "clinic",     "type": "clinic",
             "swab_site": "hall_health"}'),
         ('UWSeaMar',                                '{"category": "clinic",     "type": "clinic",
@@ -68,6 +65,10 @@ insert into warehouse.site(identifier, details)
 
     on conflict (identifier) do update
         set details = EXCLUDED.details
+;
+
+delete from warehouse.site
+    where identifier = 'UWGreek'
 ;
 
 commit;
