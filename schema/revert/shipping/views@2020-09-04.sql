@@ -22,7 +22,6 @@ drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.scan_return_results_v1;
-drop view if exists shipping.return_results_v3;
 drop view if exists shipping.return_results_v2;
 drop view if exists shipping.return_results_v1;
 drop view if exists shipping.reportable_condition_v1;
@@ -1225,7 +1224,6 @@ create materialized view shipping.scan_encounters_v1 as
         wfh,
         industry,
 
-        sample.sample_id,
         sample.identifier as sample,
         sample.details @> '{"note": "never-tested"}' as never_tested
 
@@ -1243,9 +1241,6 @@ create materialized view shipping.scan_encounters_v1 as
     -- Filter out follow up encounters
     and not encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
 ;
-
--- Must have at least one unique index in order to refresh concurrently!
-create unique index scan_encounters_unique_encounter_id on shipping.scan_encounters_v1 (sample_id);
 
 comment on materialized view shipping.scan_encounters_v1 is
   'A view of encounter data that are from the SCAN project';
@@ -2061,126 +2056,6 @@ create or replace view shipping.return_results_v2 as
 
 comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
-
-
-create or replace view shipping.return_results_v3 as
-
-    with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample_id,
-            presence_absence_id,
-            pa.present as hcov19_present,
-            pa.modified::date as result_ts
-        from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-        where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and pa.details @> '{"assay_type": "Clia"}'
-            and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
-        /*
-          Keep only the most recent push. According to Lea, samples are only
-          retested if there is a failed result. A positive, negative, or
-          indeterminate result would not be retested.
-
-          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-        */
-        order by
-            sample_id, presence_absence_id desc
-    ),
-
-    samples as (
-      select
-        sample_id,
-        barcode as qrcode,
-        case when encountered::date >= '2020-08-19'
-            then collected
-            else encountered::date
-        end as collect_ts,
-        sample.details @> '{"note": "never-tested"}' as never_tested,
-        sample.details ->> 'swab_type' as swab_type,
-        -- The identifier set of the sample's collection identifier determines
-        -- if the sample was collected under staff observation.
-        -- In-person kiosk enrollment samples are collected under staff
-        -- observation while mail-in samples are done without staff observation.
-        --  Jover, 22 July 2020
-        case identifier_set.name
-          when 'collections-scan-kiosks' then true
-          when 'collections-uw-observed' then true
-          when 'collections-scan' then false
-          when 'collections-uw-home' then false
-          else null
-        end as staff_observed
-
-      from
-        warehouse.identifier
-        join warehouse.identifier_set using (identifier_set_id)
-        left join warehouse.sample on uuid::text = sample.collection_identifier
-        left join warehouse.encounter using (encounter_id)
-      where
-        identifier_set.name in (
-          'collections-scan',
-          'collections-scan-kiosks',
-          'collections-uw-home',
-          'collections-uw-observed'
-        )
-        -- Add a date cutoff so that we only return results from samples
-        -- collected after the SCAN IRB study launched on 2020-06-10.
-        and encountered >= '2020-06-10 00:00:00 US/Pacific'
-      order by encountered, barcode
-    )
-
-    select
-        qrcode,
-        collect_ts,
-        case
-            when sample_id is null then 'not-received'
-            when never_tested then 'never-tested'
-            when sample_id is not null and presence_absence_id is null then 'pending'
-            when hcov19_present is true then 'positive'
-            when hcov19_present is false then 'negative'
-            when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
-        end as status_code,
-        result_ts,
-        swab_type,
-        staff_observed
-    from
-      samples
-      left join hcov19_presence_absence using (sample_id)
-    ;
-
-/* The shipping.return_results_v3 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by those with
- * hcov19-visibility.  Revoke existing grants to every other role.
- *
- * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
- * in the future.  It's part of the broader bad interplay between views and
- * their grants.  I think it was a mistake to lump grants to each role in their
- * own change instead of scattering them amongst the changes that create/rework
- * tables and views and things that are granted on.  I made that choice
- * initially so that all grants for a role could be seen in a single
- * consolidated place, which would still be nice.  There's got to be a better
- * system for managing this (a single idempotent change script with all ACLs
- * that is always run after other changes? cleaner breaking up of sqitch
- * projects?), but I don't have time to think on it much now.  Luckily for us,
- * I think the core reporter role is unlikely to be reworked soon, but we
- * should be wary.
- *   -trs, 7 March 2020
- */
-revoke all on shipping.return_results_v3 from reporter;
-
-grant select
-    on shipping.return_results_v3
-    to "hcov19-visibility";
-
-comment on view shipping.return_results_v3 is
-  'View of barcodes and presence/absence results for SFS return of results on the UW Lab Med site';
 
 
 create or replace view shipping.scan_return_results_v1 as
