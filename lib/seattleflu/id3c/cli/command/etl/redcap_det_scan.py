@@ -53,7 +53,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 16
+REVISION = 17
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -171,11 +171,14 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
 
     # Mail in SCAN projects have `post_collection_data_entry_qc` instrument to
     # indicate a specimen is received. The SCAN In-Person Enrollmen project
-    # does not have that instrument. So we rely on `nasal_swab_collection`
-    # instrument to know that we have sample data to ingest.
-    #   -Jover, 16 July 2020
-    if specimen_received is None:
-        specimen_recieved = is_complete('nasal_swab_collection', redcap_record)
+    # and SCAN Husky project only uses this instrument to mark "never-tested".
+    # So we rely on `nasal_swab_collection` instrument to know that we have
+    # sample data to ingest.
+    # Only rely on `nasal_swab_collection` if the `back_end_mail_scans` instrument
+    # does not exist in the record, i.e. the record is from a kiosk project.
+    #   -Jover, 09 September 2020
+    if not specimen_received and is_complete('back_end_mail_scans', redcap_record) is None:
+        specimen_received = is_complete('nasal_swab_collection', redcap_record)
 
     if specimen_received:
         specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
