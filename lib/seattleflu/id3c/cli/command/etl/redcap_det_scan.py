@@ -135,9 +135,14 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     # SCAN In-Person Enrollment project does not have the `illness_q_date` field
     # and it does not have the `back_end_mail_scans` instrument.
     #   -Jover, 16 July 2020
+
+    # Add check for `nasal_swab_collection` is complete because the new
+    # SCAN Husky Test project does not have the `illness_questionnaire` instrument
+    # nor the `back_end_mail_scans` instrument.
     if not (redcap_record.get('illness_q_date') or
             is_complete('illness_questionnaire', redcap_record) or
-            is_complete('back_end_mail_scans', redcap_record)):
+            is_complete('back_end_mail_scans', redcap_record) or
+            is_complete('nasal_swab_collection', redcap_record)):
         LOG.debug("Skipping incomplete enrollment")
         return None
 
