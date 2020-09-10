@@ -17,7 +17,7 @@ from id3c.cli.command.location import location_lookup
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
-from . import race
+from . import race, first_record_instance, required_instruments
 
 
 LOG = logging.getLogger(__name__)
@@ -43,10 +43,11 @@ REQUIRED_INSTRUMENTS = [
     "asymptomatic-swab-n-send",
     redcap_url = REDCAP_URL,
     project_id = PROJECT_ID,
-    required_instruments = REQUIRED_INSTRUMENTS,
     revision = REVISION,
     help = __doc__)
 
+@first_record_instance
+@required_instruments(REQUIRED_INSTRUMENTS)
 def redcap_det_asymptomatic_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)

@@ -15,7 +15,7 @@ from id3c.cli.command.etl import redcap_det, UnknownSiteError
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
-from . import race
+from . import race, first_record_instance, required_instruments
 
 LOG = logging.getLogger(__name__)
 
@@ -44,10 +44,11 @@ REVISION = 5
     "kiosk",
     redcap_url = REDCAP_URL,
     project_id = PROJECT_ID,
-    required_instruments = REQUIRED_INSTRUMENTS,
     revision = REVISION,
     help = __doc__)
 
+@first_record_instance
+@required_instruments(REQUIRED_INSTRUMENTS)
 def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':

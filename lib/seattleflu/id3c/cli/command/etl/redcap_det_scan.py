@@ -18,7 +18,7 @@ from id3c.cli.redcap import is_complete, Record as REDCapRecord
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
-from . import race
+from . import race, first_record_instance, required_instruments
 
 
 LOG = logging.getLogger(__name__)
@@ -90,7 +90,6 @@ def command_for_each_project(function):
             name = command_name,
             redcap_url = REDCAP_URL,
             project_id = project.id,
-            required_instruments = REQUIRED_INSTRUMENTS,
             raw_coded_values = True,
             revision = REVISION,
             help = help_message)(function)
@@ -98,6 +97,8 @@ def command_for_each_project(function):
     return function
 
 @command_for_each_project
+@first_record_instance
+@required_instruments(REQUIRED_INSTRUMENTS)
 def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
     # Add check for `enrollment_questionnaire` is complete because we cannot
     # include it in the top list of REQUIRED_INSTRUMENTS since the new

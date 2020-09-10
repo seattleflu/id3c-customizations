@@ -3,7 +3,10 @@ Run ETL routines
 """
 import logging
 import re
-from typing import Any, Optional
+from typing import Any, Optional, List
+from textwrap import dedent
+from functools import wraps
+from id3c.cli.redcap import Record as REDCapRecord, is_complete
 
 
 LOG = logging.getLogger(__name__)
@@ -128,6 +131,66 @@ def standardize_whitespace(string: str) -> str:
     Removes leading, trailing, and repeat whitespace from a given *string*.
     """
     return re.sub(r"\s+", " ", string.strip())
+
+
+def first_record_instance(routine):
+    """
+    A decorator that passes only the first REDCap record from list of
+    *redcap_record_instances* to the *routine* and logs a warning about having
+    multiple instances of a REDCap record.
+
+    The decorated function should be an ETL routine for REDCap records that
+    must accept a dictionary *redcap_record* argument.
+    """
+    @wraps(routine)
+    def decorated(*args, **kwargs):
+        record_instances: List[REDCapRecord] = kwargs.pop("redcap_record_instances")
+        kwargs["redcap_record"] = record_instances[0]
+
+        if len(record_instances) > 1:
+            LOG.warning(dedent(f"""
+            Found multiple record instances for record id «{kwargs["redcap_record"].id}».
+            Multiple record instances per record id are usually due to
+            repeating instruments/longitudinal events in REDCap.
+            If this project does not have repeating elements,
+            this may be caused by a bug in REDCap."""))
+
+        LOG.debug(f"Only processing the first instance of the REDCap record «{kwargs['redcap_record'].id}»")
+        return routine(*args, **kwargs)
+    return decorated
+
+
+def required_instruments(required_instruments: List[str]):
+    """
+    A decorator that checks the *redcap_record* being processed by the
+    ETL routine has completed all *required_instruments*.
+
+    Returns `None` if not all *required_instruments* are completed.
+
+    The decorated function should be an ETL routine for REDCap records that
+    must accept a dictionary *redcap_record* argument.
+    """
+    def decorator(routine):
+        @wraps(routine)
+        def decorated(*args, **kwargs):
+            redcap_record = kwargs["redcap_record"]
+
+            incomplete_instruments = {
+                instrument
+                    for instrument
+                    in required_instruments
+                    if not is_complete(instrument, redcap_record)
+            }
+
+            if incomplete_instruments:
+                LOG.debug(f"The following required instruments «{incomplete_instruments}» are not yet marked complete.")
+                return None
+
+            return routine(*args, **kwargs)
+
+        return decorated
+
+    return decorator
 
 
 class UnknownRaceError(ValueError):
