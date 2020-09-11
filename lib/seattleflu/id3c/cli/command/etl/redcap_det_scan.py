@@ -17,6 +17,7 @@ from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
+from .redcap import *
 from .fhir import *
 from . import race, first_record_instance, required_instruments
 
@@ -470,14 +471,13 @@ def create_patient(record: REDCapRecord) -> tuple:
         'preferred': True # Assumes that the project language is the patient's preferred language
     }]
 
-    # Use the UW NetID to generate patient id if it's available.
+    # Use the UW NetID and domain to generate patient id, if it's available.
     # This is the stable identifier that can allow us to match UW reopening
     # participants.
     #   -Jover, 04 September 2020
-    net_id = record.get('netid')
-    net_id = net_id.strip().lower() if net_id else None
-    if net_id:
-        patient_id = generate_hash(net_id)
+    uw_username = normalize_net_id(record.get('netid'))
+    if uw_username:
+        patient_id = generate_hash(uw_username)
     else:
         patient_id = generate_patient_hash(
             names       = (record['participant_first_name'], record['participant_last_name']),
