@@ -226,3 +226,6 @@ warehouse/site/data [warehouse/site/data@2020-08-27] 2020-09-04T18:46:23Z Jover 
 
 shipping/views [shipping/views@2020-09-04] 2020-09-08T18:58:09Z Kairsten Fay <kfay@fredhutch.org> # Create SFS RoR v3 view
 @2020-09-08 2020-09-08T18:59:58Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 8 September 2020
+
+shipping/views [shipping/views@2020-09-08] 2020-09-14T21:35:26Z Kairsten Fay <kfay@fredhutch.org> # Add UW Reopening samples to reportable conditions view
+@2020-09-14 2020-09-14T21:40:13Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 14 September 2020

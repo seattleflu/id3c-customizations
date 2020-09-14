@@ -1964,7 +1964,10 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-self-test',
                                    'collections-swab&send-asymptomatic',
                                    'collections-kiosks-asymptomatic',
-                                   'collections-environmental')
+                                   'collections-environmental',
+                                   'collections-uw-home',
+                                   'collections-uw-observed',
+                                   'collections-household-general')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     order by encountered desc;
 
