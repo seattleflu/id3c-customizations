@@ -103,11 +103,11 @@ def create_diagnostic_report(redcap_record:dict,
     ))
 
 
-def create_diagnostic_report_resource(datetime: str,
-                                      diagnostic_code: dict,
-                                      patient_reference: dict,
+def create_diagnostic_report_resource(diagnostic_code: dict,
                                       specimen_reference: dict,
                                       result: list,
+                                      datetime: str = None,
+                                      patient_reference: dict = None,
                                       contained = None) -> dict:
     """
     Create diagnostic report resource following the FHIR format
@@ -116,12 +116,16 @@ def create_diagnostic_report_resource(datetime: str,
     diagnostic_report = {
         "resourceType": "DiagnosticReport",
         "status": "final",
-        "effectiveDateTime": datetime,
         "specimen": [ specimen_reference ],
         "code": diagnostic_code,
-        "subject": patient_reference,
         "result": result,
     }
+
+    if datetime:
+        diagnostic_report["effectiveDateTime"] = datetime
+
+    if patient_reference:
+        diagnostic_report["subject"] = patient_reference
 
     if contained:
         diagnostic_report["contained"] = contained
