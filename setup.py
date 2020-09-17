@@ -48,6 +48,9 @@ setup(
         "id3c.cli.commands": [
             "seattleflu = seattleflu.id3c.cli.command"
         ],
+        "id3c.cli.command.etl.fhir": [
+            "https://seattleflu.org = seattleflu.id3c.cli.command.etl.fhir_customizations"
+        ],
         "id3c.api.routes": [
             "seattleflu = seattleflu.id3c.api.routes"
         ],
