@@ -10,7 +10,7 @@ from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.redcap import Record as REDCapRecord
 from id3c.cli.command.de_identify import generate_hash
-from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
+from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.etl import redcap_det, UnknownSiteError
 from seattleflu.id3c.cli.command import age_ceiling
@@ -421,7 +421,7 @@ def determine_encounter_locations(db: DatabaseSession, cache: TTLCache, redcap_r
         housing_type = 'residence'
 
     if address:
-        lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
+        lat, lng, canonicalized_address = get_geocoded_address(address, cache)
 
         if canonicalized_address:
             locations.update(construct_location(db, cache, (lat, lng), canonicalized_address, housing_type))
