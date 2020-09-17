@@ -50,7 +50,7 @@ REVISION = 5
 
 @first_record_instance
 @required_instruments(REQUIRED_INSTRUMENTS)
-def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
+def redcap_det_kiosk(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':
         LOG.warning("Skipping enrollment because the Spanish questionnaire is not yet supported")
