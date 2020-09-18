@@ -239,3 +239,5 @@ shipping/views [shipping/views@2020-09-14] 2020-09-22T16:07:49Z Chris Craft <jcc
 @2020-09-23 2020-09-23T22:46:29Z Chris Craft <jccraft@uw.edu> # Schema as of 23 September 2020
 
 operations/schema 2020-09-11T21:26:23Z Thomas Sibley <tsibley@fredhutch.org> # Add a new schema, operations, for custom operational process data
+btree_gist 2020-09-17T19:15:16Z Thomas Sibley <tsibley@fredhutch.org> # Install the btree_gist extension
+operations/test-quota 2020-09-11T22:38:43Z Thomas Sibley <tsibley@fredhutch.org> # Test quotas for UW re-opening testing
