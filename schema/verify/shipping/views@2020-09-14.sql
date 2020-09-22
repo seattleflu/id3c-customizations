@@ -139,19 +139,4 @@ select 1/(count(*) = 1)::int
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.return_results_v3');
 
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.uw_reopening_enrollment_fhir_encounter_details_v1');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.uw_reopening_encounters_v1');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.uw_reopening_ehs_reporting_v1');
-
 rollback;

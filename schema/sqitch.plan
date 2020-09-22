@@ -229,3 +229,11 @@ shipping/views [shipping/views@2020-09-04] 2020-09-08T18:58:09Z Kairsten Fay <kf
 
 shipping/views [shipping/views@2020-09-08] 2020-09-14T21:35:26Z Kairsten Fay <kfay@fredhutch.org> # Add UW Reopening samples to reportable conditions view
 @2020-09-14 2020-09-14T21:40:13Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 14 September 2020
+
+roles/ehs-results-exporter/create 2020-09-23T17:45:08Z Chris Craft <jccraft@uw.edu> # Create ehs-results-exporter role
+roles/ehs-results-exporter/grants 2020-09-23T17:45:53Z Chris Craft <jccraft@uw.edu> # Add grants to new ehs-results-exporter role
+@2020-09-22 2020-09-22T18:08:45Z Chris Craft <jccraft@uw.edu> # Schema as of 22 September 2020
+
+warehouse/site/data [warehouse/site/data@2020-09-14] 2020-09-22T01:53:23Z Chris Craft <jccraft@uw.edu> # Add UW reopening sites
+shipping/views [shipping/views@2020-09-14] 2020-09-22T16:07:49Z Chris Craft <jccraft@uw.edu> # Add shipping views for UW reopening project
+@2020-09-23 2020-09-23T22:46:29Z Chris Craft <jccraft@uw.edu> # Schema as of 23 September 2020
