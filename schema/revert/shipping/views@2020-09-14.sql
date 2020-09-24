@@ -21,10 +21,6 @@ drop view if exists shipping.scan_hcov19_result_counts_v1;
 drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
-drop view if exists shipping.uw_reopening_ehs_reporting_v1;
-drop view if exists shipping.uw_reopening_encounters_v1;
-drop view if exists shipping.uw_reopening_enrollment_fhir_encounter_details_v1;
-
 drop view if exists shipping.scan_return_results_v1;
 drop view if exists shipping.return_results_v3;
 drop view if exists shipping.return_results_v2;
@@ -52,7 +48,6 @@ drop view if exists shipping.fhir_encounter_details_v1;
 drop materialized view if exists shipping.fhir_questionnaire_responses_v1;
 
 drop view if exists shipping.sample_with_best_available_encounter_data_v1;
-
 
 /******************** VIEWS FOR INTERNAL USE ********************/
 create or replace view shipping.sample_with_best_available_encounter_data_v1 as
@@ -1969,10 +1964,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-self-test',
                                    'collections-swab&send-asymptomatic',
                                    'collections-kiosks-asymptomatic',
-                                   'collections-environmental',
-                                   'collections-uw-home',
-                                   'collections-uw-observed',
-                                   'collections-household-general')
+                                   'collections-environmental')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     order by encountered desc;
 
