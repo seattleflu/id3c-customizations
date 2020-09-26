@@ -33,6 +33,7 @@ class HuskyProject():
     api_token_env_var: str
     command_name: str
 
+
     def __init__(self, project_id: int, lang: str, api_token_env_var: str, command_name: str) -> None:
         self.id = project_id
         self.lang = lang
@@ -55,7 +56,7 @@ class EventType(Enum):
     ENROLLMENT = 'enrollment'
     ENCOUNTER = 'encounter'
 
-REVISION = 0
+REVISION = 1
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -142,15 +143,22 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             event_type = EventType.ENROLLMENT
         elif redcap_record_instance["redcap_event_name"] == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
+            if is_complete('kiosk_registration_4c7f', redcap_record_instance):
+                collection_method = CollectionMethod.KIOSK
+            elif is_complete('test_order_survey', redcap_record_instance):
+                collection_method = CollectionMethod.SWAB_AND_SEND
         else:
             LOG.error(f"The record instance has an unexpected event name: {redcap_record_instance['redcap_event_name']}")
             continue
 
-        if event_type == EventType.ENCOUNTER:
-            if is_complete('kiosk_registration_4c7f', redcap_record_instance):
-                collection_method = CollectionMethod.KIOSK
-            elif is_complete('test_fulfillment_form', redcap_record_instance):
-                collection_method = CollectionMethod.SWAB_AND_SEND
+        # Skip an ENCOUNTER instance if we don't have the data we need to
+        # create an encounter.
+        if event_type == EventType.ENCOUNTER \
+            and not is_complete('daily_attestation', redcap_record_instance) \
+                and not collection_method  \
+                and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
+                    LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
+                    continue
 
         # site_reference refers to where the sample was collected
         site_reference = create_site_reference(redcap_record_instance, collection_method, event_type)
@@ -166,7 +174,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 LOG.warning("Skipping record because we could not create the enrollment encounter")
                 return None
             else:
-                LOG.warning("Skipping record instance with insufficient information to construct a initial encounter")
+                LOG.warning("Skipping record instance with insufficient information to construct the initial encounter")
                 continue
 
         specimen_entry = None
@@ -191,6 +199,9 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         enrollment_questionnaire_entry = None
         daily_questionnaire_entry = None
         testing_determination_internal_questionnaire_entry = None
+        follow_up_encounter_entry = None
+        follow_up_questionnaire_entry = None
+        follow_up_computed_questionnaire_entry = None
 
         computed_questionnaire_entry = create_computed_questionnaire_response(
             redcap_record_instance, patient_reference, initial_encounter_reference,
@@ -208,18 +219,15 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 create_daily_questionnaire_response(
                 redcap_record_instance, patient_reference, initial_encounter_reference)
 
-        follow_up_encounter_entry = None
-        follow_up_questionnaire_entry = None
-        follow_up_computed_questionnaire_entry = None
+            if is_complete('week_followup', redcap_record_instance):
+                follow_up_encounter_entry, follow_up_encounter_reference = create_follow_up_encounter(
+                    redcap_record_instance, patient_reference, site_reference, initial_encounter_reference)
+                follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
+                redcap_record_instance, patient_reference, follow_up_encounter_reference)
+                follow_up_computed_questionnaire_entry = create_computed_questionnaire_response(
+                redcap_record_instance, patient_reference, follow_up_encounter_reference,
+                birthdate, datetime.strptime(follow_up_encounter_entry['resource']['period']['start'], '%Y-%m-%d'))
 
-        if event_type == EventType.ENCOUNTER and is_complete('week_followup', redcap_record_instance):
-            follow_up_encounter_entry, follow_up_encounter_reference = create_follow_up_encounter(
-                redcap_record_instance, patient_reference, site_reference, initial_encounter_reference)
-            follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
-            redcap_record_instance, patient_reference, follow_up_encounter_reference)
-            follow_up_computed_questionnaire_entry = create_computed_questionnaire_response(
-            redcap_record_instance, patient_reference, follow_up_encounter_reference,
-            birthdate, datetime.strptime(follow_up_encounter_entry['resource']['period']['start'], '%Y-%m-%d'))
 
         current_instance_entries = [
             initial_encounter_entry,
@@ -499,6 +507,8 @@ def create_encounter(record: REDCapRecord, patient_reference: dict,
         elif record.get('time_test_order'):
             encounter_date = datetime.strptime(record.get('time_test_order'),
                 '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+        elif record.get('testing_date'): # from the 'Testing Determination - Internal' instrument
+            encounter_date = record.get('testing_date')
 
     elif event_type == EventType.ENROLLMENT:
         encounter_date = record.get('enrollment_date')
