@@ -248,6 +248,7 @@ def site_map(record_location: str) -> str:
     """
     location_site_map = {
         'greek': 'UWGreek',
+        'PICAWA': 'PICAWA',
         'uw_study': 'UWClub',
     }
 
