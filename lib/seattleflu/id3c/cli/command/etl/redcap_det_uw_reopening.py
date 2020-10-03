@@ -1158,8 +1158,13 @@ def create_computed_questionnaire_response(record: dict, patient_reference: dict
     For example, a computed question captures the participant's age
     on the date of the encounter.
     """
-
-    record['age'] = relativedelta(encounter_date, birthdate).years
+    # A birthdate of None will return a falsy relativedelta() object
+    delta = relativedelta(encounter_date, birthdate)
+    if not delta:
+        age = None
+    else:
+        age = delta.years
+    record['age'] = age
 
     integer_questions = [
         'age'
