@@ -125,7 +125,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         return None
 
     patient_entry, patient_reference = create_patient(enrollment)
-    birthdate = datetime.strptime(enrollment['core_birthdate'], '%Y-%m-%d')
+    birthdate = parse_birth_date(enrollment)
 
     if not patient_entry:
         LOG.warning("Skipping record with insufficient information to construct patient")
@@ -252,6 +252,17 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         entries = list(filter(None, persisted_resource_entries))
     )
 
+
+def parse_birth_date(record: dict) -> Optional[datetime]:
+    """ Returns a participant's birth date from a given *record* as a datetime
+    object if it can be parsed. Otherwise, emits a warning and returns None. """
+    try:
+        birth_date = datetime.strptime(record['core_birthdate'], '%Y-%m-%d')
+    except ValueError:
+        LOG.warning("Invalid `core_birthdate`.")
+        birth_date = None
+
+    return birth_date
 
 def create_site_reference(record: dict, collection_method: CollectionMethod, event_type: EventType) -> Optional[Dict[str,dict]]:
     """
