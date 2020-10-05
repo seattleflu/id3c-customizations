@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, List, Optional, Tuple, Dict
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
+from id3c.cli.redcap import Record as REDCapRecord
 from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
@@ -37,7 +38,7 @@ REQUIRED_INSTRUMENTS = [
 # REDCap DET records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all REDCap DET records,
 # this revision number should be incremented.
-REVISION = 5
+REVISION = 6
 
 
 @redcap_det.command_for_project(
@@ -49,7 +50,7 @@ REVISION = 5
 
 @first_record_instance
 @required_instruments(REQUIRED_INSTRUMENTS)
-def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
+def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':
         LOG.warning("Skipping enrollment because the Spanish questionnaire is not yet supported")
@@ -689,7 +690,7 @@ def determine_symptoms_codes(redcap_record: dict) -> Optional[dict]:
     return symptom_codes
 
 
-def create_encounter(redcap_record: dict,
+def create_encounter(redcap_record: REDCapRecord,
                      patient_reference: dict,
                      location_references: List[dict],
                      symptom_resources: Optional[List[dict]],
@@ -718,6 +719,7 @@ def create_encounter(redcap_record: dict,
     )
 
     encounter_resource = create_encounter_resource(
+        encounter_source = create_redcap_uri(redcap_record),
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class,
         encounter_date = encounter_date,

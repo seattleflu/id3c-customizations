@@ -54,7 +54,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 17
+REVISION = 18
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -571,6 +571,7 @@ def create_initial_encounter(record: REDCapRecord, patient_reference: dict, site
     non_tract_references.append(site_reference)
 
     encounter_resource = create_encounter_resource(
+        encounter_source = create_redcap_uri(record),
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class_coding,
         encounter_date = encounter_date,
@@ -992,6 +993,7 @@ def create_follow_up_encounter(record: REDCapRecord,
     # YYYY-MM-DD HH:MM in REDCap
     encounter_date = record['fu_timestamp'].split()[0]
     encounter_resource = create_encounter_resource(
+        encounter_source = create_redcap_uri(record),
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class_coding,
         encounter_date = encounter_date,

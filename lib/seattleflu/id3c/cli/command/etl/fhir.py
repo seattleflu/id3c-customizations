@@ -3,10 +3,13 @@ REDCap DET ETL shared functions to create FHIR documents
 """
 import logging
 import regex
+import json
 from itertools import filterfalse
 from typing import Iterable, NamedTuple, Optional, List, Any, Callable
 from uuid import uuid4
 from datetime import datetime
+from urllib.parse import quote
+from id3c.cli.redcap import Record as REDCapRecord
 from id3c.cli.command.de_identify import generate_hash
 
 
@@ -196,7 +199,8 @@ def create_location_resource(location_type: List[dict],
     return location_resource
 
 
-def create_encounter_resource(encounter_identifier: List[dict],
+def create_encounter_resource(encounter_source: str,
+                              encounter_identifier: List[dict],
                               encounter_class: dict,
                               encounter_date: str,
                               patient_reference: dict,
@@ -235,6 +239,7 @@ def create_encounter_resource(encounter_identifier: List[dict],
 
     encounter_resource = {
         "resourceType": "Encounter",
+        "meta": { "source": encounter_source },
         "class": encounter_class,
         "identifier": encounter_identifier,
         "status": encounter_status,
@@ -553,3 +558,29 @@ def observation_resource(device: str) -> Any:
             )
         )
     }
+
+
+def create_redcap_uri(record: REDCapRecord) -> str:
+    """
+    Create a JSON data URI representing the source of a given REDCap *record*.
+
+    Used in FHIR Encounter resources as the meta.source, which ultimately winds
+    up in ID3C's ``warehouse.encounter.details`` column.
+    """
+    data_scheme = 'data:application/json'
+
+    redcap_data = {
+        'url': record.project.base_url,
+        'project_id': record.project.id,
+        'record_id': record.id
+    }
+
+    if record.get('redcap_event_name'):
+        redcap_data['event_name'] = record.get('redcap_event_name')
+
+    if record.get('redcap_repeat_instance'):
+        redcap_data['repeat_instance'] = record.get('redcap_repeat_instance')
+
+    data = {'redcap': redcap_data}
+
+    return data_scheme + ',' + quote(json.dumps(data))

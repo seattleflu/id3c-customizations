@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
+from id3c.cli.redcap import Record as REDCapRecord
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
@@ -23,7 +24,7 @@ SFS = "https://seattleflu.org"
 REDCAP_URL = "https://redcap.iths.org/"
 PROJECT_ID = 19915
 
-REVISION = 2
+REVISION = 3
 
 @redcap_det.command_for_project(
     "uw-retrospectives",
@@ -38,7 +39,7 @@ def redcap_det_uw_retrospectives(*,
                                    db: DatabaseSession,
                                    cache: TTLCache,
                                    det: dict,
-                                   redcap_record: dict) -> Optional[dict]:
+                                   redcap_record: REDCapRecord) -> Optional[dict]:
 
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -174,7 +175,7 @@ def create_resident_locations(db: DatabaseSession, cache: TTLCache, record: dict
 
 
 def create_encounter(db: DatabaseSession,
-                     record: dict,
+                     record: REDCapRecord,
                      patient_reference: dict,
                      location_references: list) -> Optional[tuple]:
     """ Returns a FHIR Encounter resource entry and reference """
@@ -201,6 +202,7 @@ def create_encounter(db: DatabaseSession,
     encounter_status = create_encounter_status(record)
 
     encounter_resource = create_encounter_resource(
+        encounter_source = create_redcap_uri(record),
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class,
         encounter_date = encounter_date,
