@@ -132,6 +132,8 @@ def triage_uw_test_queue(*, at: str, db: DatabaseSession):
     # Offer testing to the top entries in our priority queue by updating REDCap.
     offers = db.fetch_rows("""
         select
+            redcap_url,
+            redcap_project_id,
             redcap_record_id,
             redcap_event_name,
             redcap_repeat_instance_id,
@@ -157,6 +159,8 @@ def triage_uw_test_queue(*, at: str, db: DatabaseSession):
         # XXX FIXME: update the internal flag in REDCap for each event instance
         # identified in offers
         ...
+
+        # assert on url and project id?
 
         # XXX FIXME: this value should probably be based on the REDCap API's
         # return value, in case not all records are succesfully updated.
