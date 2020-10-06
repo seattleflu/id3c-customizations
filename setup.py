@@ -56,7 +56,7 @@ setup(
     python_requires = ">=3.6",
 
     install_requires = [
-        "id3c >=2020.2",
+        # "id3c >=2020.2", ID3C is a required dependency, but this doesn't resolve with pipenv editable installs
         "click >=7.0",
         "regex",
         "requests",
