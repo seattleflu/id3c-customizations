@@ -10,6 +10,7 @@ pytest = "*"
 [packages]
 seattleflu-id3c-customizations = {editable = true,path = "."}
 id3c = {editable = true,path = "./../id3c"}
+fsspec = "*"
 
 [requires]
 python_version = "3.6"
