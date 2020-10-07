@@ -21,6 +21,7 @@ drop view if exists shipping.scan_hcov19_result_counts_v1;
 drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
+drop view if exists shipping.uw_priority_queue_v1;
 drop view if exists shipping.__uw_priority_queue_v1;
 drop view if exists shipping.uw_reopening_ehs_reporting_v1;
 drop view if exists shipping.uw_reopening_encounters_v1;

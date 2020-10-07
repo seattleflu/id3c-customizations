@@ -21,6 +21,7 @@ drop view if exists shipping.scan_hcov19_result_counts_v1;
 drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
+drop view if exists shipping.uw_priority_queue_v1;
 drop view if exists shipping.__uw_priority_queue_v1;
 drop view if exists shipping.uw_reopening_ehs_reporting_v1;
 drop view if exists shipping.uw_reopening_encounters_v1;
@@ -3071,5 +3072,47 @@ create or replace view shipping.__uw_priority_queue_v1 as (
 
 comment on view shipping.__uw_priority_queue_v1 is
   'Identify all encounter instances which indicate need for testing by UW reopening study (contains duplicate individuals)';
+
+
+create or replace view shipping.uw_priority_queue_v1 as (
+    with distinct_individuals as (
+        select distinct on (individual)
+            redcap_project_id,
+            redcap_record_id,
+            redcap_event_name,
+            redcap_repeat_instance,
+            encountered,
+            individual,
+            tier,
+            latest_invite_date,
+            latest_collection_date,
+            priority,
+            priority_reason
+        from shipping.__uw_priority_queue_v1
+        -- Use the highest priority encounter that is the latest instance
+        order by individual, priority asc nulls last, redcap_repeat_instance desc
+    )
+
+    select *
+    from distinct_individuals
+    order by
+        priority asc nulls last,
+        tier asc nulls last,
+        age(latest_collection_date) desc nulls first,
+        age(latest_invite_date) desc nulls first,
+        individual asc
+)
+;
+
+comment on view shipping.uw_priority_queue_v1 is
+  'Deduplicated indivduals that need to be tested by UW reopening study, ordered by priority';
+
+revoke all
+  on shipping.uw_priority_queue_v1
+  from "uw-priority-queue-processor";
+
+grant select
+  on shipping.uw_priority_queue_v1
+  to "uw-priority-queue-processor";
 
 commit;
