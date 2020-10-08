@@ -24,7 +24,7 @@ from . import race, first_record_instance, required_instruments
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 3
+REVISION = 2
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"

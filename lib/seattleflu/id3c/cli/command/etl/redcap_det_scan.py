@@ -54,7 +54,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 18
+REVISION = 17
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
