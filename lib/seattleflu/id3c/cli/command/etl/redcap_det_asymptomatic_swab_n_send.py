@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Mapping, Match, Optional, Union, T
 from datetime import datetime
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
+from id3c.cli.redcap import Record as REDCapRecord
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
@@ -48,7 +49,7 @@ REQUIRED_INSTRUMENTS = [
 
 @first_record_instance
 @required_instruments(REQUIRED_INSTRUMENTS)
-def redcap_det_asymptomatic_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
+def redcap_det_asymptomatic_swab_n_send(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
     location_resource_entries = locations(db, cache, redcap_record)
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -166,7 +167,7 @@ def create_patient(record: dict) -> tuple:
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def create_encounter(record: dict, patient_reference: dict, locations: list) -> tuple:
+def create_encounter(record: REDCapRecord, patient_reference: dict, locations: list) -> tuple:
     """ Returns a FHIR Encounter resource entry and reference """
 
     def grab_symptom_keys(key: str) -> Optional[Match[str]]:
@@ -225,6 +226,7 @@ def create_encounter(record: dict, patient_reference: dict, locations: list) -> 
     non_tract_references.append(site_reference)
 
     encounter_resource = create_encounter_resource(
+        encounter_source = create_redcap_uri(record),
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class_coding,
         encounter_date = encounter_date,

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, List, Optional, Tuple, Dict
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
+from id3c.cli.redcap import Record as REDCapRecord
 from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
 from id3c.cli.command.location import location_lookup
@@ -49,7 +50,7 @@ REVISION = 5
 
 @first_record_instance
 @required_instruments(REQUIRED_INSTRUMENTS)
-def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: dict) -> Optional[dict]:
+def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
     # XXX TODO: INCLUDE SPANISH RESPONSES
     if redcap_record['language_questions'] == 'Spanish':
         LOG.warning("Skipping enrollment because the Spanish questionnaire is not yet supported")
@@ -94,9 +95,7 @@ def redcap_det_kisok(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
         patient_reference
     )
 
-    encounter_id = '/'.join([REDCAP_URL.rstrip('/'), str(PROJECT_ID), redcap_record['record_id']])
     encounter_resource_entry, encounter_reference = create_encounter(
-        encounter_id,
         redcap_record,
         patient_reference,
         location_references,
@@ -691,8 +690,7 @@ def determine_symptoms_codes(redcap_record: dict) -> Optional[dict]:
     return symptom_codes
 
 
-def create_encounter(encounter_id: str,
-                     redcap_record: dict,
+def create_encounter(redcap_record: REDCapRecord,
                      patient_reference: dict,
                      location_references: List[dict],
                      symptom_resources: Optional[List[dict]],
@@ -701,6 +699,7 @@ def create_encounter(encounter_id: str,
     Create FHIR encounter resource and encounter reference from given
     *redcap_record*.
     """
+    encounter_id = f"{REDCAP_URL}{PROJECT_ID}/{redcap_record['record_id']}"
     enrollment_date = redcap_record.get('enrollment_date')
 
     if not enrollment_date:
@@ -720,6 +719,7 @@ def create_encounter(encounter_id: str,
     )
 
     encounter_resource = create_encounter_resource(
+        encounter_source = create_redcap_uri(redcap_record),
         encounter_identifier = [encounter_identifier],
         encounter_class = encounter_class,
         encounter_date = encounter_date,
