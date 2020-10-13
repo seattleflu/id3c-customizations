@@ -1139,6 +1139,7 @@ def create_testing_determination_internal_questionnaire_response(record: dict, p
     """
     boolean_questions = [
         'testing_trigger',
+        'surge_selected_flag',
     ]
 
     string_questions = [
