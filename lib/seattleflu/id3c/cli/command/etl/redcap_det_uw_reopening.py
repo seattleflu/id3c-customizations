@@ -1141,7 +1141,6 @@ def create_testing_determination_internal_questionnaire_response(record: dict, p
     string_questions = [
         'testing_trigger',
         'testing_type',
-        'surge_selected'
     ]
 
     question_categories = {
