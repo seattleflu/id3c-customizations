@@ -56,7 +56,7 @@ class EventType(Enum):
     ENROLLMENT = 'enrollment'
     ENCOUNTER = 'encounter'
 
-REVISION = 1
+REVISION = 2
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -1137,15 +1137,18 @@ def create_testing_determination_internal_questionnaire_response(record: dict, p
     questionnaire we do want to return answers for all questions even if they are
     not answered.
     """
+    boolean_questions = [
+        'testing_trigger',
+        'surge_selected_flag',
+    ]
 
     string_questions = [
-        'testing_trigger',
         'testing_type',
-        'surge_selected'
     ]
 
     question_categories = {
-        'valueString': string_questions
+        'valueBoolean': boolean_questions,
+        'valueString': string_questions,
     }
 
     return questionnaire_response(record, question_categories, patient_reference, encounter_reference, False)
