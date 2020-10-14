@@ -120,9 +120,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             sex = enrollment['core_sex'],
             preferred_language = LANGUAGE_CODE[project_id],
             unique_identifier = netid,
-            redcap_url = REDCAP_URL,
-            redcap_project_id = project_id,
-            redcap_record_id = record_id,
+            record = enrollment,
             system_identifier = INTERNAL_SYSTEM)
     else:
         patient_entry, patient_reference = create_patient_using_demographics(
@@ -132,9 +130,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             last_name = enrollment['core_participant_last_name'],
             birth_date = enrollment['core_birthdate'],
             zipcode = enrollment['core_zipcode'],
-            redcap_url = REDCAP_URL,
-            redcap_project_id = project_id,
-            redcap_record_id = record_id,
+            record = enrollment,
             system_identifier = INTERNAL_SYSTEM)
 
     if not patient_entry:
@@ -245,12 +241,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             encounter_reason_code = None,
             encounter_identifier_suffix = None,
             system_identifier = INTERNAL_SYSTEM,
-            redcap_uri = create_redcap_uri(redcap_record_instance),
-            redcap_url = REDCAP_URL,
-            redcap_project_id = project_id,
-            redcap_record_id = record_id,
-            redcap_event_name = redcap_record_instance['redcap_event_name'],
-            redcap_repeat_instance = redcap_record_instance['redcap_repeat_instance'])
+            record = redcap_record_instance)
 
         # Skip the entire record if we can't create the enrollment encounter.
         # Otherwise, just skip the record instance.
@@ -334,12 +325,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     encounter_reason_code = follow_up_encounter_reason_code(),
                     encounter_identifier_suffix = "_follow_up",
                     system_identifier = INTERNAL_SYSTEM,
-                    redcap_uri = create_redcap_uri(redcap_record_instance),
-                    redcap_url = REDCAP_URL,
-                    redcap_project_id = project_id,
-                    redcap_record_id = record_id,
-                    redcap_event_name = redcap_record_instance['redcap_event_name'],
-                    redcap_repeat_instance = redcap_record_instance['redcap_repeat_instance'])
+                    record = redcap_record_instance)
 
 
                 follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
