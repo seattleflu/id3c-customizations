@@ -242,7 +242,7 @@ def _create_patient(sex: str, preferred_language: str, first_name: str, last_nam
         # Some piece of information was missing, so we couldn't generate a
         # hash.  Fallback to treating this individual as always unique by using
         # the REDCap record id.
-        patient_id = generate_hash(f"{record.project.base_url}{str(record.project.id)}/{record.id}")
+        patient_id = generate_hash(f"{record.project.base_url}{record.project.id}/{record.id}")
 
     LOG.debug(f"Generated individual identifier {patient_id}")
 
@@ -438,7 +438,7 @@ def create_encounter(encounter_date: str, patient_reference: dict, site_referenc
         redcap_repeat_instance = ""
     if not encounter_identifier_suffix:
         encounter_identifier_suffix = ""
-    encounter_id = f"{record.project.base_url}{str(record.project.id)}/{record.id}/{redcap_event_name}/" + \
+    encounter_id = f"{record.project.base_url}{record.project.id}/{record.id}/{redcap_event_name}/" + \
         f"{redcap_repeat_instance}{encounter_identifier_suffix}"
 
     encounter_identifier = create_identifier(

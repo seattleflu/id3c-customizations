@@ -351,7 +351,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
-        source = f"{REDCAP_URL}{str(redcap_record_instance.project.id)}/{redcap_record_instance.id}",
+        source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
         entries = list(filter(None, persisted_resource_entries))
     )
 
