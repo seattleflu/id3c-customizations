@@ -10,6 +10,9 @@ release extra tests above the quota.
 """
 import click
 import logging
+import os
+import id3c.cli.redcap as redcap
+from datetime import date
 from id3c.cli import cli
 from id3c.cli.command import with_database_session
 from id3c.db.session import DatabaseSession
@@ -18,6 +21,7 @@ from ...utils import unwrap
 
 LOG = logging.getLogger(__name__)
 
+TODAY = date.today().isoformat()
 
 
 @cli.command("offer-uw-testing", help = __doc__)
@@ -82,7 +86,7 @@ def offer_uw_testing(*, at: str, db: DatabaseSession):
         f"is {quota.remaining}/{quota.limit} (remaining/limit)")
 
     # Offer testing to the top entries in our priority queue by updating REDCap.
-    offers = db.fetch_rows("""
+    queued = db.fetch_rows("""
         select
             redcap_url,
             redcap_project_id,
@@ -97,26 +101,34 @@ def offer_uw_testing(*, at: str, db: DatabaseSession):
             %s
         """, (quota.remaining,))
 
-    if not offers:
+    if not queued:
         LOG.info(f"Nothing in the queue")
         return
 
-    offered_count = 0
+    LOG.info(f"Fetched {len(queued):,} entries from the head of the queue")
+
+    offers = [ offer(q) for q in queued ]
+    offer_count = len(offers)
 
     # XXX FIXME
-    LOG.info(f"Offering testing to ...")
-
     # Don't actually update REDCap if we're running under --dry-run mode.
     if db.command_action != "rollback":
-        # XXX FIXME: update the internal flag in REDCap for each event instance
-        # identified in offers
-        ...
+        # XXX FIXME: assert on url and project id
+        LOG.info(f"Offering testing to {offer_count:,} REDCap records")
 
-        # assert on url and project id?
+        # XXX: use CachedProject instead with values from each row?
+        redcap_project = redcap.CachedProject(
+            urljoin(..., "api/"),
+            os.environ["REDCAP_API_TOKEN"],
+            ...)
 
-        # XXX FIXME: this value should probably be based on the REDCap API's
-        # return value, in case not all records are succesfully updated.
-        offered_count = len(offers)
+        offer_count = redcap_project.update_records(offers)
+
+        LOG.info(f"Updated {offer_count:,} REDCap records")
+
+    # XXX FIXME: How to deal with lack of DET from REDCap import?
+    #   1. Update internal flag (as below) to be eventually consistent with REDCap
+    #   2. Push a synthetic DET to trigger an import
 
     # XXX TODO: Maybe also update an internal testing_offered flag (in
     # encounter.details?) to avoid delay of roundtrip thru REDCap?  If we don't
@@ -134,8 +146,26 @@ def offer_uw_testing(*, at: str, db: DatabaseSession):
            set used = used + %s
          where (name, timespan) = (%s, %s)
         returning name, timespan, "limit", used
-        """, (offered_count, quota.name, quota.timespan))
+        """, (offer_count, quota.name, quota.timespan))
 
     LOG.info(
         f"Quota used for {updated_quota.name} during {updated_quota.timespan} "
         f"is now {updated_quota.used}/{updated_quota.limit} (used/limit).")
+
+
+def offer(queued) -> dict:
+    """
+    Given a *queued* row from the priority queue, returns a :py:class:`dict`
+    suitable for updating the associated REDCap record with an offer of
+    testing.
+    """
+    return {
+        "record_id": offer["redcap_record_id"],
+        "redcap_event_name": offer["redcap_event_name"],
+        "redcap_repeat_instance": offer["redcap_repeat_instance_id"],
+        "testing_trigger": "1",
+        "testing_type": "...",
+        "testing_date": TODAY,
+        "testing_determination_internal_complete": redcap.InstrumentStatus.Complete.value,
+        # XXX FIXME: reason, priority?
+    }
