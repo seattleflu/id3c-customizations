@@ -85,10 +85,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     assert redcap_record_instances is not None and len(redcap_record_instances) > 0, \
         "The redcap_record_instances list was not populated."
 
-    record_id = redcap_record_instances[0]['record_id']
-    project_id = redcap_record_instances[0].project.id
-
-    enrollments = [record for record in redcap_record_instances if record["redcap_event_name"] == ENROLLMENT_EVENT_NAME]
+    enrollments = [record for record in redcap_record_instances if record.event_name == ENROLLMENT_EVENT_NAME]
     assert len(enrollments) == 1, \
         f"Record had {len(enrollments)} enrollments."
 
@@ -118,14 +115,14 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     if netid:
         patient_entry, patient_reference = create_patient_using_unique_identifier(
             sex = enrollment['core_sex'],
-            preferred_language = LANGUAGE_CODE[project_id],
+            preferred_language = LANGUAGE_CODE[enrollment.project.id],
             unique_identifier = netid,
             record = enrollment,
             system_identifier = INTERNAL_SYSTEM)
     else:
         patient_entry, patient_reference = create_patient_using_demographics(
             sex = enrollment['core_sex'],
-            preferred_language = LANGUAGE_CODE[project_id],
+            preferred_language = LANGUAGE_CODE[enrollment.project.id],
             first_name = enrollment['core_participant_first_name'],
             last_name = enrollment['core_participant_last_name'],
             birth_date = enrollment['core_birthdate'],
@@ -157,16 +154,16 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         event_type = None
         collection_method = None
 
-        if redcap_record_instance["redcap_event_name"] == ENROLLMENT_EVENT_NAME:
+        if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
-        elif redcap_record_instance["redcap_event_name"] == ENCOUNTER_EVENT_NAME:
+        elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
             if is_complete('kiosk_registration_4c7f', redcap_record_instance):
                 collection_method = CollectionMethod.KIOSK
             elif is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
         else:
-            LOG.error(f"The record instance has an unexpected event name: {redcap_record_instance['redcap_event_name']}")
+            LOG.error(f"The record instance has an unexpected event name: {redcap_record_instance.event_name}")
             continue
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
@@ -354,7 +351,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
-        source = f"{REDCAP_URL}{project_id}/{record_id}",
+        source = f"{REDCAP_URL}{str(redcap_record_instance.project.id)}/{redcap_record_instance.id}",
         entries = list(filter(None, persisted_resource_entries))
     )
 

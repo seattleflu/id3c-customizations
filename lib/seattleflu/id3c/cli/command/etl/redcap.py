@@ -28,24 +28,6 @@ class CollectionCode(Enum):
     HOME_HEALTH = "HH"
     FIELD = "FLD"
 
-class REDCapRecordInfo:
-    redcap_url: str
-    project_id: int
-    record_id: str
-    event_name: str
-    repeat_instance: int
-
-    def __init__(self, record: REDCapRecord)-> None:
-        self.redcap_url = record.project.base_url
-        self.project_id = record.project.id
-        self.record_id = record.id
-        self.event_name = record.get('redcap_event_name')
-
-        if record.get('redcap_repeat_instance'):
-            self.repeat_instance = int(record.get('redcap_repeat_instance'))
-        else:
-            self.repeat_instance = None
-
 
 def normalize_net_id(net_id: str=None) -> Optional[str]:
     """
@@ -234,8 +216,6 @@ def _create_patient(sex: str, preferred_language: str, first_name: str, last_nam
     Uses demographics to create the patient identifier unless
     a *unique_identifier* is provided.
     """
-    record_info = REDCapRecordInfo(record)
-
     gender = map_sex(sex)
 
     language_codeable_concept = create_codeable_concept(
@@ -262,7 +242,7 @@ def _create_patient(sex: str, preferred_language: str, first_name: str, last_nam
         # Some piece of information was missing, so we couldn't generate a
         # hash.  Fallback to treating this individual as always unique by using
         # the REDCap record id.
-        patient_id = generate_hash(f"{record_info.redcap_url}{str(record_info.project_id)}/{str(record_info.record_id)}")
+        patient_id = generate_hash(f"{record.project.base_url}{str(record.project.id)}/{record.id}")
 
     LOG.debug(f"Generated individual identifier {patient_id}")
 
@@ -419,7 +399,7 @@ def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
 def create_encounter(encounter_date: str, patient_reference: dict, site_reference: dict,
     locations: list, diagnosis: list, contained: list, collection_code: CollectionCode,
     parent_encounter_reference: dict, encounter_reason_code: dict, encounter_identifier_suffix: str,
-    system_identifier: str, record: REDCapRecord) -> tuple:
+    record: REDCapRecord, system_identifier: str) -> tuple:
     """
     Returns a FHIR Encounter resource entry and reference for the encounter in the study.
     """
@@ -446,20 +426,19 @@ def create_encounter(encounter_date: str, patient_reference: dict, site_referenc
         LOG.debug("Not creating the encounter because there is no site_reference.")
         return None, None
 
-    record_info = REDCapRecordInfo(record)
-
     # Keep the encounter_id format the same as what was used in an earlier
     # version of redcap_det_uw_reopening.py.
-    redcap_event_name = record_info.event_name
-    redcap_repeat_instance = record_info.repeat_instance
-
-    if not redcap_event_name:
+    if record.event_name:
+        redcap_event_name = record.event_name
+    else:
         redcap_event_name = ""
-    if not redcap_repeat_instance:
+    if record.repeat_instance:
+        redcap_repeat_instance = str(record.repeat_instance)
+    else:
         redcap_repeat_instance = ""
     if not encounter_identifier_suffix:
         encounter_identifier_suffix = ""
-    encounter_id = f"{record_info.redcap_url}{str(record_info.project_id)}/{record_info.record_id}/{redcap_event_name}/" + \
+    encounter_id = f"{record.project.base_url}{str(record.project.id)}/{record.id}/{redcap_event_name}/" + \
         f"{redcap_repeat_instance}{encounter_identifier_suffix}"
 
     encounter_identifier = create_identifier(
