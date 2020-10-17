@@ -42,7 +42,7 @@ class EventType(Enum):
     ENROLLMENT = 'enrollment'
     ENCOUNTER = 'encounter'
 
-REVISION = 2
+REVISION = 3
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -514,12 +514,6 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     record['countries_visited_base'] = combine_multiple_fields(record, 'country', '_base')
     record['states_visited_base'] = combine_multiple_fields(record, 'state', '_base')
 
-    # Age Ceiling
-    try:
-        record['core_age_years'] = age_ceiling(int(record['core_age_years']))
-    except ValueError:
-        record['core_age_years'] = record['core_age_years'] = None
-
     # Set the study tier
     tier = None
     if record['tier_1'] == '1':
@@ -692,10 +686,16 @@ def create_computed_questionnaire_response(record: REDCapRecord, patient_referen
     """
     # A birthdate of None will return a falsy relativedelta() object
     delta = relativedelta(encounter_date, birthdate)
+
     if not delta:
         age = None
     else:
-        age = delta.years
+        # Age Ceiling
+        try:
+            age = age_ceiling(delta.years)
+        except ValueError:
+            age = None
+
     record['age'] = age
 
     integer_questions = [
