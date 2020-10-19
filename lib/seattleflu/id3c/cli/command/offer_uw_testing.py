@@ -9,10 +9,12 @@ cronjob or troubleshoot or fix bugs.  Running the command more than once won't
 release extra tests above the quota.
 """
 import click
+import enum
 import logging
 import os
 import id3c.cli.redcap as redcap
 from datetime import date
+from more_itertools import bucket
 from id3c.cli import cli
 from id3c.cli.command import with_database_session
 from id3c.db.session import DatabaseSession
@@ -85,14 +87,14 @@ def offer_uw_testing(*, at: str, db: DatabaseSession):
         f"Quota remaining for {quota.name} during {quota.timespan} "
         f"is {quota.remaining}/{quota.limit} (remaining/limit)")
 
-    # Offer testing to the top entries in our priority queue by updating REDCap.
+    # Offer testing to the top entries in our priority queue.
     queued = db.fetch_rows("""
         select
             redcap_url,
             redcap_project_id,
             redcap_record_id,
             redcap_event_name,
-            redcap_repeat_instance_id,
+            redcap_repeat_instance,
             reason,
             priority
         from
@@ -107,24 +109,30 @@ def offer_uw_testing(*, at: str, db: DatabaseSession):
 
     LOG.info(f"Fetched {len(queued):,} entries from the head of the queue")
 
-    offers = [ offer(q) for q in queued ]
-    offer_count = len(offers)
+    # Use the REDCap URL and project id from the queue rather than hardcoding.
+    queued_by_project = bucket(queued, lambda q: (q.redcap_url, q.redcap_project_id))
 
-    # XXX FIXME
-    # Don't actually update REDCap if we're running under --dry-run mode.
-    if db.command_action != "rollback":
-        # XXX FIXME: assert on url and project id
-        LOG.info(f"Offering testing to {offer_count:,} REDCap records")
+    offer_count = 0
 
-        # XXX: use CachedProject instead with values from each row?
-        redcap_project = redcap.CachedProject(
-            urljoin(..., "api/"),
-            os.environ["REDCAP_API_TOKEN"],
-            ...)
+    if db.command_action == "rollback":
+        # Don't actually update REDCap if we're running under --dry-run mode.
+        offer_count = len(offers)
+    else:
+        for url, project_id in queued_by_project:
+            # Token will automatically come from the environment
+            project = redcap.Project(url, project_id)
 
-        offer_count = redcap_project.update_records(offers)
+            LOG.info(f"Updating REDCap records for {project}")
+            offers = [ offer(q) for q in queued_by_project[(url, project_id)] ]
 
-        LOG.info(f"Updated {offer_count:,} REDCap records")
+            updated_count = project.update_records(offers)
+
+            LOG.info(f"Updated {updated_count:,} REDCap records for {project}")
+
+            if updated_count != len(offers):
+                LOG.warning(f"REDCap reported fewer records updated than we expected: {updated_count:,} != {len(offers):,}")
+
+            offer_count += updated_count
 
     # XXX FIXME: How to deal with lack of DET from REDCap import?
     #   1. Update internal flag (as below) to be eventually consistent with REDCap
@@ -160,12 +168,50 @@ def offer(queued) -> dict:
     testing.
     """
     return {
-        "record_id": offer["redcap_record_id"],
-        "redcap_event_name": offer["redcap_event_name"],
-        "redcap_repeat_instance": offer["redcap_repeat_instance_id"],
-        "testing_trigger": "1",
-        "testing_type": "...",
+        "record_id": offer.redcap_record_id,
+        "redcap_event_name": offer.redcap_event_name,
+        "redcap_repeat_instance": offer.redcap_repeat_instance,
+        "testing_trigger": TestingTrigger.Yes.value,
+        "testing_type": testing_type(offer.priority_reason).value,
         "testing_date": TODAY,
         "testing_determination_internal_complete": redcap.InstrumentStatus.Complete.value,
-        # XXX FIXME: reason, priority?
     }
+
+
+@enum.unique
+class TestingTrigger(Enum):
+    """
+    Numeric codes used by the ``testing_trigger`` field in REDCap.
+    """
+    No  = "0"
+    Yes = "1"
+
+
+@enum.unique
+class TestingType(Enum):
+    """
+    Numeric codes used by the ``testing_type`` field in REDCap.
+    """
+    Baseline            = "0"
+    Surveillance        = "1"
+    SymptomsOrExposure  = "2"
+    ContactTracing      = "3"
+    KioskWalkIn         = "4"
+
+
+def testing_type(priority_reason: str) -> TestingType:
+    """
+    Map a ``priority_reason`` from our priority queue to a ``testing_type``
+    code used in REDCap.
+    """
+    testing_type = {
+        'symptomatic':                  TestingType.SymptomsOrExposure,
+        'exposure_to_known_positive':   TestingType.SymptomsOrExposure,
+        'gathering_over_10':            TestingType.SymptomsOrExposure,
+        'tier_1_baseline':              TestingType.Baseline,
+        'tier_2_and_3_baseline':        TestingType.Baseline,
+        'tier_1_surveillance':          TestingType.Surveillance,
+        'tier_2_and_3_surveillance':    TestingType.Surveillance,
+        'surge_testing':                TestingType.ContactTracing,
+    }
+    return testing_type[priority_reason]
