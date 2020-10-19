@@ -2953,6 +2953,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         from all_uw_instances
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
         left join (
+            -- Use a subquery instead of CTE for better query runtimes.
             select
                 individual,
                 max(encountered) filter (where testing_trigger is true) as latest_invite_date,
@@ -2979,6 +2980,20 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_collection_date,
             case
                 when daily_symptoms then 1
+
+                /* Why 2 days after attestation to exposures?  Our questions
+                 * about exposure ask about the past 24 hours.  We don't want
+                 * to offer testing too early after exposure and risk false
+                 * negatives.  Per Trevor, we expect that a viral load high
+                 * enough to detect with PCR and be contagious is generally
+                 * centered on day 3 after exposure, though some will be
+                 * earlier and some later.  By offering testing at day 2, some
+                 * people will get tested that same day (day 2), most will
+                 * (hopefully) get tested the next day (day 3), and some others
+                 * by the day after that (day 4). This puts results being known
+                 * at days 3–5.
+                 *    -trs, 19 Oct 2020
+                 */
                 when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 2
                 when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 3
                 else null
@@ -3096,11 +3111,11 @@ create or replace view shipping.uw_priority_queue_v1 as (
     select *
     from distinct_individuals
     order by
-        priority asc nulls last,
-        tier asc nulls last,
-        age(latest_collection_date) desc nulls first,
-        age(latest_invite_date) desc nulls first,
-        individual asc
+        priority asc nulls last,                        -- Prioritize first by reason testing is indicated…
+        tier asc nulls last,                            -- …then, higher-risk tiers over lower-risk
+        age(latest_collection_date) desc nulls first,   -- …then, people who were least recently (if ever) tested
+        age(latest_invite_date) desc nulls first,       -- …then, people who were least recently (if ever) offered a test
+        individual asc                                  -- …and finally, by an evenly-distributed value (SHA-256 hash).
 )
 ;
 
