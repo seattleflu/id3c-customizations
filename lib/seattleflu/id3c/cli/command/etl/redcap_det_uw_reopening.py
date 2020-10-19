@@ -62,6 +62,7 @@ REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
 ENROLLMENT_EVENT_NAME = "enrollment_arm_1"
 ENCOUNTER_EVENT_NAME = "encounter_arm_1"
+SWAB_AND_SEND_SITE = 'UWReopeningSwabNSend'
 
 REQUIRED_ENROLLMENT_INSTRUMENTS = [
     'eligibility_screening',
@@ -161,7 +162,23 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     continue
 
         # site_reference refers to where the sample was collected
-        site_reference = create_site_reference(redcap_record_instance, collection_method, event_type)
+        record_location = None
+        if collection_method == CollectionMethod.KIOSK:
+            record_location = redcap_record_instance.get('location_type')
+
+        location_site_map = {
+            'bothell':  'UWBothell',
+            'odegaard': 'UWOdegaardLibrary',
+            'slu':      'UWSouthLakeUnion',
+            'tacoma':   'UWTacoma',
+            'uw_club':  'UWClub'
+            }
+
+        site_reference = create_site_reference(
+            location = record_location,
+            site_map = location_site_map,
+            default_site = SWAB_AND_SEND_SITE,
+            system_identifier = INTERNAL_SYSTEM)
 
         initial_encounter_entry, initial_encounter_reference = create_encounter(
             redcap_record_instance, patient_reference, site_reference,
@@ -276,42 +293,32 @@ def parse_date_from_string(input_string: str)-> Optional[datetime]:
     return date
 
 
-def create_site_reference(record: dict, collection_method: CollectionMethod, event_type: EventType) -> Optional[Dict[str,dict]]:
+def create_site_reference(default_site: str, system_identifier: str,
+    location: str = None, site_map: dict = None) -> Optional[Dict[str,dict]]:
     """
     Create a Location reference for site of the sample collection encounter based
     on how the sample was collected.
     """
-    if collection_method == CollectionMethod.KIOSK:
-        record_location = record.get('location_type')
-        if record_location:
-            site = site_map(record_location)
+    class UnknownRedcapRecordLocation(ValueError):
+        """
+        Raised if a provided *location* is not
+        among a set of expected values.
+        """
+        pass
+
+    if location and site_map:
+        if location not in site_map:
+            raise UnknownRedcapRecordLocation(f"Found unknown location type «{location}»")
+        site = site_map[location]
     else:
-        site = 'UWReopeningSwabNSend'
+        site = default_site
 
     return {
         "location": create_reference(
             reference_type = "Location",
-            identifier = create_identifier(f"{INTERNAL_SYSTEM}/site", site)
+            identifier = create_identifier(f"{system_identifier}/site", site)
         )
     }
-
-
-def site_map(record_location: str) -> str:
-    """
-    Maps *record_location* to the corresponding site name.
-    """
-    location_site_map = {
-        'bothell':  'UWBothell',
-        'odegaard': 'UWOdegaardLibrary',
-        'slu':      'UWSouthLakeUnion',
-        'tacoma':   'UWTacoma',
-        'uw_club':  'UWClub'
-    }
-
-    if record_location not in location_site_map:
-        raise UnknownRedcapRecordLocation(f"Found unknown location type «{record_location}»")
-
-    return location_site_map[record_location]
 
 
 def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
@@ -1263,14 +1270,6 @@ def create_daily_questionnaire_response(record: dict, patient_reference: dict,
 class UnknownRedcapZipCode(ValueError):
     """
     Raised by :function: `zipcode_map` if a provided *redcap_code* is not
-    among a set of expected values.
-    """
-    pass
-
-
-class UnknownRedcapRecordLocation(ValueError):
-    """
-    Raised by :function: `site_map` if a provided *redcap_location* is not
     among a set of expected values.
     """
     pass
