@@ -132,7 +132,17 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         LOG.warning("Skipping record with insufficient information to construct patient")
         return None
 
-    location_resource_entries = locations(db, cache, enrollment)
+    location_resource_entries = build_location_resources(
+        db = db,
+        cache = cache,
+        housing_type = enrollment.get('core_housing_type'),
+        primary_street_address = enrollment['core_home_street'],
+        secondary_street_address = enrollment['core_apartment_number'],
+        city = enrollment['core_home_city'],
+        state = enrollment['core_home_state'],
+        zipcode = enrollment['core_zipcode'],
+        system_identifier = INTERNAL_SYSTEM)
+
     persisted_resource_entries = [patient_entry, *location_resource_entries]
 
     for redcap_record_instance in redcap_record_instances:
@@ -321,8 +331,47 @@ def create_site_reference(default_site: str, system_identifier: str,
     }
 
 
-def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
-    """ Creates a list of Location resource entries from a REDCap record. """
+def build_location_resources(db: DatabaseSession, cache: TTLCache, housing_type: str,
+        primary_street_address: str, secondary_street_address: str, city: str, state: str,
+        zipcode: str, system_identifier: str) -> list:
+    """ Creates a list of Location resource entries. """
+
+    def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
+            housing_type: str, system_identifier: str) -> Optional[dict]:
+        """
+        Creates a new Location Resource for the census tract containing the given
+        *lat_lng* coordintes and associates it with the given *housing_type*.
+        """
+        location = location_lookup(db, lat_lng, 'tract')
+
+        if location and location.identifier:
+            return create_location(
+                f"{system_identifier}/location/tract", location.identifier, housing_type
+            )
+        else:
+            LOG.debug("No census tract found for given location.")
+            return None
+
+    def create_location(system: str, value: str, location_type: str, parent: str=None) -> dict:
+        """ Returns a FHIR Location resource. """
+        location_type_system = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
+        location_type_map = {
+            "residence": "PTRES",
+            "school": "SCHOOL",
+            "work": "WORK",
+            "site": "HUSCS",
+            "lodging": "PTLDG",
+        }
+
+        location_type_cc = create_codeable_concept(location_type_system,
+            location_type_map[location_type])
+        location_identifier = create_identifier(system, value)
+        part_of = None
+        if parent:
+            part_of = create_reference(reference_type="Location", reference=parent)
+
+        return create_location_resource([location_type_cc], [location_identifier], part_of)
+
     lodging_options = [
         'shelter',
         'afl',
@@ -331,34 +380,34 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         'be',
         'pst',
         'cf',
-        'none'
+        'none',
     ]
 
-    if record.get('core_housing_type') in lodging_options:
+    if housing_type in lodging_options:
         housing_type = 'lodging'
     else:
         housing_type = 'residence'
 
     address = {
-        'street': record['core_home_street'],
-        'secondary': record['core_apartment_number'],
-        'city': record['core_home_city'],
-        'state': record['core_home_state'],
-        'zipcode': record['core_zipcode'],
+        'street': primary_street_address,
+        'secondary': secondary_street_address,
+        'city': city,
+        'state': state,
+        'zipcode': zipcode
     }
 
     lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
     if not canonicalized_address:
         return []  # TODO
 
-    tract_location = residence_census_tract(db, (lat, lng), housing_type)
+    tract_location = residence_census_tract(db, (lat, lng), housing_type, system_identifier)
     # TODO what if tract_location is null?
     tract_full_url = generate_full_url_uuid()
     tract_entry = create_resource_entry(tract_location, tract_full_url)
 
     address_hash = generate_hash(canonicalized_address)
     address_location = create_location(
-        f"{INTERNAL_SYSTEM}/location/address",
+        f"{system_identifier}/location/address",
         address_hash,
         housing_type,
         tract_full_url
@@ -366,44 +415,6 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
     address_entry = create_resource_entry(address_location, generate_full_url_uuid())
 
     return [tract_entry, address_entry]
-
-
-def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
-    housing_type: str) -> Optional[dict]:
-    """
-    Creates a new Location Resource for the census tract containing the given
-    *lat_lng* coordintes and associates it with the given *housing_type*.
-    """
-    location = location_lookup(db, lat_lng, 'tract')
-
-    if location and location.identifier:
-        return create_location(
-            f"{INTERNAL_SYSTEM}/location/tract", location.identifier, housing_type
-        )
-    else:
-        LOG.warning("No census tract found for given location.")
-        return None
-
-
-def create_location(system: str, value: str, location_type: str, parent: str=None) -> dict:
-    """ Returns a FHIR Location resource. """
-    location_type_system = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
-    location_type_map = {
-        "residence": "PTRES",
-        "school": "SCHOOL",
-        "work": "WORK",
-        "site": "HUSCS",
-        "lodging": "PTLDG",
-    }
-
-    location_type_cc = create_codeable_concept(location_type_system,
-                                            location_type_map[location_type])
-    location_identifier = create_identifier(system, value)
-    part_of = None
-    if parent:
-        part_of = create_reference(reference_type="Location", reference=parent)
-
-    return create_location_resource([location_type_cc], [location_identifier], part_of)
 
 
 def create_patient(record: REDCapRecord) -> tuple:
