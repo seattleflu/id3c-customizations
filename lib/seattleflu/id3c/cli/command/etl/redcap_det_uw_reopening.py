@@ -125,12 +125,33 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         LOG.debug("The participant is < 18 years old and we do not have parental consent. Skipping record.")
         return None
 
-    patient_entry, patient_reference = create_patient(enrollment)
-    birthdate = parse_date_from_string(enrollment.get('core_birthdate'))
+    # Create the participant resource entry and reference.
+    # Assumes that the project language is the participant's preferred language.
+    netid = normalize_net_id(enrollment.get('netid'))
+
+    if netid:
+        patient_entry, patient_reference = create_patient_using_unique_identifier(
+            sex = enrollment['core_sex'],
+            preferred_language = LANGUAGE_CODE[enrollment.project.id],
+            unique_identifier = netid,
+            record = enrollment,
+            system_identifier = INTERNAL_SYSTEM)
+    else:
+        patient_entry, patient_reference = create_patient_using_demographics(
+            sex = enrollment['core_sex'],
+            preferred_language = LANGUAGE_CODE[enrollment.project.id],
+            first_name = enrollment['core_participant_first_name'],
+            last_name = enrollment['core_participant_last_name'],
+            birth_date = enrollment['core_birthdate'],
+            zipcode = enrollment['core_zipcode'],
+            record = enrollment,
+            system_identifier = INTERNAL_SYSTEM)
 
     if not patient_entry:
         LOG.warning("Skipping record with insufficient information to construct patient")
         return None
+
+    birthdate = parse_date_from_string(enrollment.get('core_birthdate'))
 
     location_resource_entries = build_location_resources(
         db = db,
@@ -417,41 +438,85 @@ def build_location_resources(db: DatabaseSession, cache: TTLCache, housing_type:
     return [tract_entry, address_entry]
 
 
-def create_patient(record: REDCapRecord) -> tuple:
-    """ Returns a FHIR Patient resource entry and reference. """
-    gender = map_sex(record['core_sex'])
+def _create_patient(sex: str, preferred_language: str, record: REDCapRecord,
+        system_identifier: str, first_name: str = None, last_name: str = None,
+        birth_date: str = None, zipcode: str = None, unique_identifier: str = None) -> tuple:
+    """
+    Returns a FHIR Patient resource entry and reference.
+    Uses demographics to create the patient identifier unless
+    a *unique_identifier* is provided.
+    """
+
+    if not unique_identifier and (not first_name or not last_name or not birth_date \
+        or not zipcode):
+        LOG.debug('If you are not providing a `unique_identifier` you should provide' \
+            +' `first_name`, `last_name`, `birth_date`, and `zipcode`')
+
+    gender = map_sex(sex)
 
     language_codeable_concept = create_codeable_concept(
         system = 'urn:ietf:bcp:47',
-        code = LANGUAGE_CODE[record.project.id]
+        code = preferred_language
     )
+
     communication = [{
         'language' : language_codeable_concept,
-        'preferred': True # Assumes that the project language is the patient's preferred language
+        'preferred': True
     }]
 
-    net_id = normalize_net_id(record.get('netid'))
-    if net_id:
-        patient_id = generate_hash(net_id)
+    patient_id = None
+    if unique_identifier:
+        patient_id = generate_hash(unique_identifier)
     else:
         patient_id = generate_patient_hash(
-            names       = (record['core_participant_first_name'], record['core_participant_last_name']),
-            gender      = gender,
-            birth_date  = record['core_birthdate'],
-            postal_code = record['core_zipcode'])
+                names       = (first_name, last_name),
+                gender      = gender,
+                birth_date  = birth_date,
+                postal_code = zipcode)
 
     if not patient_id:
         # Some piece of information was missing, so we couldn't generate a
         # hash.  Fallback to treating this individual as always unique by using
         # the REDCap record id.
-        patient_id = generate_hash(f"{REDCAP_URL}{record.project.id}/{record['record_id']}")
+        patient_id = generate_hash(f"{record.project.base_url}{record.project.id}/{record.id}")
 
     LOG.debug(f"Generated individual identifier {patient_id}")
 
-    patient_identifier = create_identifier(f"{INTERNAL_SYSTEM}/individual", patient_id)
+    patient_identifier = create_identifier(f"{system_identifier}/individual", patient_id)
     patient_resource = create_patient_resource([patient_identifier], gender, communication)
 
     return create_entry_and_reference(patient_resource, "Patient")
+
+
+def create_patient_using_demographics(sex: str, preferred_language: str, first_name: str, last_name: str,
+        birth_date: str, zipcode: str, record: REDCapRecord, system_identifier: str) -> tuple:
+    """
+    Returns a FHIR Patient resource entry and reference.
+    Uses demographics to create the patient identifier
+    """
+    return _create_patient(
+        sex = sex,
+        preferred_language = preferred_language,
+        first_name = first_name,
+        last_name = last_name,
+        birth_date = birth_date,
+        zipcode = zipcode,
+        record = record,
+        system_identifier = system_identifier)
+
+
+def create_patient_using_unique_identifier(sex: str, preferred_language: str, unique_identifier: str,
+    record: REDCapRecord, system_identifier: str) -> tuple:
+    """
+    Returns a FHIR Patient resource entry and reference.
+    Uses a unique identifier to create the patient identifier
+    """
+    return _create_patient(
+        sex = sex,
+        preferred_language = preferred_language,
+        record = record,
+        system_identifier = system_identifier,
+        unique_identifier = unique_identifier)
 
 
 def create_encounter(record: REDCapRecord, patient_reference: dict,
