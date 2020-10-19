@@ -125,7 +125,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         return None
 
     patient_entry, patient_reference = create_patient(enrollment)
-    birthdate = parse_birth_date(enrollment)
+    birthdate = parse_date_from_string(enrollment.get('core_birthdate'))
 
     if not patient_entry:
         LOG.warning("Skipping record with insufficient information to construct patient")
@@ -205,7 +205,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         computed_questionnaire_entry = create_computed_questionnaire_response(
             redcap_record_instance, patient_reference, initial_encounter_reference,
-            birthdate, datetime.strptime(initial_encounter_entry['resource']['period']['start'], '%Y-%m-%d'))
+            birthdate, parse_date_from_string(initial_encounter_entry['resource']['period']['start']))
 
         if event_type == EventType.ENROLLMENT:
             enrollment_questionnaire_entry = create_enrollment_questionnaire_response(
@@ -226,7 +226,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 redcap_record_instance, patient_reference, follow_up_encounter_reference)
                 follow_up_computed_questionnaire_entry = create_computed_questionnaire_response(
                 redcap_record_instance, patient_reference, follow_up_encounter_reference,
-                birthdate, datetime.strptime(follow_up_encounter_entry['resource']['period']['start'], '%Y-%m-%d'))
+                birthdate, parse_date_from_string(follow_up_encounter_entry['resource']['period']['start']))
 
 
         current_instance_entries = [
@@ -253,16 +253,28 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     )
 
 
-def parse_birth_date(record: dict) -> Optional[datetime]:
-    """ Returns a participant's birth date from a given *record* as a datetime
-    object if it can be parsed. Otherwise, emits a warning and returns None. """
-    try:
-        birth_date = datetime.strptime(record['core_birthdate'], '%Y-%m-%d')
-    except ValueError:
-        LOG.warning("Invalid `core_birthdate`.")
-        birth_date = None
+def parse_date_from_string(input_string: str)-> Optional[datetime]:
+    """ Returns a date from a given *input_string* as a datetime
+    object if the value can be parsed.
+    Otherwise, emits a debug log entry and returns None.
 
-    return birth_date
+    >>> parse_date_from_string('2000-2-12')
+    datetime.datetime(2000, 2, 12, 0, 0)
+
+    >>> parse_date_from_string('abc')
+
+    >>> parse_date_from_string(None)
+    """
+    date = None
+
+    if input_string:
+        try:
+            date = datetime.strptime(input_string, '%Y-%m-%d')
+        except ValueError:
+            LOG.debug(f"Invalid date value.")
+
+    return date
+
 
 def create_site_reference(record: dict, collection_method: CollectionMethod, event_type: EventType) -> Optional[Dict[str,dict]]:
     """
