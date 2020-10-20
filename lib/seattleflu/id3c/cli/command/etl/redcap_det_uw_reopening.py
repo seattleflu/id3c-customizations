@@ -282,14 +282,30 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             is_complete('kiosk_registration_4c7f', redcap_record_instance))
 
         if specimen_received:
-            specimen_entry, specimen_reference = create_specimen(redcap_record_instance, patient_reference, collection_method)
+            # Use barcode fields in this order.
+            prioritized_barcodes = [
+                redcap_record_instance["collect_barcode_kiosk"],
+                redcap_record_instance["return_utm_barcode"],
+                redcap_record_instance["pre_scan_barcode"]]
+
+            specimen_entry, specimen_reference = create_specimen(
+                prioritized_barcodes = prioritized_barcodes,
+                patient_reference = patient_reference,
+                collection_date = get_collection_date(redcap_record_instance, collection_method),
+                sample_received_time = redcap_record_instance['samp_process_date'],
+                able_to_test = redcap_record_instance['able_to_test'],
+                system_identifier = INTERNAL_SYSTEM)
+
             specimen_observation_entry = create_specimen_observation_entry(
-                specimen_reference, patient_reference, initial_encounter_reference)
+                specimen_reference = specimen_reference,
+                patient_reference = patient_reference,
+                encounter_reference = initial_encounter_reference)
         else:
             LOG.info("Creating encounter for record instance without sample")
 
         if specimen_received and not specimen_entry:
-            LOG.warning("Skipping record instance with insufficent information to construct a specimen")
+            LOG.warning("Skipping record instance. We think the specimen was received," \
+                + " but we're unable to create the specimen_entry.")
             continue
 
         computed_questionnaire_entry = None
@@ -772,62 +788,46 @@ def create_encounter(encounter_date: str, patient_reference: dict, site_referenc
     return create_entry_and_reference(encounter_resource, "Encounter")
 
 
-def create_specimen(record: dict, patient_reference: dict, collection_method: CollectionMethod) -> tuple:
-    """ Returns a FHIR Specimen resource entry and reference """
+def create_specimen(prioritized_barcodes: List[str], patient_reference: dict, collection_date: str, sample_received_time: str,
+    able_to_test: str, system_identifier: str, specimen_type: Optional[str] = None) -> tuple:
+    """ Returns a FHIR Specimen resource entry and reference
+        Uses the first non-empty barcode from *prioritized_barcodes*
+    """
 
-    def specimen_barcode() -> Optional[str]:
-        """
-        Return specimen barcode from REDCap record.
-        """
-         # Normalize all barcode fields upfront.
-        barcode_fields = {
-            # Kiosk related
-            "collect_barcode_kiosk", # from	kiosk_registration_4c7f
+    for barcode in prioritized_barcodes:
+        prepared_barcode = barcode.strip().lower()
+        if prepared_barcode:
+            break
 
-            # Swab and Send related
-            "pre_scan_barcode", # from test_fulfillment_form
-            "barcode_swabsend",	# from husky_test_kit_registration
-            "return_utm_barcode", # from post_collection_data_entry_qc
-        }
-
-        for barcode_field in barcode_fields:
-            record[barcode_field] = record[barcode_field].strip().lower()
-
-        return record["collect_barcode_kiosk"] or record["return_utm_barcode"] or \
-            record["pre_scan_barcode"] or None
-
-
-    barcode = specimen_barcode()
-
-    if not barcode:
-        LOG.warning("Could not create Specimen Resource due to lack of barcode.")
+    if not prepared_barcode:
+        LOG.debug("Could not create Specimen Resource due to lack of barcode.")
         return None, None
 
     specimen_identifier = create_identifier(
-        system = f"{INTERNAL_SYSTEM}/sample",
-        value = barcode
+        system = f"{system_identifier}/sample",
+        value = prepared_barcode
     )
 
     # YYYY-MM-DD HH:MM:SS in REDCap
-    received_time = record['samp_process_date'].split()[0] if record.get('samp_process_date') else None
+    received_time = sample_received_time.split()[0] if sample_received_time else None
 
     note = None
 
-    if record['able_to_test'] == 'no':
+    if able_to_test == 'no':
         note = 'never-tested'
     else:
         note = 'can-test'
 
-    specimen_type = 'NSECR'  # Nasal swab.
+    specimen_type = specimen_type or 'NSECR'  # Nasal swab.
     specimen_resource = create_specimen_resource(
         [specimen_identifier], patient_reference, specimen_type, received_time,
-        collection_date(record, collection_method), note
+        collection_date, note
     )
 
     return create_entry_and_reference(specimen_resource, "Specimen")
 
 
-def collection_date(record: dict, collection_method: CollectionMethod) -> Optional[str]:
+def get_collection_date(record: dict, collection_method: CollectionMethod) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
@@ -837,6 +837,7 @@ def collection_date(record: dict, collection_method: CollectionMethod) -> Option
         return record["date_on_tube"] or record["kit_reg_date"] or record["back_end_scan_date"]
     else:
         return None
+
 
 def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suffix: str = "") -> Optional[List]:
         """
