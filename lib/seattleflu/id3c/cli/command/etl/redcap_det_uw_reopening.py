@@ -854,9 +854,8 @@ def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suf
         return list(map(lambda x: record[x], answered_fields))
 
 
-
-def create_enrollment_questionnaire_response(record: dict, patient_reference: dict,
-                                            encounter_reference: dict) -> Optional[dict]:
+def create_enrollment_questionnaire_response(record: REDCapRecord, patient_reference: dict,
+    encounter_reference: dict) -> Optional[dict]:
     """
     Returns a FHIR Questionnaire Response resource entry for the enrollment
     encounter (i.e. encounter of enrollment into the study)
@@ -991,7 +990,15 @@ def create_enrollment_questionnaire_response(record: dict, patient_reference: di
         tier = 3
     record['tier'] = tier
 
-    return questionnaire_response(record, question_categories, patient_reference, encounter_reference, True)
+    vaccine_item = create_vaccine_item(record["vaccine"], record['vaccine_year'], record['vaccine_month'], 'dont_know')
+
+    return create_questionnaire_response(
+        record = record,
+        question_categories = question_categories,
+        patient_reference = patient_reference,
+        encounter_reference = encounter_reference,
+        system_identifier = INTERNAL_SYSTEM,
+        additional_items = [vaccine_item])
 
 
 def filter_fields(field: str, field_value: str, regex: str, empty_value: str) -> bool:
@@ -1026,6 +1033,7 @@ def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[List
 
     return answers
 
+
 def map_vaccine(vaccine_response: str) -> Optional[bool]:
     """
     Maps a vaccine response to FHIR immunization status codes
@@ -1033,60 +1041,58 @@ def map_vaccine(vaccine_response: str) -> Optional[bool]:
     """
     vaccine_map = {
         'yes': True,
+        '1': True,
         'no': False,
+        '0': False,
         'dont_know': None,
         '': None
     }
 
-    if vaccine_response not in vaccine_map:
+    if vaccine_response.lower() not in vaccine_map:
         raise UnknownVaccineResponseError(f"Unknown vaccine response «{vaccine_response}»")
 
-    return vaccine_map[vaccine_response]
+    return vaccine_map[vaccine_response.lower()]
 
-def vaccine(record: Any) -> Optional[dict]:
+
+def create_vaccine_item(vaccine_status: str, vaccine_year: str, vaccine_month: str, dont_know_text: str) -> Optional[dict]:
     """
-    For a given *record*, return a questionnaire response item with the vaccine
-    response(s) encoded.
+    Return a questionnaire response item with the vaccine response(s) encoded.
     """
-    vaccine_status = map_vaccine(record["vaccine"])
-    if vaccine_status is None:
+    def vaccine_date(vaccine_year: str, vaccine_month: str, dont_know_text: str) -> Optional[str]:
+        """ Converts a vaccination date to 'YYYY' or 'YYYY-MM' format. """
+        if vaccine_year == '' or vaccine_year == dont_know_text:
+            return None
+
+        if vaccine_month == dont_know_text:
+            return datetime.strptime(vaccine_year, '%Y').strftime('%Y')
+
+        return datetime.strptime(f'{vaccine_month} {vaccine_year}', '%B %Y').strftime('%Y-%m')
+
+
+    vaccine_status_bool = map_vaccine(vaccine_status)
+    if vaccine_status_bool is None:
         return None
 
-    answers: List[Dict[str, Any]] = [{ 'valueBoolean': vaccine_status }]
+    answers: List[Dict[str, Any]] = [{ 'valueBoolean': vaccine_status_bool }]
 
-    date = vaccine_date(record)
-    if vaccine_status and date:
+    date = vaccine_date(vaccine_year, vaccine_month, dont_know_text)
+    if vaccine_status_bool and date:
         answers.append({ 'valueDate': date })
 
     return create_questionnaire_response_item('vaccine', answers)
 
 
-def vaccine_date(record: dict) -> Optional[str]:
-    """ Converts a vaccination date to 'YYYY' or 'YYYY-MM' format. """
-    year = record['vaccine_year']
-    month = record['vaccine_month']
-
-    if year == '' or year == 'dont_know':
-        return None
-
-    if month == 'dont_know':
-        return datetime.strptime(year, '%Y').strftime('%Y')
-
-    return datetime.strptime(f'{month} {year}', '%B %Y').strftime('%Y-%m')
-
-
-def questionnaire_response(record: dict,
-                           question_categories: Dict[str, list],
-                           patient_reference: dict,
-                           encounter_reference: dict,
-                           include_vaccine_item: bool) -> Optional[dict]:
+def create_questionnaire_response(record: REDCapRecord, question_categories: Dict[str, list],
+    patient_reference: dict, encounter_reference: dict, system_identifier: str,
+    additional_items: Optional[List[dict]] = None) -> Optional[dict]:
     """
     Provided a dictionary of *question_categories* with the key being the value
     type and the value being a list of field names, return a FHIR
-    Questionnaire Response resource entry.
+    Questionnaire Response resource entry. To the list of items built by
+    processing the *question_categories*, add *additional_items* if there are any.
     """
     def build_questionnaire_items(question: str) -> Optional[dict]:
-        return questionnaire_item(record, question, category)
+        return questionnaire_item(record, question, category, system_identifier)
 
     items: List[dict] = []
     for category in question_categories:
@@ -1095,10 +1101,8 @@ def questionnaire_response(record: dict,
             if item:
                 items.append(item)
 
-    if include_vaccine_item:
-        vaccine_item = vaccine(record)
-        if vaccine_item:
-            items.append(vaccine_item)
+    if additional_items:
+        items.extend(additional_items)
 
     if items:
         questionnaire_reseponse_resource = create_questionnaire_response_resource(
@@ -1110,24 +1114,27 @@ def questionnaire_response(record: dict,
     return None
 
 
-def questionnaire_item(record: dict, question_id: str, response_type: str) -> Optional[dict]:
+def questionnaire_item(record: REDCapRecord, question_id: str, response_type: str, system_identifier: str) -> Optional[dict]:
     """ Creates a QuestionnaireResponse internal item from a REDCap record.
     """
     response = record.get(question_id)
     if not response:
         return None
 
-    def cast_to_coding(string: str):
+
+    def cast_to_coding(string: str) -> dict:
         """ Currently the only QuestionnaireItem we code is race. """
         return create_coding(
-            system = f"{INTERNAL_SYSTEM}/race",
+            system = f"{system_identifier}/race",
             code = string,
         )
+
 
     def cast_to_string(string: str) -> Optional[str]:
         if string != '':
             return string.strip()
         return None
+
 
     def cast_to_integer(string: str) -> Optional[int]:
         try:
@@ -1135,11 +1142,13 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         except ValueError:
             return None
 
+
     def cast_to_float(string: str) -> Optional[float]:
         try:
             return float(string)
         except ValueError:
             return None
+
 
     def cast_to_boolean(string: str) -> Optional[bool]:
         if (string and string.lower() == 'yes') or string == '1':
@@ -1147,6 +1156,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         elif (string and string.lower() == 'no') or string == '0':
             return False
         return None
+
 
     def build_response_answers(response: Union[str, List]) -> List:
         answers = []
@@ -1161,6 +1171,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
                 answers.append({ response_type: type_casted_item })
 
         return answers
+
 
     casting_functions: Mapping[str, Callable[[str], Any]] = {
         'valueCoding': cast_to_coding,
@@ -1178,8 +1189,8 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
     return None
 
 
-def create_follow_up_questionnaire_response(record: dict, patient_reference: dict,
-                                            encounter_reference: dict) -> Optional[dict]:
+def create_follow_up_questionnaire_response(record: REDCapRecord, patient_reference: dict,
+    encounter_reference: dict) -> Optional[dict]:
     """
     Returns a FHIR Questionnaire Response resource entry for the follow-up
     encounter.
@@ -1276,10 +1287,16 @@ def create_follow_up_questionnaire_response(record: dict, patient_reference: dic
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(record, field)
 
-    return questionnaire_response(record, question_categories, patient_reference, encounter_reference, False)
+    return create_questionnaire_response(
+        record = record,
+        question_categories = question_categories,
+        patient_reference = patient_reference,
+        encounter_reference = encounter_reference,
+        system_identifier = INTERNAL_SYSTEM)
 
-def create_testing_determination_internal_questionnaire_response(record: dict, patient_reference: dict,
-                                            encounter_reference: dict) -> Optional[dict]:
+
+def create_testing_determination_internal_questionnaire_response(record: REDCapRecord, patient_reference: dict,
+    encounter_reference: dict) -> Optional[dict]:
     """
     Returns a FHIR Questionnaire Response resource entry for the
     testing_determination_internal instrument. This instrument is used
@@ -1301,11 +1318,16 @@ def create_testing_determination_internal_questionnaire_response(record: dict, p
         'valueString': string_questions,
     }
 
-    return questionnaire_response(record, question_categories, patient_reference, encounter_reference, False)
+    return create_questionnaire_response(
+        record = record,
+        question_categories = question_categories,
+        patient_reference = patient_reference,
+        encounter_reference = encounter_reference,
+        system_identifier = INTERNAL_SYSTEM)
 
-def create_computed_questionnaire_response(record: dict, patient_reference: dict,
-                                            encounter_reference: dict,
-                                            birthdate: datetime, encounter_date: datetime) -> Optional[dict]:
+
+def create_computed_questionnaire_response(record: REDCapRecord, patient_reference: dict,
+    encounter_reference: dict, birthdate: datetime, encounter_date: datetime) -> Optional[dict]:
     """
     Returns a FHIR Questionnaire Response resource entry for a
     computed questionnaire. This "computed questionnaire" produces
@@ -1329,10 +1351,16 @@ def create_computed_questionnaire_response(record: dict, patient_reference: dict
         'valueInteger': integer_questions
     }
 
-    return questionnaire_response(record, question_categories, patient_reference, encounter_reference, False)
+    return create_questionnaire_response(
+        record = record,
+        question_categories = question_categories,
+        patient_reference = patient_reference,
+        encounter_reference = encounter_reference,
+        system_identifier = INTERNAL_SYSTEM)
 
-def create_daily_questionnaire_response(record: dict, patient_reference: dict,
-                                            encounter_reference: dict) -> Optional[dict]:
+
+def create_daily_questionnaire_response(record: REDCapRecord, patient_reference: dict,
+    encounter_reference: dict) -> Optional[dict]:
     """
     Returns a FHIR Questionnaire Response resource entry for the daily
     attestation questionnaire.
@@ -1395,8 +1423,12 @@ def create_daily_questionnaire_response(record: dict, patient_reference: dict,
     record['countries_visited'] = combine_multiple_fields(record, 'country')
     record['states_visited'] = combine_multiple_fields(record, 'state')
 
-    return questionnaire_response(record, question_categories, patient_reference, encounter_reference, False)
-
+    return create_questionnaire_response(
+        record = record,
+        question_categories = question_categories,
+        patient_reference = patient_reference,
+        encounter_reference = encounter_reference,
+        system_identifier = INTERNAL_SYSTEM)
 
 class UnknownRedcapZipCode(ValueError):
     """
