@@ -56,6 +56,14 @@ class EventType(Enum):
     ENROLLMENT = 'enrollment'
     ENCOUNTER = 'encounter'
 
+# See https://terminology.hl7.org/1.0.0/CodeSystem-v3-ActCode.html for
+# possible collection codes.
+# HH = 'home health'
+# FLD = 'field'
+class CollectionCode(Enum):
+    HOME_HEALTH = "HH"
+    FIELD = "FLD"
+
 REVISION = 2
 
 REDCAP_URL = 'https://redcap.iths.org/'
@@ -211,9 +219,50 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             default_site = SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
+        # Handle various symptoms.
+        contained: List[dict] = []
+        diagnosis: List[dict] = []
+
+        # Map the various symptoms variables to their onset date.
+        # For daily_symptoms_covid_like we don't know the actual onset date. The questions asks
+        # "in the past 24 hours"
+        if event_type == EventType.ENCOUNTER:
+            symptom_onset_map = {
+                'daily_symptoms_covid_like': None,
+                'symptoms': redcap_record_instance['symptom_onset'],
+                'symptoms_kiosk': redcap_record_instance['symptom_duration_kiosk'],
+                'symptoms_swabsend': redcap_record_instance['symptom_duration_swabsend']
+            }
+        elif event_type == EventType.ENROLLMENT:
+            symptom_onset_map = {'symptoms_base': redcap_record_instance['symptom_onset_base']}
+
+        contained, diagnosis = build_contained_and_diagnosis(
+            patient_reference = patient_reference,
+            record = redcap_record_instance,
+            symptom_onset_map = symptom_onset_map,
+            system_identifier = INTERNAL_SYSTEM)
+
+        collection_code = None
+        if event_type == EventType.ENROLLMENT or collection_method == CollectionMethod.SWAB_AND_SEND:
+            collection_code = CollectionCode.HOME_HEALTH
+        elif collection_method == CollectionMethod.KIOSK:
+            collection_code = CollectionCode.FIELD
+
+        encounter_date = get_encounter_date(redcap_record_instance, event_type)
+
         initial_encounter_entry, initial_encounter_reference = create_encounter(
-            redcap_record_instance, patient_reference, site_reference,
-            location_resource_entries, event_type, collection_method)
+            encounter_date = encounter_date,
+            patient_reference = patient_reference,
+            site_reference = site_reference,
+            locations = location_resource_entries,
+            diagnosis = diagnosis,
+            contained = contained,
+            collection_code = collection_code,
+            parent_encounter_reference = None,
+            encounter_reason_code = None,
+            encounter_identifier_suffix = None,
+            system_identifier = INTERNAL_SYSTEM,
+            record = redcap_record_instance)
 
         # Skip the entire record if we can't create the enrollment encounter.
         # Otherwise, just skip the record instance.
@@ -268,8 +317,18 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 redcap_record_instance, patient_reference, initial_encounter_reference)
 
             if is_complete('week_followup', redcap_record_instance):
-                follow_up_encounter_entry, follow_up_encounter_reference = create_follow_up_encounter(
-                    redcap_record_instance, patient_reference, site_reference, initial_encounter_reference)
+                # Don't set locations because the f/u survey doesn't ask for home address.
+                follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
+                    encounter_date = redcap_record_instance['fu_timestamp'].split()[0],
+                    patient_reference = patient_reference,
+                    site_reference = site_reference,
+                    collection_code = CollectionCode.HOME_HEALTH,
+                    parent_encounter_reference = initial_encounter_reference,
+                    encounter_reason_code = follow_up_encounter_reason_code(),
+                    encounter_identifier_suffix = "_follow_up",
+                    system_identifier = INTERNAL_SYSTEM,
+                    record = redcap_record_instance)
+
                 follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
                 redcap_record_instance, patient_reference, follow_up_encounter_reference)
                 follow_up_computed_questionnaire_entry = create_computed_questionnaire_response(
@@ -299,6 +358,33 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         source = f"{REDCAP_URL}{project_id}/{record_id}",
         entries = list(filter(None, persisted_resource_entries))
     )
+
+
+def get_encounter_date(record: dict, event_type: EventType) -> Optional[str]:
+    # First try the attestation_date
+    # from the daily attestation survey then try nasal_swab_timestamp from
+    # the kiosk registration and finally the swab-and-send order date.
+    encounter_date = None
+
+    if event_type == EventType.ENCOUNTER:
+        if record.get('attestation_date'):
+            encounter_date = record.get('attestation_date')
+        elif record.get('nasal_swab_timestamp'):
+            encounter_date = datetime.strptime(record.get('nasal_swab_timestamp'),
+                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+        elif record.get('time_test_order'):
+            encounter_date = datetime.strptime(record.get('time_test_order'),
+                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+        elif record.get('testing_date'): # from the 'Testing Determination - Internal' instrument
+            encounter_date = record.get('testing_date')
+
+    elif event_type == EventType.ENROLLMENT:
+        encounter_date = record.get('enrollment_date')
+
+    else:
+        return None
+
+    return encounter_date
 
 
 def parse_date_from_string(input_string: str)-> Optional[datetime]:
@@ -519,21 +605,46 @@ def create_patient_using_unique_identifier(sex: str, preferred_language: str, un
         unique_identifier = unique_identifier)
 
 
-def create_encounter(record: REDCapRecord, patient_reference: dict,
-    site_reference: dict, locations: list, event_type: EventType,
-    collection_method: CollectionMethod) -> tuple:
-    """
-    Returns a FHIR Encounter resource entry and reference for the encounter in the study.
-    """
+def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
+        symptom_onset_map: dict, system_identifier: str) -> Tuple[list, list]:
 
-    def grab_symptom_key(key: str, variable_name: str) -> Optional[Match[str]]:
+    def grab_symptom_key(record: REDCapRecord, key: str, variable_name: str) -> Optional[Match[str]]:
         if record[key] == '1':
             return re.match(f"{variable_name}___[a-z_]+", key)
         else:
             return None
 
-    def build_condition(symptom: str, onset_date: str) -> dict:
-        return create_resource_condition(record, symptom, patient_reference, onset_date)
+
+    def build_condition(patient_reference: dict, symptom_name: str, onset_date: str,
+        system_identifier: str) -> Optional[dict]:
+        """ Returns a FHIR Condition resource. """
+        mapped_symptom_name = map_symptom(symptom_name)
+        if not mapped_symptom_name:
+            return None
+
+        # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
+        # 3.8.  Until then, there's no reasonable way to type this data structure
+        # better than Any.
+        #   -trs, 24 Oct 2019
+        condition: Any = {
+            "resourceType": "Condition",
+            "id": f'{mapped_symptom_name}',
+            "code": {
+                "coding": [
+                    {
+                        "system": f"{system_identifier}/symptom",
+                        "code": mapped_symptom_name
+                    }
+                ]
+            },
+            "subject": patient_reference
+        }
+
+        if onset_date:
+            condition["onsetDateTime"] = onset_date
+
+        return condition
+
 
     def build_diagnosis(symptom: str) -> Optional[dict]:
         mapped_symptom = map_symptom(symptom)
@@ -541,6 +652,45 @@ def create_encounter(record: REDCapRecord, patient_reference: dict,
             return None
 
         return { "condition": { "reference": f"#{mapped_symptom}" } }
+
+
+    contained = []
+    diagnosis = []
+
+    for symptom_variable in symptom_onset_map:
+            symptom_keys = []
+
+            for redcap_key in record.keys():
+                symptom_key = grab_symptom_key(record, redcap_key, symptom_variable)
+                if symptom_key:
+                    symptom_keys.append(symptom_key.string)
+
+            symptoms = list(map(lambda x: re.sub('[a-z_]+___', '', x), symptom_keys))
+
+            for symptom in symptoms:
+                contained.append(build_condition(patient_reference, symptom, symptom_onset_map[symptom_variable], system_identifier))
+                diagnosis.append(build_diagnosis(symptom))
+
+    return contained, diagnosis
+
+
+def follow_up_encounter_reason_code() -> dict:
+    encounter_reason_code = create_codeable_concept(
+        system = "http://snomed.info/sct",
+        code = "390906007",
+        display = "Follow-up encounter"
+    )
+    return encounter_reason_code
+
+
+def create_encounter(encounter_date: str, patient_reference: dict, site_reference: dict,
+    collection_code: CollectionCode, record: REDCapRecord, system_identifier: str,
+    locations: list = None, diagnosis: list = None, contained: list = None,
+    parent_encounter_reference: dict = None, encounter_reason_code: dict = None,
+    encounter_identifier_suffix: str = None) -> tuple:
+    """
+    Returns a FHIR Encounter resource entry and reference for the encounter in the study.
+    """
 
     def build_locations_list(location: dict) -> dict:
         return {
@@ -550,88 +700,61 @@ def create_encounter(record: REDCapRecord, patient_reference: dict,
             )
         }
 
+
     def non_tract_locations(resource: dict):
         return bool(resource) \
-            and resource['resource']['identifier'][0]['system'] != f"{INTERNAL_SYSTEM}/location/tract"
+            and resource['resource']['identifier'][0]['system'] != f"{system_identifier}/location/tract"
 
-    # Map the various symptoms variables to their onset date.
-    # For daily_symptoms_covid_like we don't know the actual onset date. The questions asks
-    # "in the past 24 hours"
-    if event_type == EventType.ENCOUNTER:
-        symptom_onset_map = {
-            'daily_symptoms_covid_like': None,
-            'symptoms': record['symptom_onset'],
-            'symptoms_kiosk': record['symptom_duration_kiosk'],
-            'symptoms_swabsend': record['symptom_duration_swabsend']
-        }
-    elif event_type == EventType.ENROLLMENT:
-        symptom_onset_map = {'symptoms_base': record['symptom_onset_base']}
-
-    contained = []
-    diagnosis = []
-
-    for symptom_variable in symptom_onset_map:
-        symptom_keys = []
-
-        for redcap_key in record.keys():
-            symptom_key = grab_symptom_key(redcap_key, symptom_variable)
-            if symptom_key:
-                symptom_keys.append(symptom_key.string)
-
-        symptoms = list(map(lambda x: re.sub('[a-z_]+___', '', x), symptom_keys))
-        for symptom in symptoms:
-            contained.append(build_condition(symptom, symptom_onset_map[symptom_variable]))
-            diagnosis.append(build_diagnosis(symptom))
-
-    encounter_identifier = create_identifier(
-        system = f"{INTERNAL_SYSTEM}/encounter",
-        value = f"{REDCAP_URL}{record.project.id}/{record['record_id']}/{record['redcap_event_name']}/{record['redcap_repeat_instance']}"
-    )
-
-    collection_code = None
-
-    # See https://terminology.hl7.org/1.0.0/CodeSystem-v3-ActCode.html for
-    # possible collection codes.
-    # HH = 'home health'
-    # FLD = 'field'
-    if event_type == EventType.ENROLLMENT or collection_method == CollectionMethod.SWAB_AND_SEND:
-        collection_code = "HH"
-    elif collection_method == CollectionMethod.KIOSK:
-        collection_code = "FLD"
-
-    # For the encounter_date for an ENCOUNTER, first try the attestation_date
-    # from the daily attestation survey then try nasal_swab_timestamp from
-    # the kiosk registration and finally the swab-and-send order date.
-    encounter_date = None
-
-    if event_type == EventType.ENCOUNTER:
-        if record.get('attestation_date'):
-            encounter_date = record.get('attestation_date')
-        elif record.get('nasal_swab_timestamp'):
-            encounter_date = datetime.strptime(record.get('nasal_swab_timestamp'),
-                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
-        elif record.get('time_test_order'):
-            encounter_date = datetime.strptime(record.get('time_test_order'),
-                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
-        elif record.get('testing_date'): # from the 'Testing Determination - Internal' instrument
-            encounter_date = record.get('testing_date')
-
-    elif event_type == EventType.ENROLLMENT:
-        encounter_date = record.get('enrollment_date')
 
     if not encounter_date:
+        LOG.debug("Not creating the encounter because there is no encounter_date.")
         return None, None
+
+    if not site_reference:
+        LOG.debug("Not creating the encounter because there is no site_reference.")
+        return None, None
+
+    # Keep the encounter_id format the same as what was used in an earlier
+    # version of redcap_det_uw_reopening.py.
+    if record.event_name:
+        redcap_event_name = record.event_name
+    else:
+        redcap_event_name = ""
+    if record.repeat_instance:
+        redcap_repeat_instance = str(record.repeat_instance)
+    else:
+        redcap_repeat_instance = ""
+    if not encounter_identifier_suffix:
+        encounter_identifier_suffix = ""
+    encounter_id = f"{record.project.base_url}{record.project.id}/{record.id}/{redcap_event_name}/" + \
+        f"{redcap_repeat_instance}{encounter_identifier_suffix}"
+
+    encounter_identifier = create_identifier(
+        system = f"{system_identifier}/encounter",
+        value = encounter_id
+    )
+
+    collection_code_value = None
+    if collection_code:
+        collection_code_value = collection_code.value
 
     encounter_class_coding = create_coding(
         system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        code = collection_code
+        code = collection_code_value
     )
 
-    non_tracts = list(filter(non_tract_locations, locations))
-    non_tract_references = list(map(build_locations_list, non_tracts))
+    site_reference_list = [site_reference]
+
     # Add hard-coded site Location reference
-    if site_reference:
-        non_tract_references.append(site_reference)
+    if locations:
+        non_tracts = list(filter(non_tract_locations, locations))
+        non_tract_references = list(map(build_locations_list, non_tracts))
+        site_reference_list.extend(non_tract_references)
+
+    reason_code_list = None
+    if encounter_reason_code:
+        reason_code_list = [encounter_reason_code]
+
 
     encounter_resource = create_encounter_resource(
         encounter_source = create_redcap_uri(record),
@@ -639,42 +762,14 @@ def create_encounter(record: REDCapRecord, patient_reference: dict,
         encounter_class = encounter_class_coding,
         encounter_date = encounter_date,
         patient_reference = patient_reference,
-        location_references = non_tract_references,
+        location_references = site_reference_list,
         diagnosis = diagnosis,
-        contained = contained
+        contained = contained,
+        reason_code = reason_code_list,
+        part_of = parent_encounter_reference
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
-
-
-def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict, onset_date:str) -> Optional[dict]:
-    """ Returns a FHIR Condition resource. """
-    mapped_symptom_name = map_symptom(symptom_name)
-    if not mapped_symptom_name:
-        return None
-
-    # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
-    # 3.8.  Until then, there's no reasonable way to type this data structure
-    # better than Any.
-    #   -trs, 24 Oct 2019
-    condition: Any = {
-        "resourceType": "Condition",
-        "id": f'{mapped_symptom_name}',
-        "code": {
-            "coding": [
-                {
-                    "system": f"{INTERNAL_SYSTEM}/symptom",
-                    "code": mapped_symptom_name
-                }
-            ]
-        },
-        "subject": patient_reference
-    }
-
-    if onset_date:
-        condition["onsetDateTime"] = onset_date
-
-    return condition
 
 
 def create_specimen(record: dict, patient_reference: dict, collection_method: CollectionMethod) -> tuple:
@@ -1080,47 +1175,6 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
         return create_questionnaire_response_item(question_id, answers)
 
     return None
-
-
-def create_follow_up_encounter(record: REDCapRecord,
-                               patient_reference: dict,
-                               site_reference: dict,
-                               initial_encounter_reference: dict) -> tuple:
-    """
-    Returns a FHIR Encounter resource entry and reference for a follow-up
-    encounter
-    """
-    if not record.get('fu_timestamp'):
-        return None, None
-
-    encounter_identifier = create_identifier(
-        system = f"{INTERNAL_SYSTEM}/encounter",
-        value = f"{REDCAP_URL}{record.project.id}/{record['record_id']}/{record['redcap_event_name']}/{record['redcap_repeat_instance']}_follow_up"
-    )
-    encounter_class_coding = create_coding(
-        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        code = "HH"
-    )
-    encounter_reason_code = create_codeable_concept(
-        system = "http://snomed.info/sct",
-        code = "390906007",
-        display = "Follow-up encounter"
-    )
-
-    # YYYY-MM-DD HH:MM in REDCap
-    encounter_date = record['fu_timestamp'].split()[0]
-    encounter_resource = create_encounter_resource(
-        encounter_source = create_redcap_uri(record),
-        encounter_identifier = [encounter_identifier],
-        encounter_class = encounter_class_coding,
-        encounter_date = encounter_date,
-        patient_reference = patient_reference,
-        location_references = [site_reference],
-        reason_code = [encounter_reason_code],
-        part_of = initial_encounter_reference
-    )
-
-    return create_entry_and_reference(encounter_resource, "Encounter")
 
 
 def create_follow_up_questionnaire_response(record: dict, patient_reference: dict,
