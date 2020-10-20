@@ -224,15 +224,18 @@ def _create_patient(sex: str, preferred_language: str, record: REDCapRecord,
 
     gender = map_sex(sex)
 
-    language_codeable_concept = create_codeable_concept(
-        system = 'urn:ietf:bcp:47',
-        code = preferred_language
-    )
+    if preferred_language:
+        language_codeable_concept = create_codeable_concept(
+            system = 'urn:ietf:bcp:47',
+            code = preferred_language
+        )
 
-    communication = [{
-        'language' : language_codeable_concept,
-        'preferred': True
-    }]
+        communication = [{
+            'language' : language_codeable_concept,
+            'preferred': True
+        }]
+    else:
+        communication = []
 
     patient_id = None
     if unique_identifier:
@@ -407,10 +410,10 @@ def follow_up_encounter_reason_code() -> dict:
 
 
 def create_encounter(encounter_date: str, patient_reference: dict, site_reference: dict,
-    collection_code: CollectionCode, record: REDCapRecord, system_identifier: str,
-    locations: list = None, diagnosis: list = None, contained: list = None,
-    parent_encounter_reference: dict = None, encounter_reason_code: dict = None,
-    encounter_identifier_suffix: str = None) -> tuple:
+    collection_code: CollectionCode, encounter_id: str, record: REDCapRecord,
+    system_identifier: str, locations: list = None, diagnosis: list = None,
+    contained: list = None, parent_encounter_reference: dict = None,
+    encounter_reason_code: dict = None, encounter_identifier_suffix: str = None) -> tuple:
     """
     Returns a FHIR Encounter resource entry and reference for the encounter in the study.
     """
@@ -436,21 +439,6 @@ def create_encounter(encounter_date: str, patient_reference: dict, site_referenc
     if not site_reference:
         LOG.debug("Not creating the encounter because there is no site_reference.")
         return None, None
-
-    # Keep the encounter_id format the same as what was used in an earlier
-    # version of redcap_det_uw_reopening.py.
-    if record.event_name:
-        redcap_event_name = record.event_name
-    else:
-        redcap_event_name = ""
-    if record.repeat_instance:
-        redcap_repeat_instance = str(record.repeat_instance)
-    else:
-        redcap_repeat_instance = ""
-    if not encounter_identifier_suffix:
-        encounter_identifier_suffix = ""
-    encounter_id = f"{record.project.base_url}{record.project.id}/{record.id}/{redcap_event_name}/" + \
-        f"{redcap_repeat_instance}{encounter_identifier_suffix}"
 
     encounter_identifier = create_identifier(
         system = f"{system_identifier}/encounter",

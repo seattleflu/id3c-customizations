@@ -43,7 +43,7 @@ class EventType(Enum):
     ENCOUNTER = 'encounter'
 
 
-REVISION = 2
+REVISION = 3
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -79,6 +79,7 @@ def command_for_each_project(function):
 
     return function
 
+
 @command_for_each_project
 def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     redcap_record_instances: List[REDCapRecord]) -> Optional[dict]:
@@ -86,10 +87,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     assert redcap_record_instances is not None and len(redcap_record_instances) > 0, \
         "The redcap_record_instances list was not populated."
 
-    record_id = redcap_record_instances[0]['record_id']
-    project_id = redcap_record_instances[0].project.id
-
-    enrollments = [record for record in redcap_record_instances if record["redcap_event_name"] == ENROLLMENT_EVENT_NAME]
+    enrollments = [record for record in redcap_record_instances if record.event_name == ENROLLMENT_EVENT_NAME]
     assert len(enrollments) == 1, \
         f"Record had {len(enrollments)} enrollments."
 
@@ -139,6 +137,8 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         return None
 
     birthdate = parse_date_from_string(enrollment.get('core_birthdate'))
+    if not birthdate:
+        LOG.warning("Record has an invalid or missing `core_birthdate` value")
 
     location_resource_entries = build_location_resources(
         db = db,
@@ -158,16 +158,16 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         event_type = None
         collection_method = None
 
-        if redcap_record_instance["redcap_event_name"] == ENROLLMENT_EVENT_NAME:
+        if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
-        elif redcap_record_instance["redcap_event_name"] == ENCOUNTER_EVENT_NAME:
+        elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
             if is_complete('kiosk_registration_4c7f', redcap_record_instance):
                 collection_method = CollectionMethod.KIOSK
             elif is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
         else:
-            LOG.error(f"The record instance has an unexpected event name: {redcap_record_instance['redcap_event_name']}")
+            LOG.error(f"The record instance has an unexpected event name: {redcap_record_instance.event_name}")
             continue
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
@@ -230,6 +230,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         encounter_date = get_encounter_date(redcap_record_instance, event_type)
 
         initial_encounter_entry, initial_encounter_reference = create_encounter(
+            encounter_id = create_encounter_id(redcap_record_instance, False),
             encounter_date = encounter_date,
             patient_reference = patient_reference,
             site_reference = site_reference,
@@ -314,6 +315,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             if is_complete('week_followup', redcap_record_instance):
                 # Don't set locations because the f/u survey doesn't ask for home address.
                 follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
+                    encounter_id = create_encounter_id(redcap_record_instance, True),
                     encounter_date = redcap_record_instance['fu_timestamp'].split()[0],
                     patient_reference = patient_reference,
                     site_reference = site_reference,
@@ -350,7 +352,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
-        source = f"{REDCAP_URL}{project_id}/{record_id}",
+        source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
         entries = list(filter(None, persisted_resource_entries))
     )
 
@@ -380,6 +382,29 @@ def get_encounter_date(record: dict, event_type: EventType) -> Optional[str]:
         return None
 
     return encounter_date
+
+
+def create_encounter_id(record: REDCapRecord, is_followup_encounter: bool) -> str:
+    """
+    Create the encounter_id from the REDCap *record*.
+    """
+    if record.event_name:
+        redcap_event_name = record.event_name
+    else:
+        redcap_event_name = ''
+
+    if record.repeat_instance:
+        redcap_repeat_instance = str(record.repeat_instance)
+    else:
+        redcap_repeat_instance = ''
+
+    if is_followup_encounter:
+        encounter_identifier_suffix = "_follow_up"
+    else:
+        encounter_identifier_suffix = ''
+
+    return f'{record.project.base_url}{record.project.id}/{record.id}/{redcap_event_name}/' + \
+        f'{redcap_repeat_instance}{encounter_identifier_suffix}'
 
 
 def get_collection_date(record: dict, collection_method: CollectionMethod) -> Optional[str]:
@@ -513,12 +538,6 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     # Combine all fields answering the same question
     record['countries_visited_base'] = combine_multiple_fields(record, 'country', '_base')
     record['states_visited_base'] = combine_multiple_fields(record, 'state', '_base')
-
-    # Age Ceiling
-    try:
-        record['core_age_years'] = age_ceiling(int(record['core_age_years']))
-    except ValueError:
-        record['core_age_years'] = record['core_age_years'] = None
 
     # Set the study tier
     tier = None
@@ -689,10 +708,13 @@ def create_computed_questionnaire_response(record: REDCapRecord, patient_referen
     """
     # A birthdate of None will return a falsy relativedelta() object
     delta = relativedelta(encounter_date, birthdate)
+
     if not delta:
         age = None
     else:
-        age = delta.years
+        # Age Ceiling
+        age = age_ceiling(delta.years)
+
     record['age'] = age
 
     integer_questions = [
@@ -781,10 +803,3 @@ def create_daily_questionnaire_response(record: REDCapRecord, patient_reference:
         patient_reference = patient_reference,
         encounter_reference = encounter_reference,
         system_identifier = INTERNAL_SYSTEM)
-
-class UnknownRedcapZipCode(ValueError):
-    """
-    Raised by :function: `zipcode_map` if a provided *redcap_code* is not
-    among a set of expected values.
-    """
-    pass
