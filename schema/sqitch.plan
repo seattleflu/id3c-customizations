@@ -237,3 +237,8 @@ roles/ehs-results-exporter/grants 2020-09-23T17:45:53Z Chris Craft <jccraft@uw.e
 warehouse/site/data [warehouse/site/data@2020-09-14] 2020-09-22T01:53:23Z Chris Craft <jccraft@uw.edu> # Add UW reopening sites
 shipping/views [shipping/views@2020-09-14] 2020-09-22T16:07:49Z Chris Craft <jccraft@uw.edu> # Add shipping views for UW reopening project
 @2020-09-23 2020-09-23T22:46:29Z Chris Craft <jccraft@uw.edu> # Schema as of 23 September 2020
+
+roles/uw-priority-queue-processor/create 2020-10-12T22:24:33Z Jover Lee <joverlee@fredhutch.org> # Create "uw-priority-queue-processor" role
+roles/uw-priority-queue-processor/grants 2020-10-12T22:28:30Z Jover Lee <joverlee@fredhutch.org> # General grants for the "uw-priority-queue-processor" role
+shipping/views [shipping/views@2020-09-23] 2020-09-30T23:43:05Z Jover Lee <joverlee@fredhutch.org> # Add views to support testing quota
+@2020-10-14 2020-10-14T23:09:14Z Jover Lee <joverlee@fredhutch.org> # Schema as of 14 October 2020
