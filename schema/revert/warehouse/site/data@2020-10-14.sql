@@ -4,7 +4,7 @@
 begin;
 
 delete from warehouse.site
-  where identifier in ('ChildcareCenter70thAndSandPoint', 'ChildcareSwabNSend', 'UWChildrensCenterRadfordCourt')
+  where identifier in ('UWBothell', 'UWOdegaardLibrary', 'UWSouthLakeUnion', 'UWReopeningSwabNSend', 'UWTacoma')
 ;
 
 commit;
