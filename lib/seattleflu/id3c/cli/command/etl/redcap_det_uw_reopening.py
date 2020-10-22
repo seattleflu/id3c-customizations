@@ -140,7 +140,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     if not birthdate:
         LOG.warning("Record has an invalid or missing `core_birthdate` value")
 
-    location_resource_entries = build_location_resources(
+    location_resource_entries = build_residential_location_resources(
         db = db,
         cache = cache,
         housing_type = enrollment.get('core_housing_type'),

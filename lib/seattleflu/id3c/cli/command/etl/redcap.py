@@ -94,46 +94,48 @@ def parse_date_from_string(input_string: str)-> Optional[datetime]:
     return date
 
 
-def build_location_resources(db: DatabaseSession, cache: TTLCache, housing_type: str,
+def create_location(system: str, value: str, location_type: str, parent: str=None) -> dict:
+    """ Returns a FHIR Location resource. """
+    location_type_system = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
+    location_type_map = {
+        "residence": "PTRES",
+        "school": "SCHOOL",
+        "work": "WORK",
+        "site": "HUSCS",
+        "lodging": "PTLDG",
+    }
+
+    location_type_cc = create_codeable_concept(location_type_system,
+        location_type_map[location_type])
+    location_identifier = create_identifier(system, value)
+    part_of = None
+    if parent:
+        part_of = create_reference(reference_type="Location", reference=parent)
+
+    return create_location_resource([location_type_cc], [location_identifier], part_of)
+
+
+def census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
+        location_type: str, system_identifier: str) -> Optional[dict]:
+    """
+    Creates a new Location Resource for the census tract containing the given
+    *lat_lng* coordintes and associates it with the given *location_type*.
+    """
+    location = location_lookup(db, lat_lng, 'tract')
+
+    if location and location.identifier:
+        return create_location(
+            f"{system_identifier}/location/tract", location.identifier, location_type
+        )
+    else:
+        LOG.debug("No census tract found for given location.")
+        return None
+
+
+def build_residential_location_resources(db: DatabaseSession, cache: TTLCache, housing_type: str,
         primary_street_address: str, secondary_street_address: str, city: str, state: str,
         zipcode: str, system_identifier: str) -> list:
-    """ Creates a list of Location resource entries. """
-
-    def residence_census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
-            housing_type: str, system_identifier: str) -> Optional[dict]:
-        """
-        Creates a new Location Resource for the census tract containing the given
-        *lat_lng* coordintes and associates it with the given *housing_type*.
-        """
-        location = location_lookup(db, lat_lng, 'tract')
-
-        if location and location.identifier:
-            return create_location(
-                f"{system_identifier}/location/tract", location.identifier, housing_type
-            )
-        else:
-            LOG.debug("No census tract found for given location.")
-            return None
-
-    def create_location(system: str, value: str, location_type: str, parent: str=None) -> dict:
-        """ Returns a FHIR Location resource. """
-        location_type_system = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
-        location_type_map = {
-            "residence": "PTRES",
-            "school": "SCHOOL",
-            "work": "WORK",
-            "site": "HUSCS",
-            "lodging": "PTLDG",
-        }
-
-        location_type_cc = create_codeable_concept(location_type_system,
-            location_type_map[location_type])
-        location_identifier = create_identifier(system, value)
-        part_of = None
-        if parent:
-            part_of = create_reference(reference_type="Location", reference=parent)
-
-        return create_location_resource([location_type_cc], [location_identifier], part_of)
+    """ Creates a list of residential Location resource entries. """
 
     lodging_options = [
         'shelter',
@@ -163,7 +165,7 @@ def build_location_resources(db: DatabaseSession, cache: TTLCache, housing_type:
     if not canonicalized_address:
         return []  # TODO
 
-    tract_location = residence_census_tract(db, (lat, lng), housing_type, system_identifier)
+    tract_location = census_tract(db, (lat, lng), housing_type, system_identifier)
     # TODO what if tract_location is null?
     tract_full_url = generate_full_url_uuid()
     tract_entry = create_resource_entry(tract_location, tract_full_url)
