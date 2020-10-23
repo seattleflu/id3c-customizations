@@ -123,13 +123,13 @@ def census_tract(db: DatabaseSession, lat_lng: Tuple[float, float],
     """
     location = location_lookup(db, lat_lng, 'tract')
 
-    if location and location.identifier:
-        return create_location(
-            f"{system_identifier}/location/tract", location.identifier, location_type
-        )
-    else:
+    if not (location and location.identifier):
         LOG.debug("No census tract found for given location.")
         return None
+
+    return create_location(
+        f"{system_identifier}/location/tract", location.identifier, location_type
+        )
 
 
 def build_residential_location_resources(db: DatabaseSession, cache: TTLCache, housing_type: str,
@@ -221,8 +221,8 @@ def _create_patient(sex: str, preferred_language: str, record: REDCapRecord,
 
     if not unique_identifier and (not first_name or not last_name or not birth_date \
         or not zipcode):
-        LOG.debug('If you are not providing a `unique_identifier` you should provide' \
-            +' `first_name`, `last_name`, `birth_date`, and `zipcode`')
+        LOG.debug('If you are not providing a `unique_identifier` you should provide'
+            ' `first_name`, `last_name`, `birth_date`, and `zipcode`')
 
     gender = map_sex(sex)
 
@@ -244,10 +244,10 @@ def _create_patient(sex: str, preferred_language: str, record: REDCapRecord,
         patient_id = generate_hash(unique_identifier)
     else:
         patient_id = generate_patient_hash(
-                names       = (first_name, last_name),
-                gender      = gender,
-                birth_date  = birth_date,
-                postal_code = zipcode)
+            names       = (first_name, last_name),
+            gender      = gender,
+            birth_date  = birth_date,
+            postal_code = zipcode)
 
     if not patient_id:
         # Some piece of information was missing, so we couldn't generate a
@@ -403,12 +403,11 @@ def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
 
 
 def follow_up_encounter_reason_code() -> dict:
-    encounter_reason_code = create_codeable_concept(
+    return create_codeable_concept(
         system = "http://snomed.info/sct",
         code = "390906007",
         display = "Follow-up encounter"
     )
-    return encounter_reason_code
 
 
 def create_encounter(encounter_date: str, patient_reference: dict, site_reference: dict,

@@ -238,9 +238,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             diagnosis = diagnosis,
             contained = contained,
             collection_code = collection_code,
-            parent_encounter_reference = None,
-            encounter_reason_code = None,
-            encounter_identifier_suffix = None,
             system_identifier = INTERNAL_SYSTEM,
             record = redcap_record_instance)
 
@@ -284,8 +281,8 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             LOG.info("Creating encounter for record instance without sample")
 
         if specimen_received and not specimen_entry:
-            LOG.warning("Skipping record instance. We think the specimen was received," \
-                + " but we're unable to create the specimen_entry.")
+            LOG.warning("Skipping record instance. We think the specimen was received,"
+                " but we're unable to create the specimen_entry.")
             continue
 
         computed_questionnaire_entry = None
@@ -327,10 +324,10 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     record = redcap_record_instance)
 
                 follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
-                redcap_record_instance, patient_reference, follow_up_encounter_reference)
+                    redcap_record_instance, patient_reference, follow_up_encounter_reference)
                 follow_up_computed_questionnaire_entry = create_computed_questionnaire_response(
-                redcap_record_instance, patient_reference, follow_up_encounter_reference,
-                birthdate, parse_date_from_string(follow_up_encounter_entry['resource']['period']['start']))
+                    redcap_record_instance, patient_reference, follow_up_encounter_reference,
+                    birthdate, parse_date_from_string(follow_up_encounter_entry['resource']['period']['start']))
 
 
         current_instance_entries = [
@@ -377,9 +374,6 @@ def get_encounter_date(record: dict, event_type: EventType) -> Optional[str]:
 
     elif event_type == EventType.ENROLLMENT:
         encounter_date = record.get('enrollment_date')
-
-    else:
-        return None
 
     return encounter_date
 
