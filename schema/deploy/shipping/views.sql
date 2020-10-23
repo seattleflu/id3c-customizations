@@ -1973,7 +1973,8 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-environmental',
                                    'collections-uw-home',
                                    'collections-uw-observed',
-                                   'collections-household-general')
+                                   'collections-household-general',
+                                   'collections-childcare')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     order by encountered desc;
 
@@ -2124,6 +2125,7 @@ create or replace view shipping.return_results_v3 as
           when 'collections-uw-observed' then true
           when 'collections-scan' then false
           when 'collections-uw-home' then false
+          when 'collections-childcare' then false
           else null
         end as staff_observed
 
@@ -2137,7 +2139,8 @@ create or replace view shipping.return_results_v3 as
           'collections-scan',
           'collections-scan-kiosks',
           'collections-uw-home',
-          'collections-uw-observed'
+          'collections-uw-observed',
+          'collections-childcare'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.

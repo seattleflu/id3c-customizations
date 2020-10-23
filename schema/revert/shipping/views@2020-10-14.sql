@@ -2674,7 +2674,7 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine') as received_this_season_flu_vaccine_date
 
   from warehouse.encounter encounter
-  where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"enrollment_arm_1"}}}'
+  where identifier similar to 'https://redcap.iths.org/23854/\d+/enrollment_arm_1/'
 )
 ;
 
@@ -2697,7 +2697,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   select encounter_id as enrollment_encounter_id
   , individual_id as enrollment_individual_id
   from warehouse.encounter
-  where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"enrollment_arm_1"}}}'
+  where identifier similar to 'https://redcap.iths.org/23854/\d+/enrollment_arm_1/'
   ),
 
   encounters as
@@ -2709,7 +2709,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , site_id
   , details
   from warehouse.encounter
-  where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"encounter_arm_1"}}}'
+  where identifier similar to 'https://redcap.iths.org/23854/\d+/encounter_arm_1/\d+'
   )
 
   select
@@ -2912,222 +2912,5 @@ comment on view shipping.uw_reopening_ehs_reporting_v1 is
   grant select
   on shipping.uw_reopening_ehs_reporting_v1
   to "ehs-results-exporter";
-
-
-create or replace view shipping.__uw_priority_queue_v1 as (
-    with all_uw_instances as (
-        select
-              encounter_id,
-              individual.identifier as individual,
-              encountered::date as encountered,
-              encounter.details -> '_provenance' -> 'redcap' ->> 'project_id' as redcap_project_id,
-              encounter.details -> '_provenance' -> 'redcap' ->> 'record_id' as redcap_record_id,
-              encounter.details -> '_provenance' -> 'redcap' ->> 'event_name' as redcap_event_name,
-              encounter.details -> '_provenance' -> 'redcap' ->> 'repeat_instance' as redcap_repeat_instance
-        from warehouse.encounter
-        join warehouse.individual using (individual_id)
-        where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854}}}'
-    ),
-
-    uw_encounters as (
-        select
-            all_uw_instances.*,
-            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'screen_positive') as screen_positive,
-            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_symptoms') as daily_symptoms,
-            (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure') as daily_exposure,
-            (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos,
-            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'testing_trigger') as testing_trigger,
-            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'surge_selected_flag') as surge_selected_flag,
-            sample.collected::date as sample_collection_date
-        from all_uw_instances
-        left join warehouse.sample using (encounter_id)
-        where redcap_event_name = 'encounter_arm_1'
-    ),
-
-    uw_enrollments as (
-        select
-            all_uw_instances.*,
-            tier,
-            latest_invite_date,
-            latest_collection_date
-        from all_uw_instances
-        join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
-        left join (
-            -- Use a subquery instead of CTE for better query runtimes.
-            select
-                individual,
-                max(encountered) filter (where testing_trigger is true) as latest_invite_date,
-                max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date
-            from uw_encounters
-            where testing_trigger is true
-            or sample_collection_date is not null
-            group by individual
-        ) as latest_dates using (individual)
-        where redcap_event_name = 'enrollment_arm_1'
-    ),
-
-    -- Select encounters for testing based on positive daily attestations
-    positive_daily_attestations as (
-        select
-            uw_encounters.redcap_project_id,
-            uw_encounters.redcap_record_id,
-            uw_encounters.redcap_event_name,
-            uw_encounters.redcap_repeat_instance,
-            uw_encounters.encountered,
-            individual,
-            tier,
-            latest_invite_date,
-            latest_collection_date,
-            case
-                when daily_symptoms then 1
-
-                /* Why 2 days after attestation to exposures?  Our questions
-                 * about exposure ask about the past 24 hours.  We don't want
-                 * to offer testing too early after exposure and risk false
-                 * negatives.  Per Trevor, we expect that a viral load high
-                 * enough to detect with PCR and be contagious is generally
-                 * centered on day 3 after exposure, though some will be
-                 * earlier and some later.  By offering testing at day 2, some
-                 * people will get tested that same day (day 2), most will
-                 * (hopefully) get tested the next day (day 3), and some others
-                 * by the day after that (day 4). This puts results being known
-                 * at days 3–5.
-                 *    -trs, 19 Oct 2020
-                 */
-                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 2
-                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 3
-                else null
-            end as priority,
-            case
-                when daily_symptoms then 'symptomatic'
-                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 'exposure_to_known_positive'
-                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 'gathering_over_10'
-                else null
-            end as priority_reason
-        from uw_encounters
-        join uw_enrollments using (individual)
-        -- Filter to encounters within the last 7 days so we don't send invites for old attestations
-        where age(uw_encounters.encountered) <= '7 days'
-        -- Filter to encounters for participants whose last invite was over 7 days before encounter
-        and (latest_invite_date is null or latest_invite_date < uw_encounters.encountered - interval '7 days')
-        -- Filter to encounters for participants who have never had a sample collected or their last sample collection was over 7 days before encounter
-        and (latest_collection_date is null or latest_collection_date < uw_encounters.encountered - interval '7 days')
-        -- Filter for instances that do no already have testing_trigger filled
-        and testing_trigger is null
-        -- Filter for postive daily attestations only
-        and screen_positive
-    ),
-
-    -- Select enrollments for testing baseline and surveillance purposes
-    baseline_and_surveillance as (
-        select
-            redcap_project_id,
-            redcap_record_id,
-            redcap_event_name,
-            redcap_repeat_instance,
-            encountered,
-            individual,
-            tier,
-            latest_invite_date,
-            latest_collection_date,
-            case
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 4
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 5
-                when tier = '1' then 7
-                when tier in ('2', '3') then 8
-                else null
-              end as priority,
-            case
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 'tier_1_baseline'
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 'tier_2_and_3_baseline'
-                when tier = '1' then 'tier_1_surveillance'
-                when tier in ('2', '3') then 'tier_2_and_3_surveillance'
-                else null
-            end as priority_reason
-        from uw_enrollments
-        -- Filter to enrollments that have never been invited to test or last invite was over 7 days before today
-        where (latest_invite_date is null or latest_invite_date < current_date - interval '7 days')
-        -- Filter to enrollments have never had a sample collected or last sample collection was over 7 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '7 days')
-    ),
-
-    /**
-    Select encounters for surge testing purposes.
-    Handled separately from daily attestation encounters because we want to
-    include all surge selected participants regardless of previous testing.
-    **/
-    surge_testing as (
-        select
-            uw_encounters.redcap_project_id,
-            uw_encounters.redcap_record_id,
-            uw_encounters.redcap_event_name,
-            uw_encounters.redcap_repeat_instance,
-            uw_encounters.encountered,
-            individual,
-            tier,
-            latest_invite_date,
-            latest_collection_date,
-            6 as priority,
-            'surge_testing' as priority_reason
-        from uw_encounters
-        join uw_enrollments using (individual)
-        -- Filter for instances that have been selected with surge_selected_flag
-        where surge_selected_flag is true
-        -- Filter for instances that do no already have testing_trigger filled
-        and testing_trigger is null
-    )
-
-    select * from positive_daily_attestations
-    union all
-    select * from baseline_and_surveillance
-    union all
-    select * from surge_testing
-)
-;
-
-comment on view shipping.__uw_priority_queue_v1 is
-  'Identify all encounter instances which indicate need for testing by UW reopening study (contains duplicate individuals)';
-
-
-create or replace view shipping.uw_priority_queue_v1 as (
-    with distinct_individuals as (
-        select distinct on (individual)
-            redcap_project_id,
-            redcap_record_id,
-            redcap_event_name,
-            redcap_repeat_instance,
-            encountered,
-            individual,
-            tier,
-            latest_invite_date,
-            latest_collection_date,
-            priority,
-            priority_reason
-        from shipping.__uw_priority_queue_v1
-        -- Use the highest priority encounter that is the latest instance
-        order by individual, priority asc nulls last, redcap_repeat_instance desc
-    )
-
-    select *
-    from distinct_individuals
-    order by
-        priority asc nulls last,                        -- Prioritize first by reason testing is indicated…
-        tier asc nulls last,                            -- …then, higher-risk tiers over lower-risk
-        age(latest_collection_date) desc nulls first,   -- …then, people who were least recently (if ever) tested
-        age(latest_invite_date) desc nulls first,       -- …then, people who were least recently (if ever) offered a test
-        individual asc                                  -- …and finally, by an evenly-distributed value (SHA-256 hash).
-)
-;
-
-comment on view shipping.uw_priority_queue_v1 is
-  'Deduplicated indivduals that need to be tested by UW reopening study, ordered by priority';
-
-revoke all
-  on shipping.uw_priority_queue_v1
-  from "uw-priority-queue-processor";
-
-grant select
-  on shipping.uw_priority_queue_v1
-  to "uw-priority-queue-processor";
 
 commit;
