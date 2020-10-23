@@ -16,6 +16,8 @@ be defined as environment variables outside of this command.
 Environment variables required:
     * SLACK_WEBHOOK_REPORTING_HCOV19: incoming webhook URL for sending Slack
         messages to the Seattle Flu Study #ncov-reporting channel
+    * SLACK_WEBHOOK_REPORTING_HCOV19_CHILDCARE: incoming webook URL for sending
+        Slack messages to the Seattle Flu Study #ncov-reporting-childcare channel
 """
 import os
 import json
@@ -64,7 +66,16 @@ def notify(*, action: str):
         return os.environ.get("SLACK_WEBHOOK_ALERTS_TEST") \
             or os.environ[f"SLACK_WEBHOOK_REPORTING_{suffix}"]
 
-    SLACK_WEBHOOK_REPORTING_HCOV19 = webhook("HCOV19")
+    slack_webhooks = {
+        "ncov-reporting": webhook("HCOV19"),
+        "ncov-reporting-childcare": webhook("HCOV19_CHILDCARE"),
+    }
+
+    childcare = {
+        "sites": {'ChildcareSwabNSend', 'ChildcareCenter70thAndSandPoint', 'UWChildrensCenterRadfordCourt'},
+        "sample_origin": 'ChildcareSwabNSend',
+        "swab_sites": {'cc_sand_point', 'cc_radford'},
+    }
 
     # Fetch and iterate over reportable condition records that aren't processed
     #
@@ -93,17 +104,34 @@ def notify(*, action: str):
                     LOG.info(f"No site found for presence_absence_id «{record.id}». " +
                         "Inferring site from manifest data.")
 
-                response = send_slack_post_request(record, SLACK_WEBHOOK_REPORTING_HCOV19)
+                responses = {'ncov-reporting': send_slack_post_request(record, slack_webhooks['ncov-reporting'])}
 
-                if response.status_code == 200:
+                # Also send Childcare specific results to the #ncov-reporting-childcare channel
+                if (record.site in childcare['sites'] or
+                    record.sample_origin == childcare['sample_origin']  or
+                    record.swab_site in childcare['swab_sites']):
+
+                    responses['ncov-reporting-childcare'] = send_slack_post_request(
+                        record, slack_webhooks['ncov-reporting-childcare'])
+
+                # Check all POSTs to Slack were successful to mark as processed
+                # This does mean that if one fails but others succeed, there
+                # will be duplicate POSTs to the already succeeded channels.
+                # The chance of this happening is pretty small, but we can
+                # revisit this if it becomes a common problem
+                #   -Jover, 21 October 2020
+                if all(response.status_code == 200 for response in responses.values()):
                     mark_processed(db, record.id, {"status": "sent Slack notification"})
                     LOG.info(f"Finished processing presence_absence_id «{record.id}»")
 
                 else:
-                    LOG.error(("Error: A Slack notification could not " \
-                    f"be sent for presence_absence_id «{record.id}».\n" \
-                    f"Slack API returned status code {response.status_code}: "\
-                    f"{response.text}"))
+                    for channel, response in responses.items():
+                        if response.status_code != 200:
+                            LOG.error(("Error: A Slack notification could not " \
+                            f"be sent to the channel «{channel}» for "
+                            f"presence_absence_id «{record.id}».\n" \
+                            f"Slack API returned status code {response.status_code}: "\
+                            f"{response.text}"))
 
     except Exception as error:
         processed_without_error = False
