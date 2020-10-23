@@ -2109,7 +2109,7 @@ create or replace view shipping.return_results_v3 as
       select
         sample_id,
         barcode as qrcode,
-        case when encountered::date >= '2020-08-19'
+        case when encountered::date >= '2020-08-19' or encountered is null
             then collected
             else encountered::date
         end as collect_ts,
@@ -2144,8 +2144,9 @@ create or replace view shipping.return_results_v3 as
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
-        and encountered >= '2020-06-10 00:00:00 US/Pacific'
-      order by encountered, barcode
+        and collected >= '2020-06-10 00:00:00 US/Pacific'
+
+      order by collected, barcode
     )
 
     select
