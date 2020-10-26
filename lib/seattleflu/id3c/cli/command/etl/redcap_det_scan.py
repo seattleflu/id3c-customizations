@@ -17,7 +17,7 @@ from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
-from .redcap import *
+from .redcap import normalize_net_id
 from .fhir import *
 from . import race, first_record_instance, required_instruments
 
