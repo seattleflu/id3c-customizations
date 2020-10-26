@@ -43,7 +43,7 @@ class EventType(Enum):
     ENCOUNTER = 'encounter'
 
 
-REVISION = 3
+REVISION = 2
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
