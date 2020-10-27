@@ -7,9 +7,6 @@ insert into warehouse.site(identifier, details)
     values
         ('CapitolHillLightRailStation',             '{"category": "community",  "type": "publicSpace",
             "swab_site": "%cap(it[ao]l)?_hill%"}'),
-        ('ChildcareCenter70thAndSandPoint',         '{"category": "community",  "type": "childcare",
-            "swab_site": "cc_sand_point"}'),
-        ('ChildcareSwabNSend',                      '{"category": "community",  "type": "childcare-study"}'),
         ('ChildrensHospitalBellevue',               '{"category": "clinic",     "type": "clinic"}'),
         ('ChildrensHospitalSeattle',                '{"category": "clinic",     "type": "clinic",
             "swab_site": "sch_ed"}'),
@@ -56,8 +53,6 @@ insert into warehouse.site(identifier, details)
         ('swabNSend',                               '{"category": "community",  "type": "swab-n-send",
             "swab_site": "swab_and_send"}'),
         ('UWBothell',                               '{"category": "community",  "type": "collegeCampus"}'),
-        ('UWChildrensCenterRadfordCourt',           '{"category": "community",  "type": "childcare",
-            "swab_site": "cc_radford"}'),
         ('UWClub',                                  '{"category": "community",  "type": "collegeCampus"}'),
         ('UWDaycare',                               '{"category": "community",  "type": "childcare"}'),
         ('UWGreek',                                 '{"category": "community",  "type": "collegeCampus",
