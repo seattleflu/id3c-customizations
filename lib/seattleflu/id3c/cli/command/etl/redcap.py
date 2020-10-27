@@ -675,7 +675,7 @@ def create_questionnaire_response(record: REDCapRecord, question_categories: Dic
                 items.append(item)
 
     if additional_items:
-        items.extend(additional_items)
+        items.extend(list(filter(None, additional_items)))
 
     if items:
         questionnaire_reseponse_resource = create_questionnaire_response_resource(
