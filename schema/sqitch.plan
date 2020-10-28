@@ -247,3 +247,4 @@ warehouse/site/data [warehouse/site/data@2020-10-14] 2020-10-21T21:58:36Z Chris 
 shipping/views [shipping/views@2020-10-14] 2020-10-23T16:56:08Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Add shipping views for Childcare Study
 @2020-10-27 2020-10-27T20:03:52Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Schema as of 27 October 2020
 shipping/views [shipping/views@2020-10-27] 2020-10-27T22:44:31Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Add sample swab type and media type to shipping.hcov19_observation_v1
+@2020-10-28 2020-10-28T18:20:34Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Schema as of 28 October 2020
