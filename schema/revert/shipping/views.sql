@@ -1079,8 +1079,10 @@ create or replace view shipping.hcov19_observation_v1 as
         upper(age_bin_fine_v2.range) as age_range_fine_upper,
         sex,
 
-        -- Misc cruft
-        sample.details->>'sample_origin' as manifest_origin
+        -- Sample detail columns
+        sample.details->>'sample_origin' as manifest_origin,
+        sample.details->>'swab_type' as swab_type,
+        sample.details->>'collection_matrix' as collection_matrix
 
         /* Extra variables from SCAN REDCap project are available in
         * shipping.fhir_encounter_details_v2. Roy from IDM has opted
