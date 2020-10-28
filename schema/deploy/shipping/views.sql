@@ -2602,8 +2602,8 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'height_total') as height_total
   ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'tier') as tier
 
-  --numeric questions:
-  --,(select decimal_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'bmi') as bmi
+  --double questions:
+  ,(select double_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'bmi') as bmi
 
   --date questions:
   ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'today_consent') as today_consent
@@ -2757,7 +2757,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , enroll_details.height_total
   , enroll_details.tier
 
-   -- , enroll_details.bmi
+  , enroll_details.bmi
 
   , enroll_details.today_consent
   , enroll_details.enrollment_date_time
