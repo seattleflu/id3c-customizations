@@ -141,6 +141,7 @@ create materialized view shipping.fhir_questionnaire_responses_v1 as
            bool_and("valueBoolean") as boolean_response,
            array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
            array_remove(array_agg("valueInteger" order by "valueInteger"), null) as integer_response,
+           array_remove(array_agg("valueDecimal" order by "valueDecimal"), null) as double_response,
            array_remove(array_agg("code" order by "code"), null) as code_response
       from warehouse.encounter,
            jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
@@ -149,6 +150,7 @@ create materialized view shipping.fhir_questionnaire_responses_v1 as
                                                   "valueBoolean" bool,
                                                   "valueDate" text,
                                                   "valueInteger" integer,
+                                                  "valueDecimal" double precision,
                                                   "valueCoding" jsonb),
            jsonb_to_record("valueCoding") as code("code" text)
     -- Don't need age because it is formalized in `warehouse.encounter.age`
