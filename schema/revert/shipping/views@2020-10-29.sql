@@ -111,8 +111,7 @@ create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 
     case
       when best_available_encounter_date < '2019-10-01'::date then 'Y1'
-      when best_available_encounter_date < '2020-11-01'::date then 'Y2'
-      when best_available_encounter_date < '2021-11-01'::date then 'Y3'
+      when best_available_encounter_date < '2020-10-01'::date then 'Y2'
       else null
     end as season,
 
@@ -142,7 +141,7 @@ create materialized view shipping.fhir_questionnaire_responses_v1 as
            bool_and("valueBoolean") as boolean_response,
            array_remove(array_agg("valueDate" order by "valueDate"), null) as date_response,
            array_remove(array_agg("valueInteger" order by "valueInteger"), null) as integer_response,
-           array_remove(array_agg("valueDecimal" order by "valueDecimal"), null) as numeric_response,
+           array_remove(array_agg("valueDecimal" order by "valueDecimal"), null) as double_response,
            array_remove(array_agg("code" order by "code"), null) as code_response
       from warehouse.encounter,
            jsonb_to_recordset(details -> 'QuestionnaireResponse') as q("item" jsonb),
@@ -151,7 +150,7 @@ create materialized view shipping.fhir_questionnaire_responses_v1 as
                                                   "valueBoolean" bool,
                                                   "valueDate" text,
                                                   "valueInteger" integer,
-                                                  "valueDecimal" numeric,
+                                                  "valueDecimal" double precision,
                                                   "valueCoding" jsonb),
            jsonb_to_record("valueCoding") as code("code" text)
     -- Don't need age because it is formalized in `warehouse.encounter.age`
@@ -2603,8 +2602,8 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'height_total') as height_total
   ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'tier') as tier
 
-  --numeric questions:
-  ,(select numeric_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'bmi') as bmi
+  --double questions:
+  ,(select double_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'bmi') as bmi
 
   --date questions:
   ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'today_consent') as today_consent

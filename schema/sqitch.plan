@@ -254,3 +254,6 @@ shipping/views [shipping/views@2020-10-28] 2020-10-28T19:19:01Z Chris Craft <jcc
 
 shipping/views [shipping/views@2020-10-28b] 2020-10-29T17:56:37Z Chris Craft <jccraft@uw.edu> # Change pg type for valueDecimal questionnaire response items
 @2020-10-29 2020-10-29T18:04:18Z Chris Craft <jccraft@uw.edu> # Schema as of 29 October 2020
+
+shipping/views [shipping/views@2020-10-29] 2020-10-30T15:50:24Z Kairsten Fay <kfay@fredhutch.org> # Add new season
+@2020-10-30 2020-10-30T15:53:22Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 30 October 2020
