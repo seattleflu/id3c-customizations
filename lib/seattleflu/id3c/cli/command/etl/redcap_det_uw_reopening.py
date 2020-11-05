@@ -543,6 +543,11 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         tier = 3
     record['tier'] = tier
 
+    # Having weight but not height will yield a BMI of 'INF' and cause
+    # an `Out of range float values are not JSON compliant` error.
+    if record.get('bmi') == 'INF':
+        record['bmi'] = None
+
     vaccine_item = create_vaccine_item(record["vaccine"], record['vaccine_year'], record['vaccine_month'], 'dont_know')
 
     return create_questionnaire_response(

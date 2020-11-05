@@ -409,6 +409,11 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, study_arm: St
 
     record['study_arm'] = study_arm.value
 
+    # Having weight but not height will yield a BMI of 'INF' and cause
+    # an `Out of range float values are not JSON compliant` error.
+    if record.get('bmi') == 'INF':
+        record['bmi'] = None
+
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(record, field)
 
