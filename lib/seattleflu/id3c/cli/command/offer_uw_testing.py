@@ -15,9 +15,12 @@ import logging
 import os
 from datetime import date
 from more_itertools import bucket
+from psycopg2.extras import execute_values
+from typing import List
 from id3c.cli import cli
 from id3c.cli.command import with_database_session, DatabaseSessionAction
-from id3c.cli.redcap import Project, InstrumentStatus
+from id3c.cli.redcap import Project, InstrumentStatus, det
+from id3c.db.datatypes import Json
 from id3c.db.session import DatabaseSession
 from id3c.json import dump_ndjson
 from ...utils import unwrap
@@ -26,6 +29,8 @@ from ...utils import unwrap
 LOG = logging.getLogger(__name__)
 
 STUDY_START_DATE = date(2020, 9, 24)
+
+TESTING_INSTRUMENT = "testing_determination_internal"
 
 
 @cli.command("offer-uw-testing", help = __doc__)
@@ -140,9 +145,10 @@ def offer_uw_testing(*, at: str, log_offers: bool, db: DatabaseSession, action: 
 
         offer_count += project.update_records(offers)
 
-    # XXX FIXME: How to deal with lack of DET from REDCap import?
-    #   1. Update internal flag (as below) to be eventually consistent with REDCap
-    #   2. Push a synthetic DET to trigger an import
+        # Insert synthetic DETs into our receiving table to trigger a new
+        # import.  This helps complete the roundtrip data update for the REDCap
+        # records we just updated since API imports don't trigger natural DETs.
+        insert_dets(db, project, offers)
 
     # XXX TODO: Maybe also update an internal testing_offered flag (in
     # encounter.details?) to avoid delay of roundtrip thru REDCap?  If we don't
@@ -205,8 +211,25 @@ def offer(queued) -> dict:
         "testing_trigger": TestingTrigger.Yes.value,
         "testing_type": testing_type(queued.priority_reason).value,
         "testing_date": today.isoformat(),
-        "testing_determination_internal_complete": InstrumentStatus.Complete.value,
+        f"{TESTING_INSTRUMENT}_complete": InstrumentStatus.Complete.value,
     }
+
+
+def insert_dets(db: DatabaseSession, project: Project, offers: List[dict]):
+    """
+    Inserts synthethic DETs into ``receiving.redcap_det`` for the REDCap record
+    *offers* made for *project*.
+    """
+    dets = [
+        (Json(det(project, offer, TESTING_INSTRUMENT)),)
+            for offer in offers ]
+
+    LOG.info(f"Inserting {len(dets):,} synthetic REDCap DETs for {project}")
+
+    with db.cursor() as cursor:
+        execute_values(cursor, """
+            insert into receiving.redcap_det (document) values %s
+            """, dets)
 
 
 @enum.unique
