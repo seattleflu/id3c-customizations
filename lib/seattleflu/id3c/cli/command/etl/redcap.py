@@ -3,6 +3,7 @@ Functions shared by REDCap DET ETL
 """
 from datetime import datetime
 from enum import Enum
+from math import isfinite
 import re
 from typing import Dict, List, Mapping, Match, Optional, Tuple, Union
 
@@ -611,9 +612,11 @@ def questionnaire_item(record: REDCapRecord, question_id: str, response_type: st
 
     def cast_to_float(string: str) -> Optional[float]:
         try:
-            return float(string)
+            n = float(string)
         except ValueError:
             return None
+
+        return n if isfinite(n) else None
 
 
     def cast_to_boolean(string: str) -> Optional[bool]:
