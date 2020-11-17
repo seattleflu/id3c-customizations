@@ -11,7 +11,7 @@ from datetime import datetime
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.etl import redcap_det
-from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
+from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
@@ -284,7 +284,7 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
         'zipcode': zipcode_map(record['home_zipcode_2']),
     }
 
-    lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
+    lat, lng, canonicalized_address = get_geocoded_address(address, cache)
     if not canonicalized_address:
         return []  # TODO
 

@@ -12,7 +12,7 @@ from cachetools import TTLCache
 from . import race
 from .fhir import *
 from .redcap_map import map_sex, map_symptom, UnknownVaccineResponseError
-from id3c.cli.command.geocode import get_response_from_cache_or_geocoding
+from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
 from id3c.cli.redcap import Record as REDCapRecord
 from id3c.db.session import DatabaseSession
@@ -162,7 +162,7 @@ def build_residential_location_resources(db: DatabaseSession, cache: TTLCache, h
         'zipcode': zipcode
     }
 
-    lat, lng, canonicalized_address = get_response_from_cache_or_geocoding(address, cache)
+    lat, lng, canonicalized_address = get_geocoded_address(address, cache)
     if not canonicalized_address:
         return []  # TODO
 
