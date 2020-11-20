@@ -3,8 +3,8 @@
 begin;
 
 revoke all on database :"DBNAME" from "uw-priority-queue-processor";
-revoke all on schema receiving, warehouse, shipping, operations from "uw-priority-queue-processor";
-revoke all on all tables in schema receiving, warehouse, shipping, operations from "uw-priority-queue-processor";
+revoke all on schema receiving, warehouse, shipping from "uw-priority-queue-processor";
+revoke all on all tables in schema receiving, warehouse, shipping from "uw-priority-queue-processor";
 
 grant connect on database :"DBNAME" to "uw-priority-queue-processor";
 

@@ -262,3 +262,4 @@ operations/schema 2020-09-11T21:26:23Z Thomas Sibley <tsibley@fredhutch.org> # A
 btree_gist 2020-09-17T19:15:16Z Thomas Sibley <tsibley@fredhutch.org> # Install the btree_gist extension
 operations/test-quota 2020-09-11T22:38:43Z Thomas Sibley <tsibley@fredhutch.org> # Test quotas for UW re-opening testing
 shipping/views [shipping/views@2020-10-30] 2020-11-20T20:00:29Z Jover Lee <joverlee@fredhutch.org> # Rework shipping/views
+roles/uw-priority-queue-processor/grants [roles/uw-priority-queue-processor/grants@2020-10-30] 2020-11-20T21:20:26Z Jover Lee <joverlee@fredhutch.org> # Rework to add grants for operations
