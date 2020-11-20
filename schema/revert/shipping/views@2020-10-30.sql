@@ -111,8 +111,7 @@ create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 
     case
       when best_available_encounter_date < '2019-10-01'::date then 'Y1'
-      when best_available_encounter_date < '2020-11-01'::date then 'Y2'
-      when best_available_encounter_date < '2021-11-01'::date then 'Y3'
+      when best_available_encounter_date < '2020-10-01'::date then 'Y2'
       else null
     end as season,
 
@@ -2929,7 +2928,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
               encounter_id,
               individual.identifier as individual,
               encountered::date as encountered,
-              encounter.details -> '_provenance' -> 'redcap' ->> 'url' as redcap_url,
               encounter.details -> '_provenance' -> 'redcap' ->> 'project_id' as redcap_project_id,
               encounter.details -> '_provenance' -> 'redcap' ->> 'record_id' as redcap_record_id,
               encounter.details -> '_provenance' -> 'redcap' ->> 'event_name' as redcap_event_name,
@@ -2979,7 +2977,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     -- Select encounters for testing based on positive daily attestations
     positive_daily_attestations as (
         select
-            uw_encounters.redcap_url,
             uw_encounters.redcap_project_id,
             uw_encounters.redcap_record_id,
             uw_encounters.redcap_event_name,
@@ -3032,7 +3029,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     -- Select enrollments for testing baseline and surveillance purposes
     baseline_and_surveillance as (
         select
-            redcap_url,
             redcap_project_id,
             redcap_record_id,
             redcap_event_name,
@@ -3070,7 +3066,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     **/
     surge_testing as (
         select
-            uw_encounters.redcap_url,
             uw_encounters.redcap_project_id,
             uw_encounters.redcap_record_id,
             uw_encounters.redcap_event_name,
@@ -3105,7 +3100,6 @@ comment on view shipping.__uw_priority_queue_v1 is
 create or replace view shipping.uw_priority_queue_v1 as (
     with distinct_individuals as (
         select distinct on (individual)
-            redcap_url,
             redcap_project_id,
             redcap_record_id,
             redcap_event_name,
