@@ -54,6 +54,7 @@ SANDPOINT_SITE = 'ChildcareCenter70thAndSandPoint'
 
 ENROLLMENT_EVENT_NAME_PREFIX = 'enrollment_arm_'
 ENCOUNTER_EVENT_NAME_PREFIX = 'week'
+UNSCHEDULED_ENCOUNTER_EVENT_NAME = 'unscheduled_arm_1'
 COLLECTION_CODE = CollectionCode.HOME_HEALTH
 
 
@@ -154,7 +155,8 @@ def redcap_det_childcare(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         if redcap_record_instance.event_name.startswith(ENROLLMENT_EVENT_NAME_PREFIX):
             event_type = EventType.ENROLLMENT
-        elif redcap_record_instance.event_name.startswith(ENCOUNTER_EVENT_NAME_PREFIX):
+        elif redcap_record_instance.event_name.startswith(ENCOUNTER_EVENT_NAME_PREFIX) \
+            or redcap_record_instance.event_name == UNSCHEDULED_ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
         else:
             LOG.error(f'The record instance has an unexpected event name: {redcap_record_instance.event_name}')
