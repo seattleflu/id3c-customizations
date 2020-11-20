@@ -2943,6 +2943,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         select
             all_uw_instances.*,
             (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'screen_positive') as screen_positive,
+            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'prev_pos') as prev_pos,
             (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_symptoms') as daily_symptoms,
             (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure') as daily_exposure,
             (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos,
@@ -2958,6 +2959,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         select
             all_uw_instances.*,
             tier,
+            current_prev_pos,
             latest_invite_date,
             latest_collection_date
         from all_uw_instances
@@ -2966,11 +2968,20 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             -- Use a subquery instead of CTE for better query runtimes.
             select
                 individual,
+                /* Get PT's prev_pos response in today's attestation if available
+                 * so that we can filter out PTs who have tested positive in the
+                 * previous week for baseline and surveillance testing.
+                 * Use the `bool_or` aggregate to always capture when an
+                 * individual attests that they have tested positive.
+                 *    -Jover, 23 Nov 2020
+                 */
+                bool_or(prev_pos) filter (where encountered = current_date) as current_prev_pos,
                 max(encountered) filter (where testing_trigger is true) as latest_invite_date,
                 max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date
             from uw_encounters
             where testing_trigger is true
             or sample_collection_date is not null
+            or encountered = current_date
             group by individual
         ) as latest_dates using (individual)
         where redcap_event_name = 'enrollment_arm_1'
@@ -3027,6 +3038,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and testing_trigger is null
         -- Filter for postive daily attestations only
         and screen_positive
+        -- Filter for participants who have not tested positive in the past week
+        and prev_pos is not true
     ),
 
     -- Select enrollments for testing baseline and surveillance purposes
@@ -3061,6 +3074,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where (latest_invite_date is null or latest_invite_date < current_date - interval '7 days')
         -- Filter to enrollments have never had a sample collected or last sample collection was over 7 days before today
         and (latest_collection_date is null or latest_collection_date < current_date - interval '7 days')
+        -- Filter for participants who have not tested positive in the past week
+        and current_prev_pos is not true
     ),
 
     /**
@@ -3088,6 +3103,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where surge_selected_flag is true
         -- Filter for instances that do no already have testing_trigger filled
         and testing_trigger is null
+        -- Filter for participants who have not tested positive in the past week
+        and prev_pos is not true
     )
 
     select * from positive_daily_attestations
