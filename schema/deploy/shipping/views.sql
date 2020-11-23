@@ -3016,8 +3016,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
                  * at days 3–5.
                  *    -trs, 19 Oct 2020
                  */
-                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 2
-                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 3
+                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 1
+                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 4
                 else null
             end as priority,
             case
@@ -3056,8 +3056,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_invite_date,
             latest_collection_date,
             case
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 4
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 5
+                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 5
+                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 6
                 when tier = '1' then 7
                 when tier in ('2', '3') then 8
                 else null
@@ -3095,7 +3095,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             tier,
             latest_invite_date,
             latest_collection_date,
-            6 as priority,
+            3 as priority,
             'surge_testing' as priority_reason
         from uw_encounters
         join uw_enrollments using (individual)
