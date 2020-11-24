@@ -305,12 +305,18 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
     return [tract_entry, address_entry]
 
 
-def zipcode_map(redcap_code: str) -> str:
+def zipcode_map(redcap_code: str) -> Optional[str]:
     """
     Maps *redcap_code* to corresponding zip code. This is required because the
     branching logic in REDCap cauases major issues if the code is the
     actual zip code.
+
+    Returns `None` if the provided *redcap_code* is an empty string.
     """
+    if redcap_code == '':
+        LOG.warning("Found record with empty zip code.")
+        return None
+
     zipcode_map = {
         '44': '98101',
         '45': '98102',
@@ -415,7 +421,8 @@ def zipcode_map(redcap_code: str) -> str:
     }
 
     if redcap_code not in zipcode_map:
-        raise UnknownRedcapZipCode(f"Found unknown zip code REDCap code {redcap_code}")
+        LOG.warning(f"Found unknown zip code REDCap code {redcap_code}")
+        return None
 
     return zipcode_map[redcap_code]
 
@@ -1105,14 +1112,6 @@ def create_follow_up_questionnaire_response(record: dict, patient_reference: dic
         record[field] = combine_checkbox_answers(record, field)
 
     return questionnaire_response(record, question_categories, patient_reference, encounter_reference)
-
-
-class UnknownRedcapZipCode(ValueError):
-    """
-    Raised by :function: `zipcode_map` if a provided *redcap_code* is not
-    among a set of expected values.
-    """
-    pass
 
 
 class UnknownRedcapRecordLocation(ValueError):
