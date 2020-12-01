@@ -257,3 +257,9 @@ shipping/views [shipping/views@2020-10-28b] 2020-10-29T17:56:37Z Chris Craft <jc
 
 shipping/views [shipping/views@2020-10-29] 2020-10-30T15:50:24Z Kairsten Fay <kfay@fredhutch.org> # Add new season
 @2020-10-30 2020-10-30T15:53:22Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 30 October 2020
+
+operations/schema 2020-11-30T19:11:57Z Thomas Sibley <tsibley@fredhutch.org> # Add a new schema, operations, for custom operational process data
+btree_gist 2020-11-30T19:12:57Z Thomas Sibley <tsibley@fredhutch.org> # Install the btree_gist extension
+operations/test-quota 2020-11-30T19:13:57Z Thomas Sibley <tsibley@fredhutch.org> # Test quotas for UW re-opening testing
+shipping/views [shipping/views@2020-10-30] 2020-11-30T19:14:57Z Jover Lee <joverlee@fredhutch.org> # Rework shipping/views
+roles/uw-priority-queue-processor/grants [roles/uw-priority-queue-processor/grants@2020-10-30] 2020-11-30T19:15:57Z Jover Lee <joverlee@fredhutch.org> # Rework to add grants for operations

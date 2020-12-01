@@ -17,7 +17,8 @@ __all__ = [
     "etl",
     "clinical",
     "longitudinal",
-    "reportable_conditions"
+    "reportable_conditions",
+    "offer_uw_testing",
 ]
 
 

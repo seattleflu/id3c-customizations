@@ -58,6 +58,7 @@ setup(
     install_requires = [
         # "id3c >=2020.2", ID3C is a required dependency, but this doesn't resolve with pipenv editable installs
         "click >=7.0",
+        "more_itertools >=8.2.0",
         "regex",
         "requests",
         "flask",
