@@ -40,6 +40,7 @@ drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
+drop view if exists shipping.hcov19_presence_absence_result_v1;
 drop view if exists shipping.hcov19_observation_v1;
 
 drop view if exists shipping.observation_with_presence_absence_result_v2;
@@ -994,8 +995,80 @@ comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
 
 
-create or replace view shipping.hcov19_observation_v1 as
+create or replace view shipping.hcov19_presence_absence_result_v1 as
 
+    -- Collapse potentially multiple hCoV-19 results
+    select distinct on (sample_id)
+        sample_id,
+        presence_absence_id,
+        present,
+        pa.modified::date as result_ts,
+        pa.created::date as hcov19_result_release_date,
+        pa.details as details,
+        target.identifier as target,
+        organism.lineage as organism
+    from
+        warehouse.presence_absence as pa
+        join warehouse.target using (target_id)
+        join warehouse.organism using (organism_id)
+    where
+        organism.lineage <@ 'Human_coronavirus.2019'
+        -- We generally don't want to run queries with UW Retrospective test
+        -- results. If we do, we can always write a query from scratch.
+        -- Filtering out UW Retrospective (or potentially other clinical) test
+        -- results now will simplify our dependent queries and make them
+        -- consistent since here we're arbitrarily choosing the latest received
+        -- sample when deduplicating samples with multiple hcov19 tests.
+        and not pa.details @> '{"device": "clinical"}'
+        and not control
+        -- We shouldn't be receiving these results from Samplify, but they
+        -- sometimes sneak in. Be sure to block them from this view so as
+        -- to not return inaccurate results to participants.
+        and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
+    /*
+      Keep only the most recent push. According to Lea, samples are only
+      retested if there is a failed result. A positive, negative, or
+      indeterminate result would not be retested.
+
+      https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
+    */
+    order by
+        sample_id, presence_absence_id desc
+;
+
+
+/* The shipping.hcov19_presence_absence_result_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.hcov19_presence_absence_result_v1 from reporter;
+
+grant select
+    on shipping.hcov19_presence_absence_result_v1
+    to "hcov19-visibility";
+
+comment on view shipping.hcov19_presence_absence_result_v1 is
+  'Custom view of hCoV-19 samples with non-clinical presence-absence results';
+
+
+create or replace view shipping.hcov19_observation_v1 as
+    -- TODO figure out if it's possible to refactor the nested query inside this
+    -- CTE to query shipping.hcov19_presence_absence_result_v1. I could not
+    -- figure out how to do it without dropping some rows.  -- kfay
     with hcov19_presence_absence_bbi as (
         select
           sample_id,
@@ -2080,37 +2153,7 @@ comment on view shipping.return_results_v2 is
 
 create or replace view shipping.return_results_v3 as
 
-    with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample_id,
-            presence_absence_id,
-            pa.present as hcov19_present,
-            pa.modified::date as result_ts
-        from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-        where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and pa.details @> '{"assay_type": "Clia"}'
-            and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
-        /*
-          Keep only the most recent push. According to Lea, samples are only
-          retested if there is a failed result. A positive, negative, or
-          indeterminate result would not be retested.
-
-          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-        */
-        order by
-            sample_id, presence_absence_id desc
-    ),
-
-    samples as (
+    with samples as (
       select
         sample_id,
         barcode as qrcode,
@@ -2161,16 +2204,18 @@ create or replace view shipping.return_results_v3 as
             when sample_id is null then 'not-received'
             when never_tested then 'never-tested'
             when sample_id is not null and presence_absence_id is null then 'pending'
-            when hcov19_present is true then 'positive'
-            when hcov19_present is false then 'negative'
-            when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
+            when hcov19_pa.present is true then 'positive'
+            when hcov19_pa.present is false then 'negative'
+            when presence_absence_id is not null and hcov19_pa.present is null then 'inconclusive'
         end as status_code,
         result_ts,
         swab_type,
         staff_observed
     from
       samples
-      left join hcov19_presence_absence using (sample_id)
+      left join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
+    where
+      hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
     ;
 
 /* The shipping.return_results_v3 view needs hCoV-19 visibility, so
@@ -2203,37 +2248,7 @@ comment on view shipping.return_results_v3 is
 
 create or replace view shipping.scan_return_results_v1 as
 
-    with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample_id,
-            presence_absence_id,
-            pa.present as hcov19_present,
-            pa.modified::date as result_ts
-        from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-        where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and pa.details @> '{"assay_type": "Clia"}'
-            and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
-        /*
-          Keep only the most recent push. According to Lea, samples are only
-          retested if there is a failed result. A positive, negative, or
-          indeterminate result would not be retested.
-
-          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-        */
-        order by
-            sample_id, presence_absence_id desc
-    ),
-
-    scan_samples as (
+    with scan_samples as (
       select
         sample_id,
         barcode as qrcode,
@@ -2274,16 +2289,18 @@ create or replace view shipping.scan_return_results_v1 as
             when sample_id is null then 'not-received'
             when never_tested then 'never-tested'
             when sample_id is not null and presence_absence_id is null then 'pending'
-            when hcov19_present is true then 'positive'
-            when hcov19_present is false then 'negative'
-            when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
+            when hcov19_pa.present is true then 'positive'
+            when hcov19_pa.present is false then 'negative'
+            when presence_absence_id is not null and hcov19_pa.present is null then 'inconclusive'
         end as status_code,
         result_ts,
         swab_type,
         staff_observed
     from
       scan_samples
-      left join hcov19_presence_absence using (sample_id)
+      left join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
+    where
+      hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
     ;
 
 /* The shipping.scan_return_results_v1 view needs hCoV-19 visibility, so
@@ -2345,39 +2362,20 @@ grant select
 create or replace view shipping.scan_demographics_v2 as
 
     with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample.identifier as sample,
-            presence_absence_id,
-            case
-              when present is true then 'positive'
-              when present is false then 'negative'
-              when present is null then 'positive'
-            end as hcov19_result,
-            pa.created::date as hcov19_result_release_date
+        select
+          sample_id,
+          case
+            when present is true then 'positive'
+            when present is false then 'negative'
+            when present is null then 'positive'
+          end as hcov19_result,
+          presence_absence_id,
+          hcov19_result_release_date
         from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-            join warehouse.sample using (sample_id)
+          shipping.hcov19_presence_absence_result_v1 as pa
         where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and pa.details @> '{"assay_type": "Clia"}'
-            and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
-        /*
-          Keep only the most recent push. According to Lea, samples are only
-          retested if there is a failed result. A positive, negative, or
-          indeterminate result would not be retested.
-
-          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-        */
-        order by
-            sample_id, presence_absence_id desc
-    ),
+          pa.details @> '{"assay_type": "Clia"}'
+      ),
 
     king_county_demographics as (
         select
@@ -2389,7 +2387,7 @@ create or replace view shipping.scan_demographics_v2 as
             race,
             hispanic_or_latino,
             income,
-            sample
+            sample_id
         from shipping.scan_encounters_v1
         -- Limit to King County participants only since the dashboard
         -- is only for King County.
@@ -2411,7 +2409,7 @@ create or replace view shipping.scan_demographics_v2 as
         income,
         hcov19_result
     from king_county_demographics
-    left join hcov19_presence_absence using (sample)
+    left join hcov19_presence_absence using (sample_id)
 ;
 
 comment on view shipping.scan_demographics_v2 is
@@ -2434,43 +2432,12 @@ grant select
 
 create or replace view shipping.scan_hcov19_result_counts_v1 as
 
-    with hcov19_presence_absence as (
-        -- Collapse potentially multiple hCoV-19 results
-        select distinct on (sample_id)
-            sample.identifier as sample,
-            presence_absence_id,
-            pa.present as hcov19_present,
-            pa.created::date as hcov19_result_release_date
-        from
-            warehouse.presence_absence as pa
-            join warehouse.target using (target_id)
-            join warehouse.organism using (organism_id)
-            join warehouse.sample using (sample_id)
-        where
-            organism.lineage <@ 'Human_coronavirus.2019'
-            and pa.details @> '{"assay_type": "Clia"}'
-            and not control
-            -- We shouldn't be receiving these results from Samplify, but they
-            -- sometimes sneak in. Be sure to block them from this view so as
-            -- to not return inaccurate results to participants.
-            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
-        /*
-          Keep only the most recent push. According to Lea, samples are only
-          retested if there is a failed result. A positive, negative, or
-          indeterminate result would not be retested.
-
-          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-        */
-        order by
-            sample_id, presence_absence_id desc
-    ),
-
-    scan_hcov19_results as (
+    with scan_hcov19_results as (
       select
           case
-              when hcov19_present is true then 'positive'
-              when hcov19_present is false then 'negative'
-              when hcov19_present is null then 'inconclusive'
+              when hcov19_pa.present is true then 'positive'
+              when hcov19_pa.present is false then 'negative'
+              when hcov19_pa.present is null then 'inconclusive'
           end as hcov19_result,
           hcov19_result_release_date,
           case
@@ -2485,8 +2452,9 @@ create or replace view shipping.scan_hcov19_result_counts_v1 as
           end as county
 
       from shipping.scan_encounters_v1
-      join hcov19_presence_absence using (sample)
-
+      join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
+      where
+        hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
     )
 
     select

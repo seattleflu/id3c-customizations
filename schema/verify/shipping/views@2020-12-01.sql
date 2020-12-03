@@ -164,9 +164,4 @@ select 1/(count(*) = 1)::int
  where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.uw_priority_queue_v1');
 
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.hcov19_presence_absence_result_v1');
-
 rollback;
