@@ -40,15 +40,18 @@ drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
-drop view if exists shipping.hcov19_observation_v1;
-drop view if exists shipping.hcov19_presence_absence_result_v1;
 
+drop view if exists shipping.observation_with_presence_absence_result_v3;
 drop view if exists shipping.observation_with_presence_absence_result_v2;
 drop view if exists shipping.observation_with_presence_absence_result_v1;
 
+drop view if exists shipping.incidence_model_observation_v4;
 drop view if exists shipping.incidence_model_observation_v3;
 drop view if exists shipping.incidence_model_observation_v2;
 drop view if exists shipping.incidence_model_observation_v1;
+
+drop view if exists shipping.hcov19_observation_v1;
+drop view if exists shipping.hcov19_presence_absence_result_v1;
 
 drop view if exists shipping.fhir_encounter_details_v2;
 drop view if exists shipping.fhir_encounter_details_v1;

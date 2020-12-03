@@ -40,15 +40,18 @@ drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
-drop view if exists shipping.hcov19_presence_absence_result_v1;
-drop view if exists shipping.hcov19_observation_v1;
 
+drop view if exists shipping.observation_with_presence_absence_result_v3;
 drop view if exists shipping.observation_with_presence_absence_result_v2;
 drop view if exists shipping.observation_with_presence_absence_result_v1;
 
+drop view if exists shipping.incidence_model_observation_v4;
 drop view if exists shipping.incidence_model_observation_v3;
 drop view if exists shipping.incidence_model_observation_v2;
 drop view if exists shipping.incidence_model_observation_v1;
+
+drop view if exists shipping.hcov19_observation_v1;
+drop view if exists shipping.hcov19_presence_absence_result_v1;
 
 drop view if exists shipping.fhir_encounter_details_v2;
 drop view if exists shipping.fhir_encounter_details_v1;
@@ -965,6 +968,92 @@ grant select
    to "incidence-modeler";
 
 
+create or replace view shipping.incidence_model_observation_v4 as
+
+    select encounter.identifier as encounter,
+
+           to_char((encountered at time zone 'US/Pacific')::date, 'IYYY-"W"IW') as encountered_week,
+
+           site.identifier as site,
+           site.details->>'type' as site_type,
+
+           individual.identifier as individual,
+           individual.sex,
+
+           age_bin_fine_v2.range as age_range_fine,
+           age_in_years(lower(age_bin_fine_v2.range)) as age_range_fine_lower,
+           age_in_years(upper(age_bin_fine_v2.range)) as age_range_fine_upper,
+
+           age_bin_coarse_v2.range as age_range_coarse,
+           age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
+           age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
+
+           address_identifier,
+           residence_census_tract,
+           residence_puma,
+
+           coalesce(encounter_responses.flu_shot, fhir.vaccine) as flu_shot,
+           coalesce(encounter_responses.symptoms, fhir.symptoms) as symptoms,
+
+           sample.details->>'sample_origin' as manifest_origin,
+           sample.details->>'swab_type' as swab_type,
+           sample.details->>'collection_matrix' as collection_matrix,
+
+           sample.identifier as sample
+
+      from warehouse.sample
+      left join warehouse.encounter using (encounter_id)
+      left join warehouse.individual using (individual_id)
+      left join warehouse.site using (site_id)
+      left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
+      left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
+      left join shipping.fhir_encounter_details_v1 as fhir using (encounter_id)
+      left join (
+          select
+            encounter_id,
+            location.identifier as address_identifier,
+            hierarchy->'tract' as residence_census_tract,
+            hierarchy->'puma' as residence_puma
+          from warehouse.encounter_location
+          left join warehouse.location using (location_id)
+          where relation = 'residence'
+          or relation = 'lodging'
+        ) as residence using (encounter_id),
+
+      lateral (
+          -- XXX TODO: The data in this subquery will be modeled better in the
+          -- future and the verbosity of extracting data from the JSON details
+          -- document will go away.
+          --   -trs, 22 March 2019
+
+          select -- XXX FIXME: Remove use of nullif() when we're no longer
+                 -- dealing with raw response values.
+                 nullif(nullif(responses."FluShot"[1], 'doNotKnow'), 'dontKnow')::bool as flu_shot,
+
+                 -- XXX FIXME: Remove duplicate value collapsing when we're no
+                 -- longer affected by this known Audere data quality issue.
+                 array_distinct(responses."Symptoms") as symptoms
+
+            from jsonb_to_record(encounter.details->'responses')
+              as responses (
+                  "FluShot" text[],
+                  "Symptoms" text[]))
+        as encounter_responses
+
+     order by encountered nulls last;
+
+comment on view shipping.incidence_model_observation_v4 is
+    'Version 4 of view of warehoused samples and important questionnaire responses for modeling and viz teams';
+
+revoke all
+    on shipping.incidence_model_observation_v4
+  from "incidence-modeler";
+
+grant select
+   on shipping.incidence_model_observation_v4
+   to "incidence-modeler";
+
+
 create or replace view shipping.observation_with_presence_absence_result_v1 as
 
     select target,
@@ -1230,6 +1319,74 @@ grant select
 
 comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
+
+
+create or replace view shipping.observation_with_presence_absence_result_v3 as
+    with hcov19_pa as (
+      select
+        sample.identifier as sample,
+        target,
+        organism,
+        present,
+        present::int as presence,
+        pa.details as details
+      from shipping.hcov19_presence_absence_result_v1 as pa
+      join warehouse.sample using (sample_id)
+    )
+
+    select
+        target,
+        present,
+        present::int as presence,
+        observation.*,
+        organism
+      from
+        -- Combine our hCoV-19 and other presence-absence results into one table
+        -- via a union.
+        shipping.incidence_model_observation_v4 as observation
+        left join (
+          select
+            sample,
+            target,
+            organism,
+            present,
+            present::int as presence,
+            details
+          from shipping.presence_absence_result_v2
+            union
+          select *
+            from hcov19_pa
+        ) as pa using (sample)
+      where
+        not pa.details @> '{"device": "clinical"}'
+      order by site_type, encounter, sample, target;
+
+/* The shipping.observation_with_presence_absence_result_v3 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.observation_with_presence_absence_result_v3 from reporter;
+
+grant select
+    on shipping.observation_with_presence_absence_result_v3
+    to "hcov19-visibility";
+
+comment on view shipping.observation_with_presence_absence_result_v3 is
+  'Joined view of shipping.incidence_model_observation_v4, shipping.presence_absence_result_v2, and shipping.hcov19_observation_v1';
 
 
 create materialized view shipping.scan_encounters_v1 as
