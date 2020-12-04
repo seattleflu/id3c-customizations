@@ -89,11 +89,11 @@ def offer_uw_testing(*, at: str, log_offers: bool, db: DatabaseSession, action: 
         """, (at,))
 
     if not quota:
-        LOG.warning(f"No quota row found, aborting")
+        LOG.info(f"No quota row found, aborting")
         return
 
     if not quota.remaining > 0:
-        LOG.warning(f"No quota remaining for {quota.name} during {quota.timespan}, aborting")
+        LOG.info(f"No quota remaining for {quota.name} during {quota.timespan}, aborting")
         return
 
     LOG.info(
