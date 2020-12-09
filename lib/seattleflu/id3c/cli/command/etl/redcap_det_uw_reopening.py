@@ -50,6 +50,7 @@ INTERNAL_SYSTEM = "https://seattleflu.org"
 ENROLLMENT_EVENT_NAME = "enrollment_arm_1"
 ENCOUNTER_EVENT_NAME = "encounter_arm_1"
 SWAB_AND_SEND_SITE = 'UWReopeningSwabNSend'
+STUDY_START_DATE = datetime(2020, 9, 24) # Study start date of 2020-09-24
 
 REQUIRED_ENROLLMENT_INSTRUMENTS = [
     'eligibility_screening',
@@ -354,7 +355,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     )
 
 
-def get_encounter_date(record: dict, event_type: EventType) -> Optional[str]:
+def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[str]:
     # First try the attestation_date
     # from the daily attestation survey then try nasal_swab_timestamp from
     # the kiosk registration and finally the swab-and-send order date.
@@ -371,6 +372,13 @@ def get_encounter_date(record: dict, event_type: EventType) -> Optional[str]:
                 '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
         elif record.get('testing_date'): # from the 'Testing Determination - Internal' instrument
             encounter_date = record.get('testing_date')
+
+        # We have seen cases when the `attestation_date` is not getting set
+        # by REDCap in the `daily_attesation` instrument. Here, we get the date
+        # based on the instance ID of the `daily_attestation` instrument. It's safe
+        # to do this because the Musher computes the instance from the date.
+        if encounter_date is None and is_complete('daily_attestation', record) and record.repeat_instance:
+            encounter_date = get_date_from_repeat_instance(record.repeat_instance)
 
     elif event_type == EventType.ENROLLMENT:
         encounter_date = record.get('enrollment_date')
@@ -797,3 +805,13 @@ def create_daily_questionnaire_response(record: REDCapRecord, patient_reference:
         patient_reference = patient_reference,
         encounter_reference = encounter_reference,
         system_identifier = INTERNAL_SYSTEM)
+
+
+def get_date_from_repeat_instance(instance_id: int) -> str:
+    """
+    Returns the date associated with a REDCap repeat instance.
+    This is safe to do only when the Daily Attestation exists
+    because the Musher sets the repeat instance based on the date.
+    Returns the date as a string because that is how it is used.
+    """
+    return (STUDY_START_DATE + relativedelta(days=(instance_id -1))).strftime('%Y-%m-%d')
