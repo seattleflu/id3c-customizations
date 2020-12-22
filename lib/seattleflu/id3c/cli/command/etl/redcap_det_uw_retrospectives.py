@@ -335,6 +335,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'disch/trans/planned readm to designated cancer ctr or children\'s hospital': 'other-hcf',
         'disch/trans/planned readm to hospital'                 : 'other-hcf',
         'Disch/Trans/Planned IP Readm between Service Area 20 NW/UWMC Campus': 'other-hcf',
+        'discharged/transferred to a hospital-based medicare approved swing bed' : 'other-hcf',
         'disch/trans to a distinct psych unit/hospital'         : 'psy',
         'dsch/tran: disch/trans to a distinct psych unit/hospital': 'psy',
         'disch/trans/planned readm to a distinct psych unit/hospital': 'psy',
