@@ -264,3 +264,6 @@ operations/test-quota 2020-11-30T19:13:57Z Thomas Sibley <tsibley@fredhutch.org>
 shipping/views [shipping/views@2020-10-30] 2020-11-30T19:14:57Z Jover Lee <joverlee@fredhutch.org> # Rework shipping/views
 roles/uw-priority-queue-processor/grants [roles/uw-priority-queue-processor/grants@2020-10-30] 2020-11-30T19:15:57Z Jover Lee <joverlee@fredhutch.org> # Rework to add grants for operations
 @2020-12-01 2020-12-01T15:53:22Z Chris Craft <jccraft@uw.edu> # Schema as of 01 December 2020
+
+shipping/views [shipping/views@2020-12-01] 2020-12-02T23:24:52Z Kairsten Fay <kfay@fredhutch.org> # Create new modeling views
+@2020-12-7 2020-12-07T18:05:27Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 7 December 2020

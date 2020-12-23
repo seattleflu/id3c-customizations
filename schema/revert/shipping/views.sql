@@ -40,14 +40,18 @@ drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
-drop view if exists shipping.hcov19_observation_v1;
 
+drop view if exists shipping.observation_with_presence_absence_result_v3;
 drop view if exists shipping.observation_with_presence_absence_result_v2;
 drop view if exists shipping.observation_with_presence_absence_result_v1;
 
+drop view if exists shipping.incidence_model_observation_v4;
 drop view if exists shipping.incidence_model_observation_v3;
 drop view if exists shipping.incidence_model_observation_v2;
 drop view if exists shipping.incidence_model_observation_v1;
+
+drop view if exists shipping.hcov19_observation_v1;
+drop view if exists shipping.hcov19_presence_absence_result_v1;
 
 drop view if exists shipping.fhir_encounter_details_v2;
 drop view if exists shipping.fhir_encounter_details_v1;
@@ -2929,6 +2933,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
               encounter_id,
               individual.identifier as individual,
               encountered::date as encountered,
+              encounter.details -> '_provenance' -> 'redcap' ->> 'url' as redcap_url,
               encounter.details -> '_provenance' -> 'redcap' ->> 'project_id' as redcap_project_id,
               encounter.details -> '_provenance' -> 'redcap' ->> 'record_id' as redcap_record_id,
               encounter.details -> '_provenance' -> 'redcap' ->> 'event_name' as redcap_event_name,
@@ -2942,6 +2947,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         select
             all_uw_instances.*,
             (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'screen_positive') as screen_positive,
+            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'prev_pos') as prev_pos,
             (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_symptoms') as daily_symptoms,
             (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure') as daily_exposure,
             (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos,
@@ -2957,6 +2963,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         select
             all_uw_instances.*,
             tier,
+            current_prev_pos,
             latest_invite_date,
             latest_collection_date
         from all_uw_instances
@@ -2965,11 +2972,20 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             -- Use a subquery instead of CTE for better query runtimes.
             select
                 individual,
+                /* Get PT's prev_pos response in today's attestation if available
+                 * so that we can filter out PTs who have tested positive in the
+                 * previous week for baseline and surveillance testing.
+                 * Use the `bool_or` aggregate to always capture when an
+                 * individual attests that they have tested positive.
+                 *    -Jover, 23 Nov 2020
+                 */
+                bool_or(prev_pos) filter (where encountered = current_date) as current_prev_pos,
                 max(encountered) filter (where testing_trigger is true) as latest_invite_date,
                 max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date
             from uw_encounters
             where testing_trigger is true
             or sample_collection_date is not null
+            or encountered = current_date
             group by individual
         ) as latest_dates using (individual)
         where redcap_event_name = 'enrollment_arm_1'
@@ -2978,6 +2994,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     -- Select encounters for testing based on positive daily attestations
     positive_daily_attestations as (
         select
+            uw_encounters.redcap_url,
             uw_encounters.redcap_project_id,
             uw_encounters.redcap_record_id,
             uw_encounters.redcap_event_name,
@@ -3003,8 +3020,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
                  * at days 3–5.
                  *    -trs, 19 Oct 2020
                  */
-                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 2
-                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 3
+                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 1
+                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 4
                 else null
             end as priority,
             case
@@ -3025,11 +3042,14 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and testing_trigger is null
         -- Filter for postive daily attestations only
         and screen_positive
+        -- Filter for participants who have not tested positive in the past week
+        and prev_pos is not true
     ),
 
     -- Select enrollments for testing baseline and surveillance purposes
     baseline_and_surveillance as (
         select
+            redcap_url,
             redcap_project_id,
             redcap_record_id,
             redcap_event_name,
@@ -3040,8 +3060,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_invite_date,
             latest_collection_date,
             case
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 4
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 5
+                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 5
+                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 6
                 when tier = '1' then 7
                 when tier in ('2', '3') then 8
                 else null
@@ -3058,6 +3078,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where (latest_invite_date is null or latest_invite_date < current_date - interval '7 days')
         -- Filter to enrollments have never had a sample collected or last sample collection was over 7 days before today
         and (latest_collection_date is null or latest_collection_date < current_date - interval '7 days')
+        -- Filter for participants who have not tested positive in the past week
+        and current_prev_pos is not true
     ),
 
     /**
@@ -3067,6 +3089,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     **/
     surge_testing as (
         select
+            uw_encounters.redcap_url,
             uw_encounters.redcap_project_id,
             uw_encounters.redcap_record_id,
             uw_encounters.redcap_event_name,
@@ -3076,7 +3099,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             tier,
             latest_invite_date,
             latest_collection_date,
-            6 as priority,
+            3 as priority,
             'surge_testing' as priority_reason
         from uw_encounters
         join uw_enrollments using (individual)
@@ -3084,6 +3107,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where surge_selected_flag is true
         -- Filter for instances that do no already have testing_trigger filled
         and testing_trigger is null
+        -- Filter for participants who have not tested positive in the past week
+        and prev_pos is not true
     )
 
     select * from positive_daily_attestations
@@ -3101,6 +3126,7 @@ comment on view shipping.__uw_priority_queue_v1 is
 create or replace view shipping.uw_priority_queue_v1 as (
     with distinct_individuals as (
         select distinct on (individual)
+            redcap_url,
             redcap_project_id,
             redcap_record_id,
             redcap_event_name,

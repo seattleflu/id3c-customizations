@@ -40,18 +40,14 @@ drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
+drop view if exists shipping.hcov19_observation_v1;
 
-drop view if exists shipping.observation_with_presence_absence_result_v3;
 drop view if exists shipping.observation_with_presence_absence_result_v2;
 drop view if exists shipping.observation_with_presence_absence_result_v1;
 
-drop view if exists shipping.incidence_model_observation_v4;
 drop view if exists shipping.incidence_model_observation_v3;
 drop view if exists shipping.incidence_model_observation_v2;
 drop view if exists shipping.incidence_model_observation_v1;
-
-drop view if exists shipping.hcov19_observation_v1;
-drop view if exists shipping.hcov19_presence_absence_result_v1;
 
 drop view if exists shipping.fhir_encounter_details_v2;
 drop view if exists shipping.fhir_encounter_details_v1;
@@ -968,92 +964,6 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.incidence_model_observation_v4 as
-
-    select encounter.identifier as encounter,
-
-           to_char((encountered at time zone 'US/Pacific')::date, 'IYYY-"W"IW') as encountered_week,
-
-           site.identifier as site,
-           site.details->>'type' as site_type,
-
-           individual.identifier as individual,
-           individual.sex,
-
-           age_bin_fine_v2.range as age_range_fine,
-           age_in_years(lower(age_bin_fine_v2.range)) as age_range_fine_lower,
-           age_in_years(upper(age_bin_fine_v2.range)) as age_range_fine_upper,
-
-           age_bin_coarse_v2.range as age_range_coarse,
-           age_in_years(lower(age_bin_coarse_v2.range)) as age_range_coarse_lower,
-           age_in_years(upper(age_bin_coarse_v2.range)) as age_range_coarse_upper,
-
-           address_identifier,
-           residence_census_tract,
-           residence_puma,
-
-           coalesce(encounter_responses.flu_shot, fhir.vaccine) as flu_shot,
-           coalesce(encounter_responses.symptoms, fhir.symptoms) as symptoms,
-
-           sample.details->>'sample_origin' as manifest_origin,
-           sample.details->>'swab_type' as swab_type,
-           sample.details->>'collection_matrix' as collection_matrix,
-
-           sample.identifier as sample
-
-      from warehouse.sample
-      left join warehouse.encounter using (encounter_id)
-      left join warehouse.individual using (individual_id)
-      left join warehouse.site using (site_id)
-      left join shipping.age_bin_fine_v2 on age_bin_fine_v2.range @> age
-      left join shipping.age_bin_coarse_v2 on age_bin_coarse_v2.range @> age
-      left join shipping.fhir_encounter_details_v1 as fhir using (encounter_id)
-      left join (
-          select
-            encounter_id,
-            location.identifier as address_identifier,
-            hierarchy->'tract' as residence_census_tract,
-            hierarchy->'puma' as residence_puma
-          from warehouse.encounter_location
-          left join warehouse.location using (location_id)
-          where relation = 'residence'
-          or relation = 'lodging'
-        ) as residence using (encounter_id),
-
-      lateral (
-          -- XXX TODO: The data in this subquery will be modeled better in the
-          -- future and the verbosity of extracting data from the JSON details
-          -- document will go away.
-          --   -trs, 22 March 2019
-
-          select -- XXX FIXME: Remove use of nullif() when we're no longer
-                 -- dealing with raw response values.
-                 nullif(nullif(responses."FluShot"[1], 'doNotKnow'), 'dontKnow')::bool as flu_shot,
-
-                 -- XXX FIXME: Remove duplicate value collapsing when we're no
-                 -- longer affected by this known Audere data quality issue.
-                 array_distinct(responses."Symptoms") as symptoms
-
-            from jsonb_to_record(encounter.details->'responses')
-              as responses (
-                  "FluShot" text[],
-                  "Symptoms" text[]))
-        as encounter_responses
-
-     order by encountered nulls last;
-
-comment on view shipping.incidence_model_observation_v4 is
-    'Version 4 of view of warehoused samples and important questionnaire responses for modeling and viz teams';
-
-revoke all
-    on shipping.incidence_model_observation_v4
-  from "incidence-modeler";
-
-grant select
-   on shipping.incidence_model_observation_v4
-   to "incidence-modeler";
-
-
 create or replace view shipping.observation_with_presence_absence_result_v1 as
 
     select target,
@@ -1084,80 +994,8 @@ comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
 
 
-create or replace view shipping.hcov19_presence_absence_result_v1 as
-
-    -- Collapse potentially multiple hCoV-19 results
-    select distinct on (sample_id)
-        sample_id,
-        presence_absence_id,
-        present,
-        pa.modified::date as result_ts,
-        pa.created::date as hcov19_result_release_date,
-        pa.details as details,
-        target.identifier as target,
-        organism.lineage as organism
-    from
-        warehouse.presence_absence as pa
-        join warehouse.target using (target_id)
-        join warehouse.organism using (organism_id)
-    where
-        organism.lineage <@ 'Human_coronavirus.2019'
-        -- We generally don't want to run queries with UW Retrospective test
-        -- results. If we do, we can always write a query from scratch.
-        -- Filtering out UW Retrospective (or potentially other clinical) test
-        -- results now will simplify our dependent queries and make them
-        -- consistent since here we're arbitrarily choosing the latest received
-        -- sample when deduplicating samples with multiple hcov19 tests.
-        and not pa.details @> '{"device": "clinical"}'
-        and not control
-        -- We shouldn't be receiving these results from Samplify, but they
-        -- sometimes sneak in. Be sure to block them from this view so as
-        -- to not return inaccurate results to participants.
-        and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
-    /*
-      Keep only the most recent push. According to Lea, samples are only
-      retested if there is a failed result. A positive, negative, or
-      indeterminate result would not be retested.
-
-      https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
-    */
-    order by
-        sample_id, presence_absence_id desc
-;
-
-
-/* The shipping.hcov19_presence_absence_result_v1 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by those with
- * hcov19-visibility.  Revoke existing grants to every other role.
- *
- * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
- * in the future.  It's part of the broader bad interplay between views and
- * their grants.  I think it was a mistake to lump grants to each role in their
- * own change instead of scattering them amongst the changes that create/rework
- * tables and views and things that are granted on.  I made that choice
- * initially so that all grants for a role could be seen in a single
- * consolidated place, which would still be nice.  There's got to be a better
- * system for managing this (a single idempotent change script with all ACLs
- * that is always run after other changes? cleaner breaking up of sqitch
- * projects?), but I don't have time to think on it much now.  Luckily for us,
- * I think the core reporter role is unlikely to be reworked soon, but we
- * should be wary.
- *   -trs, 7 March 2020
- */
-revoke all on shipping.hcov19_presence_absence_result_v1 from reporter;
-
-grant select
-    on shipping.hcov19_presence_absence_result_v1
-    to "hcov19-visibility";
-
-comment on view shipping.hcov19_presence_absence_result_v1 is
-  'Custom view of hCoV-19 samples with non-clinical presence-absence results';
-
-
 create or replace view shipping.hcov19_observation_v1 as
-    -- TODO figure out if it's possible to refactor the nested query inside this
-    -- CTE to query shipping.hcov19_presence_absence_result_v1. I could not
-    -- figure out how to do it without dropping some rows.  -- kfay
+
     with hcov19_presence_absence_bbi as (
         select
           sample_id,
@@ -1319,74 +1157,6 @@ grant select
 
 comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
-
-
-create or replace view shipping.observation_with_presence_absence_result_v3 as
-    with hcov19_pa as (
-      select
-        sample.identifier as sample,
-        target,
-        organism,
-        present,
-        present::int as presence,
-        pa.details as details
-      from shipping.hcov19_presence_absence_result_v1 as pa
-      join warehouse.sample using (sample_id)
-    )
-
-    select
-        target,
-        present,
-        present::int as presence,
-        observation.*,
-        organism
-      from
-        -- Combine our hCoV-19 and other presence-absence results into one table
-        -- via a union.
-        shipping.incidence_model_observation_v4 as observation
-        left join (
-          select
-            sample,
-            target,
-            organism,
-            present,
-            present::int as presence,
-            details
-          from shipping.presence_absence_result_v2
-            union
-          select *
-            from hcov19_pa
-        ) as pa using (sample)
-      where
-        not pa.details @> '{"device": "clinical"}'
-      order by site_type, encounter, sample, target;
-
-/* The shipping.observation_with_presence_absence_result_v3 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by those with
- * hcov19-visibility.  Revoke existing grants to every other role.
- *
- * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
- * in the future.  It's part of the broader bad interplay between views and
- * their grants.  I think it was a mistake to lump grants to each role in their
- * own change instead of scattering them amongst the changes that create/rework
- * tables and views and things that are granted on.  I made that choice
- * initially so that all grants for a role could be seen in a single
- * consolidated place, which would still be nice.  There's got to be a better
- * system for managing this (a single idempotent change script with all ACLs
- * that is always run after other changes? cleaner breaking up of sqitch
- * projects?), but I don't have time to think on it much now.  Luckily for us,
- * I think the core reporter role is unlikely to be reworked soon, but we
- * should be wary.
- *   -trs, 7 March 2020
- */
-revoke all on shipping.observation_with_presence_absence_result_v3 from reporter;
-
-grant select
-    on shipping.observation_with_presence_absence_result_v3
-    to "hcov19-visibility";
-
-comment on view shipping.observation_with_presence_absence_result_v3 is
-  'Joined view of shipping.incidence_model_observation_v4, shipping.presence_absence_result_v2, and shipping.hcov19_observation_v1';
 
 
 create materialized view shipping.scan_encounters_v1 as
@@ -2310,7 +2080,37 @@ comment on view shipping.return_results_v2 is
 
 create or replace view shipping.return_results_v3 as
 
-    with samples as (
+    with hcov19_presence_absence as (
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample_id,
+            presence_absence_id,
+            pa.present as hcov19_present,
+            pa.modified::date as result_ts
+        from
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+        where
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and pa.details @> '{"assay_type": "Clia"}'
+            and not control
+            -- We shouldn't be receiving these results from Samplify, but they
+            -- sometimes sneak in. Be sure to block them from this view so as
+            -- to not return inaccurate results to participants.
+            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
+        /*
+          Keep only the most recent push. According to Lea, samples are only
+          retested if there is a failed result. A positive, negative, or
+          indeterminate result would not be retested.
+
+          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
+        */
+        order by
+            sample_id, presence_absence_id desc
+    ),
+
+    samples as (
       select
         sample_id,
         barcode as qrcode,
@@ -2361,18 +2161,16 @@ create or replace view shipping.return_results_v3 as
             when sample_id is null then 'not-received'
             when never_tested then 'never-tested'
             when sample_id is not null and presence_absence_id is null then 'pending'
-            when hcov19_pa.present is true then 'positive'
-            when hcov19_pa.present is false then 'negative'
-            when presence_absence_id is not null and hcov19_pa.present is null then 'inconclusive'
+            when hcov19_present is true then 'positive'
+            when hcov19_present is false then 'negative'
+            when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
         end as status_code,
         result_ts,
         swab_type,
         staff_observed
     from
       samples
-      left join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
-    where
-      hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
+      left join hcov19_presence_absence using (sample_id)
     ;
 
 /* The shipping.return_results_v3 view needs hCoV-19 visibility, so
@@ -2405,7 +2203,37 @@ comment on view shipping.return_results_v3 is
 
 create or replace view shipping.scan_return_results_v1 as
 
-    with scan_samples as (
+    with hcov19_presence_absence as (
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample_id,
+            presence_absence_id,
+            pa.present as hcov19_present,
+            pa.modified::date as result_ts
+        from
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+        where
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and pa.details @> '{"assay_type": "Clia"}'
+            and not control
+            -- We shouldn't be receiving these results from Samplify, but they
+            -- sometimes sneak in. Be sure to block them from this view so as
+            -- to not return inaccurate results to participants.
+            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
+        /*
+          Keep only the most recent push. According to Lea, samples are only
+          retested if there is a failed result. A positive, negative, or
+          indeterminate result would not be retested.
+
+          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
+        */
+        order by
+            sample_id, presence_absence_id desc
+    ),
+
+    scan_samples as (
       select
         sample_id,
         barcode as qrcode,
@@ -2446,18 +2274,16 @@ create or replace view shipping.scan_return_results_v1 as
             when sample_id is null then 'not-received'
             when never_tested then 'never-tested'
             when sample_id is not null and presence_absence_id is null then 'pending'
-            when hcov19_pa.present is true then 'positive'
-            when hcov19_pa.present is false then 'negative'
-            when presence_absence_id is not null and hcov19_pa.present is null then 'inconclusive'
+            when hcov19_present is true then 'positive'
+            when hcov19_present is false then 'negative'
+            when presence_absence_id is not null and hcov19_present is null then 'inconclusive'
         end as status_code,
         result_ts,
         swab_type,
         staff_observed
     from
       scan_samples
-      left join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
-    where
-      hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
+      left join hcov19_presence_absence using (sample_id)
     ;
 
 /* The shipping.scan_return_results_v1 view needs hCoV-19 visibility, so
@@ -2519,20 +2345,39 @@ grant select
 create or replace view shipping.scan_demographics_v2 as
 
     with hcov19_presence_absence as (
-        select
-          sample_id,
-          case
-            when present is true then 'positive'
-            when present is false then 'negative'
-            when present is null then 'positive'
-          end as hcov19_result,
-          presence_absence_id,
-          hcov19_result_release_date
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample.identifier as sample,
+            presence_absence_id,
+            case
+              when present is true then 'positive'
+              when present is false then 'negative'
+              when present is null then 'positive'
+            end as hcov19_result,
+            pa.created::date as hcov19_result_release_date
         from
-          shipping.hcov19_presence_absence_result_v1 as pa
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+            join warehouse.sample using (sample_id)
         where
-          pa.details @> '{"assay_type": "Clia"}'
-      ),
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and pa.details @> '{"assay_type": "Clia"}'
+            and not control
+            -- We shouldn't be receiving these results from Samplify, but they
+            -- sometimes sneak in. Be sure to block them from this view so as
+            -- to not return inaccurate results to participants.
+            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
+        /*
+          Keep only the most recent push. According to Lea, samples are only
+          retested if there is a failed result. A positive, negative, or
+          indeterminate result would not be retested.
+
+          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
+        */
+        order by
+            sample_id, presence_absence_id desc
+    ),
 
     king_county_demographics as (
         select
@@ -2544,7 +2389,7 @@ create or replace view shipping.scan_demographics_v2 as
             race,
             hispanic_or_latino,
             income,
-            sample_id
+            sample
         from shipping.scan_encounters_v1
         -- Limit to King County participants only since the dashboard
         -- is only for King County.
@@ -2566,7 +2411,7 @@ create or replace view shipping.scan_demographics_v2 as
         income,
         hcov19_result
     from king_county_demographics
-    left join hcov19_presence_absence using (sample_id)
+    left join hcov19_presence_absence using (sample)
 ;
 
 comment on view shipping.scan_demographics_v2 is
@@ -2589,12 +2434,43 @@ grant select
 
 create or replace view shipping.scan_hcov19_result_counts_v1 as
 
-    with scan_hcov19_results as (
+    with hcov19_presence_absence as (
+        -- Collapse potentially multiple hCoV-19 results
+        select distinct on (sample_id)
+            sample.identifier as sample,
+            presence_absence_id,
+            pa.present as hcov19_present,
+            pa.created::date as hcov19_result_release_date
+        from
+            warehouse.presence_absence as pa
+            join warehouse.target using (target_id)
+            join warehouse.organism using (organism_id)
+            join warehouse.sample using (sample_id)
+        where
+            organism.lineage <@ 'Human_coronavirus.2019'
+            and pa.details @> '{"assay_type": "Clia"}'
+            and not control
+            -- We shouldn't be receiving these results from Samplify, but they
+            -- sometimes sneak in. Be sure to block them from this view so as
+            -- to not return inaccurate results to participants.
+            and target.identifier not in ('COVID-19_Orf1b', 'COVID-19-S_gene')
+        /*
+          Keep only the most recent push. According to Lea, samples are only
+          retested if there is a failed result. A positive, negative, or
+          indeterminate result would not be retested.
+
+          https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
+        */
+        order by
+            sample_id, presence_absence_id desc
+    ),
+
+    scan_hcov19_results as (
       select
           case
-              when hcov19_pa.present is true then 'positive'
-              when hcov19_pa.present is false then 'negative'
-              when hcov19_pa.present is null then 'inconclusive'
+              when hcov19_present is true then 'positive'
+              when hcov19_present is false then 'negative'
+              when hcov19_present is null then 'inconclusive'
           end as hcov19_result,
           hcov19_result_release_date,
           case
@@ -2609,9 +2485,8 @@ create or replace view shipping.scan_hcov19_result_counts_v1 as
           end as county
 
       from shipping.scan_encounters_v1
-      join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
-      where
-        hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
+      join hcov19_presence_absence using (sample)
+
     )
 
     select
@@ -3054,7 +2929,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
               encounter_id,
               individual.identifier as individual,
               encountered::date as encountered,
-              encounter.details -> '_provenance' -> 'redcap' ->> 'url' as redcap_url,
               encounter.details -> '_provenance' -> 'redcap' ->> 'project_id' as redcap_project_id,
               encounter.details -> '_provenance' -> 'redcap' ->> 'record_id' as redcap_record_id,
               encounter.details -> '_provenance' -> 'redcap' ->> 'event_name' as redcap_event_name,
@@ -3068,7 +2942,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         select
             all_uw_instances.*,
             (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'screen_positive') as screen_positive,
-            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'prev_pos') as prev_pos,
             (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_symptoms') as daily_symptoms,
             (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure') as daily_exposure,
             (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos,
@@ -3084,7 +2957,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         select
             all_uw_instances.*,
             tier,
-            current_prev_pos,
             latest_invite_date,
             latest_collection_date
         from all_uw_instances
@@ -3093,20 +2965,11 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             -- Use a subquery instead of CTE for better query runtimes.
             select
                 individual,
-                /* Get PT's prev_pos response in today's attestation if available
-                 * so that we can filter out PTs who have tested positive in the
-                 * previous week for baseline and surveillance testing.
-                 * Use the `bool_or` aggregate to always capture when an
-                 * individual attests that they have tested positive.
-                 *    -Jover, 23 Nov 2020
-                 */
-                bool_or(prev_pos) filter (where encountered = current_date) as current_prev_pos,
                 max(encountered) filter (where testing_trigger is true) as latest_invite_date,
                 max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date
             from uw_encounters
             where testing_trigger is true
             or sample_collection_date is not null
-            or encountered = current_date
             group by individual
         ) as latest_dates using (individual)
         where redcap_event_name = 'enrollment_arm_1'
@@ -3115,7 +2978,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     -- Select encounters for testing based on positive daily attestations
     positive_daily_attestations as (
         select
-            uw_encounters.redcap_url,
             uw_encounters.redcap_project_id,
             uw_encounters.redcap_record_id,
             uw_encounters.redcap_event_name,
@@ -3141,8 +3003,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
                  * at days 3–5.
                  *    -trs, 19 Oct 2020
                  */
-                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 1
-                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 4
+                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 2
+                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 3
                 else null
             end as priority,
             case
@@ -3163,14 +3025,11 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and testing_trigger is null
         -- Filter for postive daily attestations only
         and screen_positive
-        -- Filter for participants who have not tested positive in the past week
-        and prev_pos is not true
     ),
 
     -- Select enrollments for testing baseline and surveillance purposes
     baseline_and_surveillance as (
         select
-            redcap_url,
             redcap_project_id,
             redcap_record_id,
             redcap_event_name,
@@ -3181,8 +3040,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_invite_date,
             latest_collection_date,
             case
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 5
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 6
+                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 4
+                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 5
                 when tier = '1' then 7
                 when tier in ('2', '3') then 8
                 else null
@@ -3199,8 +3058,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where (latest_invite_date is null or latest_invite_date < current_date - interval '7 days')
         -- Filter to enrollments have never had a sample collected or last sample collection was over 7 days before today
         and (latest_collection_date is null or latest_collection_date < current_date - interval '7 days')
-        -- Filter for participants who have not tested positive in the past week
-        and current_prev_pos is not true
     ),
 
     /**
@@ -3210,7 +3067,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     **/
     surge_testing as (
         select
-            uw_encounters.redcap_url,
             uw_encounters.redcap_project_id,
             uw_encounters.redcap_record_id,
             uw_encounters.redcap_event_name,
@@ -3220,7 +3076,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             tier,
             latest_invite_date,
             latest_collection_date,
-            3 as priority,
+            6 as priority,
             'surge_testing' as priority_reason
         from uw_encounters
         join uw_enrollments using (individual)
@@ -3228,8 +3084,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where surge_selected_flag is true
         -- Filter for instances that do no already have testing_trigger filled
         and testing_trigger is null
-        -- Filter for participants who have not tested positive in the past week
-        and prev_pos is not true
     )
 
     select * from positive_daily_attestations
@@ -3247,7 +3101,6 @@ comment on view shipping.__uw_priority_queue_v1 is
 create or replace view shipping.uw_priority_queue_v1 as (
     with distinct_individuals as (
         select distinct on (individual)
-            redcap_url,
             redcap_project_id,
             redcap_record_id,
             redcap_event_name,
