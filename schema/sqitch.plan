@@ -267,3 +267,6 @@ roles/uw-priority-queue-processor/grants [roles/uw-priority-queue-processor/gran
 
 shipping/views [shipping/views@2020-12-01] 2020-12-02T23:24:52Z Kairsten Fay <kfay@fredhutch.org> # Create new modeling views
 @2020-12-7 2020-12-07T18:05:27Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 7 December 2020
+
+shipping/views [shipping/views@2020-12-7] 2020-12-23T19:41:50Z Chris Craft <jccraft@uw.edu> # Update SCAN views to include yakima and pierce variables
+@2020-12-23 2020-12-23T19:52:18Z Chris Craft <jccraft@uw.edu> # Schema as of 23 December 2020
