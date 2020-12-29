@@ -23,7 +23,6 @@ drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.uw_priority_queue_v1;
 drop view if exists shipping.__uw_priority_queue_v1;
-drop materialized view if exists shipping.__uw_encounters;
 drop view if exists shipping.uw_reopening_ehs_reporting_v1;
 drop view if exists shipping.uw_reopening_encounters_v1;
 drop view if exists shipping.uw_reopening_enrollment_fhir_encounter_details_v1;

@@ -23,7 +23,6 @@ drop view if exists shipping.scan_demographics_v1;
 
 drop view if exists shipping.uw_priority_queue_v1;
 drop view if exists shipping.__uw_priority_queue_v1;
-drop materialized view if exists shipping.__uw_encounters;
 drop view if exists shipping.uw_reopening_ehs_reporting_v1;
 drop view if exists shipping.uw_reopening_encounters_v1;
 drop view if exists shipping.uw_reopening_enrollment_fhir_encounter_details_v1;
@@ -590,20 +589,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  date_response[1] as illness_questionnaire_date
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'illness_q_date'
-        ),
-
-        yakima as (
-          select encounter_id,
-                 integer_response[1] as yakima
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'yakima'
-        ),
-
-        pierce as (
-          select encounter_id,
-                 integer_response[1] as pierce
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'pierce'
         )
 
     select
@@ -654,9 +639,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
         attend_event,
         wfh,
         industry,
-        illness_questionnaire_date,
-        yakima,
-        pierce
+        illness_questionnaire_date
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -703,8 +686,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join wfh using (encounter_id)
       left join industry using (encounter_id)
       left join illness_questionnaire_date using (encounter_id)
-      left join yakima using (encounter_id)
-      left join pierce using (encounter_id)
   ;
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
@@ -1484,8 +1465,6 @@ create materialized view shipping.scan_encounters_v1 as
         attend_event,
         wfh,
         industry,
-        yakima,
-        pierce,
 
         sample.sample_id,
         sample.identifier as sample,
