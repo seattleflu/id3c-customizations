@@ -3184,10 +3184,10 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         join uw_enrollments using (individual)
         -- Filter to encounters within the last 7 days so we don't send invites for old attestations
         where age(__uw_encounters.encountered) <= '7 days'
-        -- Filter to encounters for participants whose last invite was over 7 days before encounter
-        and (latest_invite_date is null or latest_invite_date < __uw_encounters.encountered - interval '7 days')
-        -- Filter to encounters for participants who have never had a sample collected or their last sample collection was over 7 days before encounter
-        and (latest_collection_date is null or latest_collection_date < __uw_encounters.encountered - interval '7 days')
+        -- Filter to encounters for participants whose last invite was over 3 days before encounter
+        and (latest_invite_date is null or latest_invite_date < __uw_encounters.encountered - interval '3 days')
+        -- Filter to encounters for participants who have never had a sample collected or their last sample collection was over 3 days before encounter
+        and (latest_collection_date is null or latest_collection_date < __uw_encounters.encountered - interval '3 days')
         -- Filter for instances that do no already have testing_trigger filled
         and testing_trigger is null
         -- Filter for postive daily attestations only
@@ -3224,10 +3224,10 @@ create or replace view shipping.__uw_priority_queue_v1 as (
                 else null
             end as priority_reason
         from uw_enrollments
-        -- Filter to enrollments that have never been invited to test or last invite was over 7 days before today
-        where (latest_invite_date is null or latest_invite_date < current_date - interval '7 days')
-        -- Filter to enrollments have never had a sample collected or last sample collection was over 7 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '7 days')
+        -- Filter to enrollments that have never been invited to test or last invite was over 3 days before today
+        where (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
+        -- Filter to enrollments have never had a sample collected or last sample collection was over 3 days before today
+        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
         -- Filter for participants who have not tested positive in the past week
         and current_prev_pos is not true
     ),
