@@ -85,12 +85,15 @@ def command_for_each_project(function):
 def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     redcap_record_instances: List[REDCapRecord]) -> Optional[dict]:
 
-    assert redcap_record_instances is not None and len(redcap_record_instances) > 0, \
-        "The redcap_record_instances list was not populated."
+    if redcap_record_instances is None or len(redcap_record_instances) == 0:
+        LOG.warning(f"There are no record instances. Skipping record.")
+        return None
 
     enrollments = [record for record in redcap_record_instances if record.event_name == ENROLLMENT_EVENT_NAME]
-    assert len(enrollments) == 1, \
-        f"Record had {len(enrollments)} enrollments."
+
+    if not len(enrollments) == 1:
+        LOG.warning(f"There are {len(enrollments)} enrollment instances. Skipping record.")
+        return None
 
     enrollment = enrollments[0]
 
@@ -168,7 +171,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             elif is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
         else:
-            LOG.error(f"The record instance has an unexpected event name: {redcap_record_instance.event_name}")
+            LOG.warning(f"The record instance has an unexpected event name: {redcap_record_instance.event_name}")
             continue
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
