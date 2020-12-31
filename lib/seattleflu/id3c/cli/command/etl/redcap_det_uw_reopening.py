@@ -85,12 +85,15 @@ def command_for_each_project(function):
 def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     redcap_record_instances: List[REDCapRecord]) -> Optional[dict]:
 
-    assert redcap_record_instances is not None and len(redcap_record_instances) > 0, \
-        "The redcap_record_instances list was not populated."
+    if redcap_record_instances is None or len(redcap_record_instances) == 0:
+        LOG.warning(f"There are no record instances. Skipping record.")
+        return None
 
     enrollments = [record for record in redcap_record_instances if record.event_name == ENROLLMENT_EVENT_NAME]
-    assert len(enrollments) == 1, \
-        f"Record had {len(enrollments)} enrollments."
+
+    if not len(enrollments) == 1:
+        LOG.warning(f"There are {len(enrollments)} enrollment instances. Skipping record.")
+        return None
 
     enrollment = enrollments[0]
 
@@ -168,7 +171,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             elif is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
         else:
-            LOG.error(f"The record instance has an unexpected event name: {redcap_record_instance.event_name}")
+            LOG.warning(f"The record instance has an unexpected event name: {redcap_record_instance.event_name}")
             continue
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
@@ -470,7 +473,8 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'pronouns',
         'on_campus_freq',
         'vaccine_method',
-        'vaccine_where'
+        'vaccine_where',
+        'uw_housing_group',
     ]
 
     date_questions = [
@@ -502,7 +506,9 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'travel_states_phs_base',
         'swab_and_send_calc',
         'kiosk_calc',
-        'covid_test_week_base'
+        'covid_test_week_base',
+        'uw_housing_resident',
+        'on_campus_2x_week',
     ]
 
     decimal_questions = [
@@ -552,6 +558,25 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     record['tier'] = tier
 
     vaccine_item = create_vaccine_item(record["vaccine"], record['vaccine_year'], record['vaccine_month'], 'dont_know')
+
+    # Set the UW housing group
+    housing_group = None
+    if record.get('uw_housing_group_a') == '1':
+        housing_group = 'a'
+    elif record.get('uw_housing_group_b') == '1':
+        housing_group = 'b'
+    elif record.get('uw_housing_group_c') == '1':
+        housing_group = 'c'
+    elif record.get('uw_housing_group_d') == '1':
+        housing_group = 'd'
+    elif record.get('uw_housing_group_e') == '1':
+        housing_group = 'e'
+    elif record.get('uw_housing_group_f') == '1':
+        housing_group = 'f'
+    elif record.get('uw_housing_group_g') == '1':
+        housing_group = 'g'
+    record['uw_housing_group'] = housing_group
+
 
     return create_questionnaire_response(
         record = record,
