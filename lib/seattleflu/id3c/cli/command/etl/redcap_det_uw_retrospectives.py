@@ -332,6 +332,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'icf- intermediate care facility'                       : 'other-hcf',
         'ca ctr/chld : designated cancer center or childrens hospital': 'other-hcf',
         'designated cancer center or children\'s hospital'      : 'other-hcf',
+        'disch/trans fed hospital'                              : 'other-hcf',
         'disch/trans/planned readm to designated cancer ctr or children\'s hospital': 'other-hcf',
         'disch/trans/planned readm to hospital'                 : 'other-hcf',
         'Disch/Trans/Planned IP Readm between Service Area 20 NW/UWMC Campus': 'other-hcf',
