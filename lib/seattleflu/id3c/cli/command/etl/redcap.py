@@ -688,3 +688,17 @@ def create_questionnaire_response(record: REDCapRecord, question_categories: Dic
         return create_resource_entry(questionnaire_reseponse_resource, full_url)
 
     return None
+
+
+def extract_date_from_survey_timestamp(record: REDCapRecord, survey_name: str) -> Optional[str]:
+    """
+    Extracts as a string the date component of the *survey_name* REDCap survey timestamp, the system
+    timestamp that is captured automatically and is not dependent on the client. This timestamp
+    is in local (Pacific) time. The timestamp will be populated only if the instrument was filled out
+    as a survey. The timestamp field cannot be set via a REDCap data import.
+    """
+    if record and survey_name and record.get(f'{survey_name}_timestamp'):
+        return datetime.strptime(record.get(f'{survey_name}_timestamp'),
+            '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+
+    return None
