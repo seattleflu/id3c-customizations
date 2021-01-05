@@ -418,16 +418,26 @@ def create_encounter_id(record: REDCapRecord, is_followup_encounter: bool) -> st
         f'{redcap_repeat_instance}{encounter_identifier_suffix}'
 
 
-def get_collection_date(record: dict, collection_method: CollectionMethod) -> Optional[str]:
+def get_collection_date(record: REDCapRecord, collection_method: CollectionMethod) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
+    # For all surveys, try the survey _timestamp field (which is in Pacific time)
+    # before custom fields because the custom fields aren't always populated and when
+    # they are populated they use the browser's time zone.
+    collection_date = None
+
     if collection_method == CollectionMethod.KIOSK:
-        return record["nasal_swab_q"]
+        collection_date = extract_date_from_survey_timestamp(record, "kiosk_registration_4c7f") or record.get("nasal_swab_q")
+
     elif collection_method == CollectionMethod.SWAB_AND_SEND:
-        return record["date_on_tube"] or record["kit_reg_date"] or record["back_end_scan_date"]
-    else:
-        return None
+        collection_date = record.get("date_on_tube") \
+            or extract_date_from_survey_timestamp(record, "husky_test_kit_registration") \
+            or record.get("kit_reg_date") \
+            or extract_date_from_survey_timestamp(record, "test_fulfillment_form") \
+            or record.get("back_end_scan_date")
+
+    return collection_date
 
 
 def create_enrollment_questionnaire_response(record: REDCapRecord, patient_reference: dict,

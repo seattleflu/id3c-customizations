@@ -14,7 +14,7 @@ from .fhir import *
 from .redcap_map import map_sex, map_symptom, UnknownVaccineResponseError
 from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
-from id3c.cli.redcap import Record as REDCapRecord
+from id3c.cli.redcap import is_complete, Record as REDCapRecord
 from id3c.db.session import DatabaseSession
 import logging
 
@@ -697,7 +697,7 @@ def extract_date_from_survey_timestamp(record: REDCapRecord, survey_name: str) -
     is in local (Pacific) time. The timestamp will be populated only if the instrument was filled out
     as a survey. The timestamp field cannot be set via a REDCap data import.
     """
-    if record and survey_name and record.get(f'{survey_name}_timestamp'):
+    if record and survey_name and is_complete(survey_name, record) and record.get(f'{survey_name}_timestamp'):
         return datetime.strptime(record.get(f'{survey_name}_timestamp'),
             '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
 
