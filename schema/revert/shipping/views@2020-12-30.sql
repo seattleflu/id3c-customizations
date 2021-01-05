@@ -60,8 +60,6 @@ drop materialized view if exists shipping.fhir_questionnaire_responses_v1;
 
 drop view if exists shipping.sample_with_best_available_encounter_data_v1;
 
-drop view if exists shipping.linelist_data_for_wa_doh_v1;
-
 /******************** VIEWS FOR INTERNAL USE ********************/
 create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 
@@ -3071,87 +3069,79 @@ comment on view shipping.uw_reopening_ehs_reporting_v1 is
   to "ehs-results-exporter";
 
 
-create materialized view shipping.__uw_encounters as (
-  select
-    encounter.encounter_id
-    , individual.identifier as individual
-    , encounter.encountered::date as encountered
-    , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'url' ) as redcap_url
-    , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'project_id' ) as redcap_project_id
-    , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'record_id' ) as redcap_record_id
-    , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'event_name' ) as redcap_event_name
-    , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'screen_positive') as screen_positive
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prev_pos') as prev_pos
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_symptoms') as daily_symptoms
-    , (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_exposure') as daily_exposure
-    , (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'testing_trigger') as testing_trigger
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'surge_selected_flag') as surge_selected_flag
-    , (select max(collected)::date from warehouse.sample where encounter_id = encounter.encounter_id group by encounter_id) as sample_collection_date
-	from warehouse.encounter
-	join warehouse.individual using (individual_id)
-	where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name": "encounter_arm_1"}}}'
-)
-;
-
-create unique index __uw_encounters_unique_encounter_id on shipping.__uw_encounters (encounter_id);
-
-comment on materialized view shipping.__uw_encounters is
-  'Pull records from the encounter arm of the UW Reopening project. Include key questionnaire values.';
-
-
 create or replace view shipping.__uw_priority_queue_v1 as (
-    with uw_individual_summaries as (
-	    select
-		    individual,
-		    /* Get PT's prev_pos response in today's attestation if available
-		     * so that we can filter out PTs who have tested positive in the
-		     * previous week for baseline and surveillance testing.
-		     * Use the `bool_or` aggregate to always capture when an
-		     * individual attests that they have tested positive.
-		     *    -Jover, 23 Nov 2020
-		     */
-		    bool_or(prev_pos) filter (where encountered = current_date) as current_prev_pos,
-		    max(encountered) filter (where testing_trigger is true) as latest_invite_date,
-		    max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date
-	    from shipping.__uw_encounters
-	    where testing_trigger is true
-	    or sample_collection_date is not null
-	    or encountered = current_date
-	    group by individual
-     ),
+    with all_uw_instances as (
+        select
+              encounter_id,
+              individual.identifier as individual,
+              encountered::date as encountered,
+              encounter.details -> '_provenance' -> 'redcap' ->> 'url' as redcap_url,
+              encounter.details -> '_provenance' -> 'redcap' ->> 'project_id' as redcap_project_id,
+              encounter.details -> '_provenance' -> 'redcap' ->> 'record_id' as redcap_record_id,
+              encounter.details -> '_provenance' -> 'redcap' ->> 'event_name' as redcap_event_name,
+              encounter.details -> '_provenance' -> 'redcap' ->> 'repeat_instance' as redcap_repeat_instance
+        from warehouse.encounter
+        join warehouse.individual using (individual_id)
+        where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854}}}'
+    ),
+
+    uw_encounters as (
+        select
+            all_uw_instances.*,
+            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'screen_positive') as screen_positive,
+            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'prev_pos') as prev_pos,
+            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_symptoms') as daily_symptoms,
+            (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure') as daily_exposure,
+            (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos,
+            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'testing_trigger') as testing_trigger,
+            (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = all_uw_instances.encounter_id and link_id = 'surge_selected_flag') as surge_selected_flag,
+            sample.collected::date as sample_collection_date
+        from all_uw_instances
+        left join warehouse.sample using (encounter_id)
+        where redcap_event_name = 'encounter_arm_1'
+    ),
 
     uw_enrollments as (
         select
-            encounter.encounter_id,
-            individual.identifier as individual,
-            encounter.encountered::date as encountered,
-            jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'url' ) as redcap_url,
-            jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'project_id' ) as redcap_project_id,
-            jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'record_id' ) as redcap_record_id,
-            jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'event_name' ) as redcap_event_name,
-            jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance,
+            all_uw_instances.*,
             tier,
             current_prev_pos,
             latest_invite_date,
             latest_collection_date
-        from warehouse.encounter
-        join warehouse.individual using (individual_id)
+        from all_uw_instances
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
-        left join uw_individual_summaries on uw_individual_summaries.individual = individual.identifier
-        where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name": "enrollment_arm_1"}}}'
+        left join (
+            -- Use a subquery instead of CTE for better query runtimes.
+            select
+                individual,
+                /* Get PT's prev_pos response in today's attestation if available
+                 * so that we can filter out PTs who have tested positive in the
+                 * previous week for baseline and surveillance testing.
+                 * Use the `bool_or` aggregate to always capture when an
+                 * individual attests that they have tested positive.
+                 *    -Jover, 23 Nov 2020
+                 */
+                bool_or(prev_pos) filter (where encountered = current_date) as current_prev_pos,
+                max(encountered) filter (where testing_trigger is true) as latest_invite_date,
+                max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date
+            from uw_encounters
+            where testing_trigger is true
+            or sample_collection_date is not null
+            or encountered = current_date
+            group by individual
+        ) as latest_dates using (individual)
+        where redcap_event_name = 'enrollment_arm_1'
     ),
 
     -- Select encounters for testing based on positive daily attestations
     positive_daily_attestations as (
         select
-            __uw_encounters.redcap_url,
-            __uw_encounters.redcap_project_id,
-            __uw_encounters.redcap_record_id,
-            __uw_encounters.redcap_event_name,
-            __uw_encounters.redcap_repeat_instance,
-            __uw_encounters.encountered,
+            uw_encounters.redcap_url,
+            uw_encounters.redcap_project_id,
+            uw_encounters.redcap_record_id,
+            uw_encounters.redcap_event_name,
+            uw_encounters.redcap_repeat_instance,
+            uw_encounters.encountered,
             individual,
             tier,
             latest_invite_date,
@@ -3172,24 +3162,24 @@ create or replace view shipping.__uw_priority_queue_v1 as (
                  * at days 3–5.
                  *    -trs, 19 Oct 2020
                  */
-                when daily_exposure_known_pos and age(__uw_encounters.encountered) >= '2 days' then 1
-                when daily_exposure and age(__uw_encounters.encountered) >= '2 days' then 4
+                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 1
+                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 4
                 else null
             end as priority,
             case
                 when daily_symptoms then 'symptomatic'
-                when daily_exposure_known_pos and age(__uw_encounters.encountered) >= '2 days' then 'exposure_to_known_positive'
-                when daily_exposure and age(__uw_encounters.encountered) >= '2 days' then 'gathering_over_10'
+                when daily_exposure_known_pos and age(uw_encounters.encountered) >= '2 days' then 'exposure_to_known_positive'
+                when daily_exposure and age(uw_encounters.encountered) >= '2 days' then 'gathering_over_10'
                 else null
             end as priority_reason
-        from shipping.__uw_encounters
+        from uw_encounters
         join uw_enrollments using (individual)
         -- Filter to encounters within the last 7 days so we don't send invites for old attestations
-        where age(__uw_encounters.encountered) <= '7 days'
-        -- Filter to encounters for participants whose last invite was over 3 days before encounter
-        and (latest_invite_date is null or latest_invite_date < __uw_encounters.encountered - interval '3 days')
-        -- Filter to encounters for participants who have never had a sample collected or their last sample collection was over 3 days before encounter
-        and (latest_collection_date is null or latest_collection_date < __uw_encounters.encountered - interval '3 days')
+        where age(uw_encounters.encountered) <= '7 days'
+        -- Filter to encounters for participants whose last invite was over 7 days before encounter
+        and (latest_invite_date is null or latest_invite_date < uw_encounters.encountered - interval '7 days')
+        -- Filter to encounters for participants who have never had a sample collected or their last sample collection was over 7 days before encounter
+        and (latest_collection_date is null or latest_collection_date < uw_encounters.encountered - interval '7 days')
         -- Filter for instances that do no already have testing_trigger filled
         and testing_trigger is null
         -- Filter for postive daily attestations only
@@ -3226,10 +3216,10 @@ create or replace view shipping.__uw_priority_queue_v1 as (
                 else null
             end as priority_reason
         from uw_enrollments
-        -- Filter to enrollments that have never been invited to test or last invite was over 3 days before today
-        where (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
-        -- Filter to enrollments have never had a sample collected or last sample collection was over 3 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
+        -- Filter to enrollments that have never been invited to test or last invite was over 7 days before today
+        where (latest_invite_date is null or latest_invite_date < current_date - interval '7 days')
+        -- Filter to enrollments have never had a sample collected or last sample collection was over 7 days before today
+        and (latest_collection_date is null or latest_collection_date < current_date - interval '7 days')
         -- Filter for participants who have not tested positive in the past week
         and current_prev_pos is not true
     ),
@@ -3241,19 +3231,19 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     **/
     surge_testing as (
         select
-            __uw_encounters.redcap_url,
-            __uw_encounters.redcap_project_id,
-            __uw_encounters.redcap_record_id,
-            __uw_encounters.redcap_event_name,
-            __uw_encounters.redcap_repeat_instance,
-            __uw_encounters.encountered,
+            uw_encounters.redcap_url,
+            uw_encounters.redcap_project_id,
+            uw_encounters.redcap_record_id,
+            uw_encounters.redcap_event_name,
+            uw_encounters.redcap_repeat_instance,
+            uw_encounters.encountered,
             individual,
             tier,
             latest_invite_date,
             latest_collection_date,
             3 as priority,
             'surge_testing' as priority_reason
-        from shipping.__uw_encounters
+        from uw_encounters
         join uw_enrollments using (individual)
         -- Filter for instances that have been selected with surge_selected_flag
         where surge_selected_flag is true
@@ -3318,83 +3308,3 @@ grant select
   to "uw-priority-queue-processor";
 
 commit;
-
-
-create or replace view shipping.linelist_data_for_wa_doh_v1 as (
-    select distinct on (sample_id)
-          -- The naming scheme of these columns is an artefact of how we
-          -- originally submitted data to WaDoH from REDCap reports. Now they
-          -- expect columns structured and named in a specific way, and we
-          -- cannot modify those with our current linelist format. We can notify
-          -- WaDoH of our intent to change our submitted data format (e.g.
-          -- custom format or ELFF), but they'll need sufficient advanced
-          -- notice. At that point, we can update this view with different
-          -- column names.
-          --
-          -- kfay, 5 January 2021
-          sample_id,
-          sampleid.barcode as sample_barcode,
-          collectionid.barcode as collection_barcode,
-          sample.details ->> 'clia_barcode' as scan_id,
-          case
-              when present = 't' then 'positive'
-              when present = 'f' then 'negative'
-              else 'inconclusive'
-          end as test_result,
-          hcov19_result_release_date as date_tested,
-          best_available_encounter_date as enrollment_date,
-          collected as collection_date,
-          best_available_site as site_name,
-          best_available_site_type as site_context,
-          sex as sex_new,
-          case
-            when hispanic_or_latino = 't' then 'yes'
-            when hispanic_or_latino = 'f' then 'no'
-          end as ethnicity,
-          case
-            when pregnant = 't' then 'yes'
-            when pregnant = 'f' then 'no'
-          end as pregnant_yesno,
-          symptom_onset as symptom_duration
-      from
-          shipping.hcov19_presence_absence_result_v1
-          join warehouse.sample using (sample_id)
-          join shipping.sample_with_best_available_encounter_data_v1 using (sample_id)
-          join warehouse.identifier sampleid on sampleid.uuid::text = sample.identifier
-          join warehouse.identifier collectionid on collectionid.uuid::text = sample.collection_identifier
-          left join warehouse.encounter using (encounter_id)
-          left join warehouse.individual using (individual_id)
-          left join shipping.fhir_encounter_details_v2 using (encounter_id)
-      -- Add a date cutoff so that we only return results from samples
-      -- collected after the SCAN IRB study launched on 2020-06-10.
-      -- `shipping.return_results_v3` uses this same filter.
-      where collected >= '2020-06-10 00:00:00 US/Pacific'
-      order by sample_id, encounter_id
-);
-
-/* The shipping.linelist_data_for_wa_doh_v1 view needs hCoV-19 visibility, so
- * remains owned by postgres, but it should only be accessible by those with
- * hcov19-visibility.  Revoke existing grants to every other role.
- *
- * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
- * in the future.  It's part of the broader bad interplay between views and
- * their grants.  I think it was a mistake to lump grants to each role in their
- * own change instead of scattering them amongst the changes that create/rework
- * tables and views and things that are granted on.  I made that choice
- * initially so that all grants for a role could be seen in a single
- * consolidated place, which would still be nice.  There's got to be a better
- * system for managing this (a single idempotent change script with all ACLs
- * that is always run after other changes? cleaner breaking up of sqitch
- * projects?), but I don't have time to think on it much now.  Luckily for us,
- * I think the core reporter role is unlikely to be reworked soon, but we
- * should be wary.
- *   -trs, 7 March 2020
- */
-revoke all on shipping.linelist_data_for_wa_doh_v1 from reporter;
-
-grant select
-    on shipping.linelist_data_for_wa_doh_v1
-    to "hcov19-visibility";
-
-comment on view shipping.linelist_data_for_wa_doh_v1 is
-  'Custom view of hCoV-19 results for preparing linelists for Washington Department of Health';
