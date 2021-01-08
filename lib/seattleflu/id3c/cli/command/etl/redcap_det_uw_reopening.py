@@ -5,7 +5,9 @@ import logging
 from dateutil.relativedelta import relativedelta
 from enum import Enum
 from id3c.cli.command.etl import redcap_det
-from id3c.cli.redcap import is_complete, Record as REDCapRecord
+from id3c.cli.redcap import det, is_complete, Project, Record as REDCapRecord
+from id3c.db.datatypes import Json
+from psycopg2.extras import execute_values
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap import *
 
@@ -840,3 +842,41 @@ def get_date_from_repeat_instance(instance_id: int) -> str:
     Returns the date as a string because that is how it is used.
     """
     return (STUDY_START_DATE + relativedelta(days=(instance_id -1))).strftime('%Y-%m-%d')
+
+
+def insert_range_of_synthetic_enrollment_dets(start_record_id: int, end_record_id: int,
+        generated_by: str) -> None:
+    """
+    Inserts synthetic DET records into the `receiving.redcap_det` table to mimic
+    changes to the Enrollment Questionnaire for the range of record IDs (inclusive)
+    specified.
+    Requires the `REDCAP_API_TOKEN_{REDCap URL}_{REDCap project ID}` environment variable be set.
+    """
+    project = Project(REDCAP_URL, PROJECTS[0].id, dry_run = False)
+
+    record = {
+        "project" : project,
+        "enrollment_questionnaire_complete" : "", # Don't set a value
+        "redcap_event_name" : ENROLLMENT_EVENT_NAME,
+        }
+
+    current_record_id = start_record_id
+    dets = []
+
+    while current_record_id <= end_record_id:
+        record['record_id'] = str(current_record_id)
+        dets.append(det(project, record, 'enrollment_questionnaire', generated_by))
+        current_record_id += 1
+
+    dets_json = [
+        (Json(d),)
+            for d in dets ]
+
+    with DatabaseSession() as db:
+        with db.cursor() as cursor:
+            execute_values(cursor, """
+                insert into receiving.redcap_det (document) values %s
+                """, dets_json)
+        db.commit()
+
+    print(f"Inserted DETs for records {start_record_id} through {end_record_id}.")
