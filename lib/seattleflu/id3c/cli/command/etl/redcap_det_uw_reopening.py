@@ -362,19 +362,24 @@ def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[
     # First try the attestation_date
     # from the daily attestation survey then try nasal_swab_timestamp from
     # the kiosk registration and finally the swab-and-send order date.
+    # For all surveys, try the survey _timestamp field (which is in Pacific time)
+    # before custom fields because the custom fields aren't always populated and when
+    # they are populated they use the browser's time zone.
+    # testing_determination_internal is not enabled as a survey, but we attempt to get its
+    # timestamp just in case it ever is enabled as a survey.
     encounter_date = None
 
     if event_type == EventType.ENCOUNTER:
-        if record.get('attestation_date'):
-            encounter_date = record.get('attestation_date')
-        elif record.get('nasal_swab_timestamp'):
-            encounter_date = datetime.strptime(record.get('nasal_swab_timestamp'),
-                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
-        elif record.get('time_test_order'):
-            encounter_date = datetime.strptime(record.get('time_test_order'),
-                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
-        elif record.get('testing_date'): # from the 'Testing Determination - Internal' instrument
-            encounter_date = record.get('testing_date')
+        encounter_date = extract_date_from_survey_timestamp(record, 'daily_attestation') \
+            or record.get('attestation_date') \
+            or extract_date_from_survey_timestamp(record, 'kiosk_registration_4c7f') \
+            or (record.get('nasal_swab_timestamp') and datetime.strptime(record.get('nasal_swab_timestamp'),
+                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')) \
+            or extract_date_from_survey_timestamp(record, 'test_order_survey') \
+            or (record.get('time_test_order') and datetime.strptime(record.get('time_test_order'),
+                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')) \
+            or extract_date_from_survey_timestamp(record, 'testing_determination_internal') \
+            or record.get('testing_date')
 
         # We have seen cases when the `attestation_date` is not getting set
         # by REDCap in the `daily_attesation` instrument. Here, we get the date
@@ -384,7 +389,8 @@ def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[
             encounter_date = get_date_from_repeat_instance(record.repeat_instance)
 
     elif event_type == EventType.ENROLLMENT:
-        encounter_date = record.get('enrollment_date')
+        encounter_date = extract_date_from_survey_timestamp(record, 'enrollment_questionnaire') \
+            or record.get('enrollment_date')
 
     return encounter_date
 
@@ -412,16 +418,26 @@ def create_encounter_id(record: REDCapRecord, is_followup_encounter: bool) -> st
         f'{redcap_repeat_instance}{encounter_identifier_suffix}'
 
 
-def get_collection_date(record: dict, collection_method: CollectionMethod) -> Optional[str]:
+def get_collection_date(record: REDCapRecord, collection_method: CollectionMethod) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
+    # For all surveys, try the survey _timestamp field (which is in Pacific time)
+    # before custom fields because the custom fields aren't always populated and when
+    # they are populated they use the browser's time zone.
+    collection_date = None
+
     if collection_method == CollectionMethod.KIOSK:
-        return record["nasal_swab_q"]
+        collection_date = extract_date_from_survey_timestamp(record, "kiosk_registration_4c7f") or record.get("nasal_swab_q")
+
     elif collection_method == CollectionMethod.SWAB_AND_SEND:
-        return record["date_on_tube"] or record["kit_reg_date"] or record["back_end_scan_date"]
-    else:
-        return None
+        collection_date = record.get("date_on_tube") \
+            or extract_date_from_survey_timestamp(record, "husky_test_kit_registration") \
+            or record.get("kit_reg_date") \
+            or extract_date_from_survey_timestamp(record, "test_fulfillment_form") \
+            or record.get("back_end_scan_date")
+
+    return collection_date
 
 
 def create_enrollment_questionnaire_response(record: REDCapRecord, patient_reference: dict,
