@@ -273,3 +273,6 @@ shipping/views [shipping/views@2020-12-7] 2020-12-23T19:41:50Z Chris Craft <jccr
 
 shipping/views [shipping/views@2020-12-23] 2020-12-29T20:32:17Z Chris Craft <jccraft@uw.edu> # Materialize uw_encounters view to use in __uw_priority_queue_v1
 @2020-12-30 2020-12-30T19:52:18Z Chris Craft <jccraft@uw.edu> # Schema as of 30 December 2020
+
+shipping/views [shipping/views@2020-12-30] 2021-01-05T02:46:21Z Kairsten Fay <kfay@fredhutch.org> # Add view for WA DoH linelists
+@2021-01-05 2021-01-06T06:58:41Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 5 January 2021

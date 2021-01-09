@@ -1,0 +1,13 @@
+-- Verify [% project %]:[% change %] on [% engine %]
+[% FOREACH item IN requires -%]
+-- requires: [% item %]
+[% END -%]
+[% FOREACH item IN conflicts -%]
+-- conflicts: [% item %]
+[% END -%]
+
+begin;
+
+
+
+rollback;
