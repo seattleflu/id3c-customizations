@@ -51,6 +51,8 @@ drop view if exists shipping.incidence_model_observation_v3;
 drop view if exists shipping.incidence_model_observation_v2;
 drop view if exists shipping.incidence_model_observation_v1;
 
+drop view if exists shipping.linelist_data_for_wa_doh_v1;
+
 drop view if exists shipping.hcov19_observation_v1;
 drop view if exists shipping.hcov19_presence_absence_result_v1;
 
@@ -60,7 +62,6 @@ drop materialized view if exists shipping.fhir_questionnaire_responses_v1;
 
 drop view if exists shipping.sample_with_best_available_encounter_data_v1;
 
-drop view if exists shipping.linelist_data_for_wa_doh_v1;
 
 /******************** VIEWS FOR INTERNAL USE ********************/
 create or replace view shipping.sample_with_best_available_encounter_data_v1 as
