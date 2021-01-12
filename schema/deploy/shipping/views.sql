@@ -2784,6 +2784,8 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'swab_and_send_calc') as swab_and_send_calc
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'kiosk_calc') as kiosk_calc
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'covid_test_week_base') as covid_test_week_base
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_housing_resident') as uw_housing_resident
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'on_campus_2x_week') as on_campus_2x_week
 
   --string questions
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'text_or_email') as text_or_email
@@ -2819,6 +2821,7 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'on_campus_freq') as on_campus_freq
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_method') as vaccine_method
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_where') as vaccine_where
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_housing_group') as uw_housing_group
 
   --string question arrays
   ,(select string_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'countries_visited_base') as countries_visited_base
@@ -2936,6 +2939,8 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , enroll_details.swab_and_send_calc
   , enroll_details.kiosk_calc
   , enroll_details.covid_test_week_base
+  , enroll_details.uw_housing_resident
+  , enroll_details.on_campus_2x_week
 
   , enroll_details.text_or_email
   , enroll_details.text_or_email_attestation
@@ -2970,6 +2975,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , enroll_details.on_campus_freq
   , enroll_details.vaccine_method
   , enroll_details.vaccine_where
+  , enroll_details.uw_housing_group
 
   , enroll_details.countries_visited_base
   , enroll_details.states_visited_base
@@ -3043,6 +3049,10 @@ create or replace view shipping.uw_reopening_ehs_reporting_v1 as
   , encounters.live_other_uw as lives_with_uw_students_or_employees
   , encounters.uw_apt_yesno as lives_in_uw_apartment
   , encounters.tier as study_tier
+  , encounters.uw_housing_resident
+  , encounters.on_campus_2x_week
+  , encounters.uw_housing_group
+  , encounters.alerts_off
 
   from shipping.uw_reopening_encounters_v1 encounters
   join warehouse.identifier ids on cast(ids.uuid as text) = encounters.collection_identifier
@@ -3083,13 +3093,13 @@ create materialized view shipping.__uw_encounters as (
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'event_name' ) as redcap_event_name
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance
     , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'screen_positive') as screen_positive
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prev_pos') as prev_pos
     , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_symptoms') as daily_symptoms
     , (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_exposure') as daily_exposure
-    , (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos
+    , (select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos
     , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'testing_trigger') as testing_trigger
     , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'surge_selected_flag') as surge_selected_flag
     , (select max(collected)::date from warehouse.sample where encounter_id = encounter.encounter_id group by encounter_id) as sample_collection_date
+    , (select date_response[1]::date from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prior_test_positive_date') as prior_test_positive_date
 	from warehouse.encounter
 	join warehouse.individual using (individual_id)
 	where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name": "encounter_arm_1"}}}'
@@ -3106,20 +3116,14 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     with uw_individual_summaries as (
 	    select
 		    individual,
-		    /* Get PT's prev_pos response in today's attestation if available
-		     * so that we can filter out PTs who have tested positive in the
-		     * previous week for baseline and surveillance testing.
-		     * Use the `bool_or` aggregate to always capture when an
-		     * individual attests that they have tested positive.
-		     *    -Jover, 23 Nov 2020
-		     */
-		    bool_or(prev_pos) filter (where encountered = current_date) as current_prev_pos,
 		    max(encountered) filter (where testing_trigger is true) as latest_invite_date,
-		    max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date
+		    max(sample_collection_date) filter (where sample_collection_date is not null) as latest_collection_date,
+		    count(*) filter (where testing_trigger is true) as invitation_count,
+		    max(sample_collection_date) filter (where pa.present = true) as latest_positive_hcov19_collection_date,
+		    max(prior_test_positive_date) filter (where prior_test_positive_date is not null) as latest_prior_test_positive_date
 	    from shipping.__uw_encounters
-	    where testing_trigger is true
-	    or sample_collection_date is not null
-	    or encountered = current_date
+	    left join warehouse.sample using (encounter_id)
+	    left join shipping.hcov19_presence_absence_result_v1 pa using (sample_id)
 	    group by individual
      ),
 
@@ -3134,9 +3138,15 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'event_name' ) as redcap_event_name,
             jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance,
             tier,
-            current_prev_pos,
             latest_invite_date,
-            latest_collection_date
+            latest_collection_date,
+            coalesce(invitation_count, 0) as invitation_count,
+            uw_housing_group,
+            on_campus_2x_week,
+            latest_positive_hcov19_collection_date,
+            latest_prior_test_positive_date,
+            prior_test_positive_date_base::date as prior_test_positive_date_base,
+            alerts_off
         from warehouse.encounter
         join warehouse.individual using (individual_id)
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
@@ -3160,10 +3170,9 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             case
                 when daily_symptoms then 1
 
-                /* Why 2 days after attestation to exposures?  Our questions
-                 * about exposure ask about the past 24 hours.  We don't want
+                /* Why 2 days after attestation to exposures? We don't want
                  * to offer testing too early after exposure and risk false
-                 * negatives.  Per Trevor, we expect that a viral load high
+                 * negatives. Per Trevor, we expect that a viral load high
                  * enough to detect with PCR and be contagious is generally
                  * centered on day 3 after exposure, though some will be
                  * earlier and some later.  By offering testing at day 2, some
@@ -3171,18 +3180,34 @@ create or replace view shipping.__uw_priority_queue_v1 as (
                  * (hopefully) get tested the next day (day 3), and some others
                  * by the day after that (day 4). This puts results being known
                  * at days 3–5.
-                 *    -trs, 19 Oct 2020
+                 * -trs, 19 Oct 2020
+
+                 * The `yes_now` option replaced `yes` in Winter Quarter 2021,
+                 * with the wording for `yes_now` being `Yes, I was exposed to COVID-19
+                 * in the last 48 hours`, but we kept both in the query so that the query
+                 * would work before and after the option change.
                  */
-                when daily_exposure_known_pos and age(__uw_encounters.encountered) >= '2 days' then 1
-                when daily_exposure and age(__uw_encounters.encountered) >= '2 days' then 4
-                else null
+                when daily_exposure_known_pos in ('yes', 'yes_now') and age(__uw_encounters.encountered) >= '2 days' then 1
+                when daily_exposure and age(__uw_encounters.encountered) >= '2 days' then 1
+
+                /* The `yes_late` option takes care of the 48 hours. The option label is
+                 * `Yes, I was exposed to COVID-19 more than 48 hours ago`
+                 */
+                when daily_exposure_known_pos = 'yes_late' then 1
+                else null -- The final SELECT at the end of the view drops records with a NULL priority
             end as priority,
             case
                 when daily_symptoms then 'symptomatic'
-                when daily_exposure_known_pos and age(__uw_encounters.encountered) >= '2 days' then 'exposure_to_known_positive'
+                when daily_exposure_known_pos in ('yes', 'yes_now') and age(__uw_encounters.encountered) >= '2 days' then 'exposure_to_known_positive'
                 when daily_exposure and age(__uw_encounters.encountered) >= '2 days' then 'gathering_over_10'
+                when daily_exposure_known_pos = 'yes_late' then 'exposure_to_known_positive'
                 else null
-            end as priority_reason
+            end as priority_reason,
+
+            latest_positive_hcov19_collection_date,
+            latest_prior_test_positive_date,
+            prior_test_positive_date_base,
+            alerts_off
         from shipping.__uw_encounters
         join uw_enrollments using (individual)
         -- Filter to encounters within the last 7 days so we don't send invites for old attestations
@@ -3195,12 +3220,10 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and testing_trigger is null
         -- Filter for postive daily attestations only
         and screen_positive
-        -- Filter for participants who have not tested positive in the past week
-        and prev_pos is not true
     ),
 
-    -- Select enrollments for testing baseline and surveillance purposes
-    baseline_and_surveillance as (
+    -- Select UW housing residents if they are in the housing group for today
+    uw_housing_residents_today as (
         select
             redcap_url,
             redcap_project_id,
@@ -3212,27 +3235,81 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             tier,
             latest_invite_date,
             latest_collection_date,
-            case
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 5
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 6
-                when tier = '1' then 7
-                when tier in ('2', '3') then 8
-                else null
-              end as priority,
-            case
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier = '1' then 'tier_1_baseline'
-                when coalesce(latest_invite_date, latest_collection_date) is null and tier in ('2', '3') then 'tier_2_and_3_baseline'
-                when tier = '1' then 'tier_1_surveillance'
-                when tier in ('2', '3') then 'tier_2_and_3_surveillance'
-                else null
-            end as priority_reason
+            2 as priority,
+            'uw_housing_resident' as priority_reason,
+
+            latest_positive_hcov19_collection_date,
+            latest_prior_test_positive_date,
+            prior_test_positive_date_base,
+            alerts_off
         from uw_enrollments
-        -- Filter to enrollments that have never been invited to test or last invite was over 3 days before today
-        where (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
-        -- Filter to enrollments have never had a sample collected or last sample collection was over 3 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
-        -- Filter for participants who have not tested positive in the past week
-        and current_prev_pos is not true
+        -- Filter to the housing group for today
+        -- CHR 97 is 'a'
+        -- DOW is 0 through 6, starting on Sunday; therefore, Sunday is group 'a'
+        where uw_housing_group = CHR(EXTRACT(DOW from current_date)::int + 97)
+        -- Filter to encounters for participants whose last invite was before today
+        and (latest_invite_date is null or latest_invite_date < current_date)
+	),
+
+    -- Select enrollments for baseline testing
+    baseline as (
+        select
+            redcap_url,
+            redcap_project_id,
+            redcap_record_id,
+            redcap_event_name,
+            redcap_repeat_instance,
+            encountered,
+            individual,
+            tier,
+            latest_invite_date,
+            latest_collection_date,
+            4 as priority,
+            'baseline' as priority_reason,
+
+            latest_positive_hcov19_collection_date,
+            latest_prior_test_positive_date,
+            prior_test_positive_date_base,
+            alerts_off
+        from uw_enrollments
+        -- Filter to participants who enrolled after this date when
+        -- baseline test invitations were handled manually
+        where encountered > '2020-12-15'
+         -- Filter to enrollments have never had a sample collected
+        and latest_collection_date is null
+        -- Filter to enrollments that have been invited up to 2 times
+        and invitation_count < 2
+        -- Filter for participants who haven't ever been invited or haven't been invited in 3 days
+        and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
+    ),
+
+    -- Select enrollments for surveillance testing
+    surveillance as (
+        select
+            redcap_url,
+            redcap_project_id,
+            redcap_record_id,
+            redcap_event_name,
+            redcap_repeat_instance,
+            encountered,
+            individual,
+            tier,
+            latest_invite_date,
+            latest_collection_date,
+            5 as priority,
+            'surveillance' as priority_reason,
+
+            latest_positive_hcov19_collection_date,
+            latest_prior_test_positive_date,
+            prior_test_positive_date_base,
+            alerts_off
+        from uw_enrollments
+        -- Filter to participants who come to campus at least 2x a week
+        where on_campus_2x_week
+        -- Filter to participants whose last invite was over 14 days before today
+        and (latest_invite_date is null or latest_invite_date < current_date - interval '14 days')
+        -- Filter to participants who have never had a sample collected or whose last sample collection was over 14 days before today
+        and (latest_collection_date is null or latest_collection_date < current_date - interval '14 days')
     ),
 
     /**
@@ -3253,22 +3330,80 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_invite_date,
             latest_collection_date,
             3 as priority,
-            'surge_testing' as priority_reason
+            'surge_testing' as priority_reason,
+
+            latest_positive_hcov19_collection_date,
+            latest_prior_test_positive_date,
+            prior_test_positive_date_base,
+            alerts_off
         from shipping.__uw_encounters
         join uw_enrollments using (individual)
         -- Filter for instances that have been selected with surge_selected_flag
         where surge_selected_flag is true
         -- Filter for instances that do no already have testing_trigger filled
         and testing_trigger is null
-        -- Filter for participants who have not tested positive in the past week
-        and prev_pos is not true
     )
 
-    select * from positive_daily_attestations
+    -- The final SELECT to UNION ALL results from each prioritization category and to filter
+    -- for clauses that are common across all prioritization categories.
+    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
+    encountered, individual, tier, latest_invite_date, latest_collection_date, priority,
+    priority_reason
+    from
+    (
+    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
+    encountered, individual, tier, latest_invite_date, latest_collection_date, priority,
+    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
+    prior_test_positive_date_base, alerts_off
+    from positive_daily_attestations
+    where priority is not null
+
     union all
-    select * from baseline_and_surveillance
+
+    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
+    encountered, individual, tier, latest_invite_date, latest_collection_date, priority,
+    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
+    prior_test_positive_date_base, alerts_off
+    from uw_housing_residents_today
+
     union all
-    select * from surge_testing
+
+    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
+    encountered, individual, tier, latest_invite_date, latest_collection_date, priority,
+    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
+    prior_test_positive_date_base, alerts_off
+    from baseline
+
+    union all
+
+    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
+    encountered, individual, tier, latest_invite_date, latest_collection_date, priority,
+    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
+    prior_test_positive_date_base, alerts_off
+    from surveillance
+
+    union all
+
+    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
+    encountered, individual, tier, latest_invite_date, latest_collection_date, priority,
+    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
+    prior_test_positive_date_base, alerts_off
+    from surge_testing
+    ) as a
+    where
+    -- Filter for participants who have not tested positive with us in the past 90 days
+    (latest_positive_hcov19_collection_date is null or latest_positive_hcov19_collection_date < current_date - interval '90 days')
+
+    -- Filter for participants who have not tested positive somewhere else (reported on daily attestation) in the past 90 days
+    and (latest_prior_test_positive_date is null or latest_prior_test_positive_date < current_date - interval '90 days')
+
+    -- Filter for participants who have not tested positive somewhere else (reported on enrollment) in the past 90 days
+    and (prior_test_positive_date_base is null or prior_test_positive_date_base < current_date - interval '90 days')
+
+    -- Filter for participants who will receive alerts from REDCap
+    -- Because those with this set to 'off' won't receive alerts, these invitations to test would be wasted because the
+    -- participants wouldn't know that they've been invited.
+    and (alerts_off is null or alerts_off <> 'off')
 )
 ;
 
@@ -3300,9 +3435,9 @@ create or replace view shipping.uw_priority_queue_v1 as (
     from distinct_individuals
     order by
         priority asc nulls last,                        -- Prioritize first by reason testing is indicated…
-        tier asc nulls last,                            -- …then, higher-risk tiers over lower-risk
         age(latest_collection_date) desc nulls first,   -- …then, people who were least recently (if ever) tested
         age(latest_invite_date) desc nulls first,       -- …then, people who were least recently (if ever) offered a test
+        encountered asc,                                -- …then, people who attested positive or enrolled the longest ago
         individual asc                                  -- …and finally, by an evenly-distributed value (SHA-256 hash).
 )
 ;
