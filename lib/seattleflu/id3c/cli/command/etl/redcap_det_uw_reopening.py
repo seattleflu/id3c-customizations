@@ -137,12 +137,12 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             system_identifier = INTERNAL_SYSTEM)
 
     if not patient_entry:
-        LOG.warning("Skipping record with insufficient information to construct patient")
+        LOG.warning(f"Skipping record {enrollment.get('record_id')} with insufficient information to construct patient")
         return None
 
     birthdate = parse_date_from_string(enrollment.get('core_birthdate'))
     if not birthdate:
-        LOG.warning("Record has an invalid or missing `core_birthdate` value")
+        LOG.warning(f"Record {enrollment.get('record_id')} has an invalid or missing `core_birthdate` value")
 
     location_resource_entries = build_residential_location_resources(
         db = db,
@@ -171,7 +171,8 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             elif is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
         else:
-            LOG.warning(f"The record instance has an unexpected event name: {redcap_record_instance.event_name}")
+            LOG.warning(f"The record instance has an unexpected event name: {redcap_record_instance.event_name!r} "
+                f"for record: {redcap_record_instance.get('record_id')}")
             continue
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
@@ -249,10 +250,13 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         # Otherwise, just skip the record instance.
         if not initial_encounter_entry:
             if event_type == EventType.ENROLLMENT:
-                LOG.warning("Skipping record because we could not create the enrollment encounter")
+                LOG.warning("Skipping record because we could not create the enrollment encounter for record: "
+                    f"{redcap_record_instance.get('record_id')}")
                 return None
             else:
-                LOG.warning("Skipping record instance with insufficient information to construct the initial encounter")
+                LOG.warning("Skipping record instance with insufficient information to construct the initial encounter "
+                    f"for record: {redcap_record_instance.get('record_id')}, instance: "
+                    f"{redcap_record_instance.get('redcap_repeat_instance')}")
                 continue
 
         specimen_entry = None
@@ -285,8 +289,10 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             LOG.info("Creating encounter for record instance without sample")
 
         if specimen_received and not specimen_entry:
-            LOG.warning("Skipping record instance. We think the specimen was received,"
-                " but we're unable to create the specimen_entry.")
+            LOG.warning("Skipping record instance. We think the specimen was received, "
+                 "but we're unable to create the specimen_entry for record: "
+                 f"{redcap_record_instance.get('record_id')}, instance: {redcap_record_instance.get('redcap_repeat_instance')}"
+                 )
             continue
 
         computed_questionnaire_entry = None
