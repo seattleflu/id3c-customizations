@@ -276,3 +276,5 @@ shipping/views [shipping/views@2020-12-23] 2020-12-29T20:32:17Z Chris Craft <jcc
 
 shipping/views [shipping/views@2020-12-30] 2021-01-05T02:46:21Z Kairsten Fay <kfay@fredhutch.org> # Add view for WA DoH linelists
 @2021-01-05 2021-01-06T06:58:41Z Kairsten Fay <kfay@fredhutch.org> # Schema as of 5 January 2021
+
+shipping/views [shipping/views@2021-01-05] 2021-01-12T08:43:09Z Chris Craft <jccraft@uw.edu> # UW reopening related view changes for winter quarter

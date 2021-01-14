@@ -276,6 +276,7 @@ class TestingType(enum.Enum):
     SymptomsOrExposure  = "2"
     ContactTracing      = "3"
     KioskWalkIn         = "4"
+    UwHousingResident   = "5"
 
 
 def testing_type(priority_reason: str) -> TestingType:
@@ -287,10 +288,9 @@ def testing_type(priority_reason: str) -> TestingType:
         'symptomatic':                  TestingType.SymptomsOrExposure,
         'exposure_to_known_positive':   TestingType.SymptomsOrExposure,
         'gathering_over_10':            TestingType.SymptomsOrExposure,
-        'tier_1_baseline':              TestingType.Baseline,
-        'tier_2_and_3_baseline':        TestingType.Baseline,
-        'tier_1_surveillance':          TestingType.Surveillance,
-        'tier_2_and_3_surveillance':    TestingType.Surveillance,
+        'baseline':                     TestingType.Baseline,
+        'surveillance':                 TestingType.Surveillance,
         'surge_testing':                TestingType.ContactTracing,
+        'uw_housing_resident':          TestingType.UwHousingResident,
     }
     return testing_type[priority_reason]
