@@ -1185,14 +1185,18 @@ create or replace view shipping.hcov19_observation_v1 as
           sample_id,
           hcov19_result_received_bbi,
           hcov19_present_bbi,
-          array_agg("crt") as crt_values
+          array_agg("crt") as crt_values,
+          hcov19_device_bbi,
+          hcov19_assay_type_bbi
         from (
             -- Collapse potentially multiple hCoV-19 results
             select distinct on (sample_id)
                 sample_id,
                 pa.created::date as hcov19_result_received_bbi,
                 pa.present as hcov19_present_bbi,
-                pa.details -> 'replicates' as replicates
+                pa.details -> 'replicates' as replicates,
+                pa.details -> 'device' as hcov19_device_bbi,
+                pa.details -> 'assay_type' as hcov19_assay_type_bbi
             from
                 warehouse.presence_absence as pa
                 join warehouse.target using (target_id)
@@ -1207,7 +1211,7 @@ create or replace view shipping.hcov19_observation_v1 as
         ) as deduplicated_hcov19_bbi
         left join jsonb_to_recordset(replicates) as r("crt" text) on true
 
-        group by sample_id, hcov19_result_received_bbi, hcov19_present_bbi
+        group by sample_id, hcov19_result_received_bbi, hcov19_present_bbi, hcov19_device_bbi, hcov19_assay_type_bbi
     ),
 
     hcov19_presence_absence_uw as (
@@ -1237,6 +1241,8 @@ create or replace view shipping.hcov19_observation_v1 as
         -- Lab testing-related columns for BBI
         hcov19_result_received_bbi,
         hcov19_present_bbi,
+        hcov19_device_bbi,
+        hcov19_assay_type_bbi,
         crt_values,
 
         -- Lab testing-related columns for UW
@@ -1360,6 +1366,8 @@ create or replace view shipping.observation_with_presence_absence_result_v3 as
         target,
         present,
         present::int as presence,
+        pa.details ->> 'device' as device,
+        pa.details ->> 'assay_type' as assay_type,
         observation.*,
         organism
       from
