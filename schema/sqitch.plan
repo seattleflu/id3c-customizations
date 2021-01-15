@@ -282,3 +282,5 @@ shipping/views [shipping/views@2021-01-05] 2021-01-12T08:43:09Z Chris Craft <jcc
 
 shipping/views [shipping/views@2021-01-13] 2021-01-15T19:12:53Z Chris Craft <jccraft@uw.edu> # Add an expiration date to surges for UW priority queue view
 @2021-01-15 2021-01-15T19:52:18Z Chris Craft <jccraft@uw.edu> # Schema as of 15 January 2021
+
+shipping/views [shipping/views@2021-01-15] 2021-01-15T20:21:48Z Jover Lee <joverlee@fredhutch.org> # View changes for CLIA vs Research results

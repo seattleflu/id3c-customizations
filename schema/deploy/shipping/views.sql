@@ -2235,6 +2235,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-household-general',
                                    'collections-childcare')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
+    and presence_absence.details @> '{"assay_type": "Clia"}'
     order by encountered desc;
 
 /* The shipping.reportable_condition_v1 view needs hCoV-19 visibility, so
@@ -3507,6 +3508,7 @@ create or replace view shipping.linelist_data_for_wa_doh_v1 as (
       -- collected after the SCAN IRB study launched on 2020-06-10.
       -- `shipping.return_results_v3` uses this same filter.
       where collected >= '2020-06-10 00:00:00 US/Pacific'
+      and hcov19_presence_absence_result_v1.details @> '{"assay_type": "Clia"}'
       order by sample_id, encounter_id
 );
 
