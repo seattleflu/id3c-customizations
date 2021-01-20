@@ -3342,8 +3342,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where surge_selected_flag is true
         -- Filter for instances that do no already have testing_trigger filled
         and testing_trigger is null
-         -- Filter to encounters within the last 7 days so we don't send invites for old surges
-        and age(__uw_encounters.encountered) <= '7 days'
     )
 
     -- The final SELECT to UNION ALL results from each prioritization category and to filter
