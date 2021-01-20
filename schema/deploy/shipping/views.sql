@@ -3315,10 +3315,10 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         from uw_enrollments
         -- Filter to participants who come to campus at least 2x a week
         where on_campus_2x_week
-        -- Filter to participants whose last invite was over 14 days before today
-        and (latest_invite_date is null or latest_invite_date < current_date - interval '14 days')
-        -- Filter to participants who have never had a sample collected or whose last sample collection was over 14 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '14 days')
+        -- Filter to participants whose last invite was over 3 days before today
+        and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
+        -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
+        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
     ),
 
     /**
