@@ -3155,8 +3155,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_positive_hcov19_collection_date,
             latest_prior_test_positive_date,
             prior_test_positive_date_base::date as prior_test_positive_date_base,
-            alerts_off,
-            uw_greek_member
+            alerts_off
         from warehouse.encounter
         join warehouse.individual using (individual_id)
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
@@ -3315,12 +3314,11 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             alerts_off
         from uw_enrollments
         -- Filter to participants who come to campus at least 2x a week
-        -- OR who are Greek members
-        where (on_campus_2x_week or uw_greek_member)
-        -- Filter to participants whose last invite was over 3 days before today
-        and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
-        -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
+        where on_campus_2x_week
+        -- Filter to participants whose last invite was over 14 days before today
+        and (latest_invite_date is null or latest_invite_date < current_date - interval '14 days')
+        -- Filter to participants who have never had a sample collected or whose last sample collection was over 14 days before today
+        and (latest_collection_date is null or latest_collection_date < current_date - interval '14 days')
     ),
 
     /**
