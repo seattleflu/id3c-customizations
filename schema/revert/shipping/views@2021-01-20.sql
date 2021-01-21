@@ -2241,10 +2241,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-uw-home',
                                    'collections-uw-observed',
                                    'collections-household-general',
-                                   'collections-childcare',
-                                   'collections-adult-family-home-outbreak',
-                                   'collections-workplace-outbreak',
-                                   'collections-apple-respiratory')
+                                   'collections-childcare')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
     order by encountered desc;
@@ -2367,9 +2364,6 @@ create or replace view shipping.return_results_v3 as
           when 'collections-scan' then false
           when 'collections-uw-home' then false
           when 'collections-childcare' then false
-          when 'collections-adult-family-home-outbreak' then true
-          when 'collections-workplace-outbreak' then true
-          when 'collections-apple-respiratory' then false
           else null
         end as staff_observed
 
@@ -2384,10 +2378,7 @@ create or replace view shipping.return_results_v3 as
           'collections-scan-kiosks',
           'collections-uw-home',
           'collections-uw-observed',
-          'collections-childcare',
-          'collections-adult-family-home-outbreak',
-          'collections-workplace-outbreak',
-          'collections-apple-respiratory'
+          'collections-childcare'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
@@ -3164,8 +3155,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_positive_hcov19_collection_date,
             latest_prior_test_positive_date,
             prior_test_positive_date_base::date as prior_test_positive_date_base,
-            alerts_off,
-            uw_greek_member
+            alerts_off
         from warehouse.encounter
         join warehouse.individual using (individual_id)
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
@@ -3324,8 +3314,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             alerts_off
         from uw_enrollments
         -- Filter to participants who come to campus at least 2x a week
-        -- OR who are Greek members
-        where (on_campus_2x_week or uw_greek_member)
+        where on_campus_2x_week
         -- Filter to participants whose last invite was over 3 days before today
         and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
         -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
