@@ -212,4 +212,5 @@ from . import (
     redcap_det_scan,
     redcap_det_uw_reopening,
     redcap_det_childcare,
+    redcap_det_adult_family_home_workplace_outbreak,
 )

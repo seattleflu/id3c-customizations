@@ -18,7 +18,9 @@ def map_sex(sex_response: str) -> Optional[str]:
         'prefer not to say': 'unknown',
         'dont_say': 'unknown',
         'unknown': 'unknown',
-        '': 'unknown'
+        '': 'unknown',
+        'trans': 'other',
+        'none': 'unknown'
     }
 
     if sex_response.lower() not in sex_map:
