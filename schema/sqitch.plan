@@ -291,3 +291,6 @@ shipping/views [shipping/views@2021-01-19] 2021-01-20T00:13:15Z Chris Craft <jcc
 
 shipping/views [shipping/views@2021-01-19b] 2021-01-20T17:20:05Z Chris Craft <jccraft@uw.edu> # Include greek members in UW offers for surveillance
 @2021-01-20 2021-01-20T17:53:51Z Chris Craft <jccraft@uw.edu> # Schema as of 20 January 2021
+
+shipping/views [shipping/views@2021-01-20] 2021-01-21T00:04:13Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Include new Y3 study samples (adult family homes, apple) in RoR shipping views
+@2021-01-25 2021-01-25T19:58:45Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Schema as of 25 January 2021
