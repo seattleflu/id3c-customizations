@@ -17,18 +17,16 @@ LOG = logging.getLogger(__name__)
 class ChildcareProject():
     id: int
     lang: str
-    api_token_env_var: str
     command_name: str
 
 
-    def __init__(self, project_id: int, lang: str, api_token_env_var: str, command_name: str) -> None:
+    def __init__(self, project_id: int, lang: str, command_name: str) -> None:
         self.id = project_id
         self.lang = lang
-        self.api_token_env_var = api_token_env_var
         self.command_name = command_name
 
 PROJECTS = [
-        ChildcareProject(23740, 'en', 'REDCAP_API_TOKEN', 'childcare')
+        ChildcareProject(23740, 'en', 'childcare')
     ]
 
 LANGUAGE_CODE = {
