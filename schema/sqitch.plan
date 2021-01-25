@@ -294,3 +294,6 @@ shipping/views [shipping/views@2021-01-19b] 2021-01-20T17:20:05Z Chris Craft <jc
 
 shipping/views [shipping/views@2021-01-20] 2021-01-21T00:04:13Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Include new Y3 study samples (adult family homes, apple) in RoR shipping views
 @2021-01-25 2021-01-25T19:58:45Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Schema as of 25 January 2021
+
+shipping/views [shipping/views@2021-01-25] 2021-01-25T22:56:57Z Chris Craft <jccraft@uw.edu> # Add pre_analytical_specimen_collection to support clinical vs IRB collection
+@2021-01-26 2021-01-26T19:07:53Z Chris Craft <jccraft@uw.edu> # Schema as of 26 January 2021
