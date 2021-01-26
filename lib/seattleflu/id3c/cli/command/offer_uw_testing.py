@@ -13,7 +13,7 @@ import enum
 import json
 import logging
 import os
-from datetime import date
+from datetime import date, datetime
 from more_itertools import bucket
 from psycopg2.extras import execute_values
 from typing import List
@@ -188,7 +188,6 @@ def offer(queued) -> dict:
     suitable for updating the associated REDCap record with an offer of
     testing.
     """
-    today = date.today()
     event = Event(queued.redcap_event_name)
 
     # Mark the qualifying encounter instance for testing if the qualifying
@@ -199,7 +198,7 @@ def offer(queued) -> dict:
     # Mark today's encounter instance for testing if the qualifying event is
     # enrollment (e.g. baseline/surveillance)
     elif event is Event.Enrollment:
-        instance = repeat_instance(today)
+        instance = repeat_instance(date.today())
 
     else:
         assert False, "logic error"
@@ -210,7 +209,7 @@ def offer(queued) -> dict:
         "redcap_repeat_instance": instance,
         "testing_trigger": TestingTrigger.Yes.value,
         "testing_type": testing_type(queued.priority_reason).value,
-        "testing_date": today.isoformat(),
+        "testing_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         f"{TESTING_INSTRUMENT}_complete": InstrumentStatus.Complete.value,
     }
 
