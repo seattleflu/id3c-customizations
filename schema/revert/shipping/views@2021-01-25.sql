@@ -2241,10 +2241,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-uw-home',
                                    'collections-uw-observed',
                                    'collections-household-general',
-                                   'collections-childcare',
-                                   'collections-adult-family-home-outbreak',
-                                   'collections-workplace-outbreak',
-                                   'collections-apple-respiratory')
+                                   'collections-childcare')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
     order by encountered desc;
@@ -2367,16 +2364,8 @@ create or replace view shipping.return_results_v3 as
           when 'collections-scan' then false
           when 'collections-uw-home' then false
           when 'collections-childcare' then false
-          when 'collections-adult-family-home-outbreak' then true
-          when 'collections-workplace-outbreak' then true
-          when 'collections-apple-respiratory' then false
           else null
-        end as staff_observed,
-        case when identifier_set.name in (
-          'collections-adult-family-home-outbreak',
-          'collections-workplace-outbreak'
-        ) then 'clinical' else 'IRB'
-        end as pre_analytical_specimen_collection
+        end as staff_observed
 
       from
         warehouse.identifier
@@ -2389,10 +2378,7 @@ create or replace view shipping.return_results_v3 as
           'collections-scan-kiosks',
           'collections-uw-home',
           'collections-uw-observed',
-          'collections-childcare',
-          'collections-adult-family-home-outbreak',
-          'collections-workplace-outbreak',
-          'collections-apple-respiratory'
+          'collections-childcare'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
@@ -2414,8 +2400,7 @@ create or replace view shipping.return_results_v3 as
         end as status_code,
         result_ts,
         swab_type,
-        staff_observed,
-        pre_analytical_specimen_collection
+        staff_observed
     from
       samples
       left join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
