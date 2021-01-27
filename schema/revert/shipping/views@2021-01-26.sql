@@ -2371,12 +2371,7 @@ create or replace view shipping.return_results_v3 as
           when 'collections-workplace-outbreak' then true
           when 'collections-apple-respiratory' then false
           else null
-        end as staff_observed,
-        case when identifier_set.name in (
-          'collections-adult-family-home-outbreak',
-          'collections-workplace-outbreak'
-        ) then 'clinical' else 'IRB'
-        end as pre_analytical_specimen_collection
+        end as staff_observed
 
       from
         warehouse.identifier
@@ -2414,8 +2409,7 @@ create or replace view shipping.return_results_v3 as
         end as status_code,
         result_ts,
         swab_type,
-        staff_observed,
-        pre_analytical_specimen_collection
+        staff_observed
     from
       samples
       left join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)

@@ -2244,7 +2244,9 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-childcare',
                                    'collections-adult-family-home-outbreak',
                                    'collections-workplace-outbreak',
-                                   'collections-apple-respiratory')
+                                   'collections-apple-respiratory',
+                                   'collections-school-testing-home',
+                                   'collections-school-testing-observed')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
     order by encountered desc;
@@ -2370,6 +2372,8 @@ create or replace view shipping.return_results_v3 as
           when 'collections-adult-family-home-outbreak' then true
           when 'collections-workplace-outbreak' then true
           when 'collections-apple-respiratory' then false
+          when 'collections-school-testing-home' then false
+          when 'collections-school-testing-observed' then true
           else null
         end as staff_observed,
         case when identifier_set.name in (
@@ -2392,7 +2396,9 @@ create or replace view shipping.return_results_v3 as
           'collections-childcare',
           'collections-adult-family-home-outbreak',
           'collections-workplace-outbreak',
-          'collections-apple-respiratory'
+          'collections-apple-respiratory',
+          'collections-school-testing-home',
+          'collections-school-testing-observed'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
