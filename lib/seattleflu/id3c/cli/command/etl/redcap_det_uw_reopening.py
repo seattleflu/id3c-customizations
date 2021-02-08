@@ -90,7 +90,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     enrollments = [record for record in redcap_record_instances if record.event_name == ENROLLMENT_EVENT_NAME]
 
     if not len(enrollments) == 1:
-        LOG.warning(f"There are {len(enrollments)} enrollment instances. Skipping record.")
+        LOG.warning(f"There are {len(enrollments)} enrollment instances for record: {redcap_record_instances[0].get('record_id')}. Skipping record.")
         return None
 
     enrollment = enrollments[0]
