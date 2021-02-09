@@ -3338,6 +3338,8 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         -- Filter to participants who come to campus at least 2x a week
         -- OR who are Greek members
         where (on_campus_2x_week or uw_greek_member)
+        -- Filter to participants who are not UW Housing residents because they already get invited weekly
+        and uw_housing_group is null
         -- Filter to participants whose last invite was over 3 days before today
         and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
         -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
