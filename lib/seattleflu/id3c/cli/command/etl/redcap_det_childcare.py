@@ -1,5 +1,8 @@
 """
 Process DETs for the Childcare REDCap projects.
+Out of concern for privacy (PII), for this project we decided not
+to store the participant's age on encounters. The `age` column
+on warehouse.encounter is null for encounters created.
 """
 from dateutil.relativedelta import relativedelta
 from enum import Enum
@@ -8,7 +11,6 @@ from .redcap import *
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
 import logging
-from seattleflu.id3c.cli.command import age_ceiling
 
 
 LOG = logging.getLogger(__name__)
