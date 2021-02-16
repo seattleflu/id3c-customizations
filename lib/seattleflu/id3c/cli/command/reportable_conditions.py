@@ -72,9 +72,7 @@ def notify(*, action: str):
     }
 
     childcare = {
-        "sites": {'ChildcareSwabNSend', 'ChildcareCenter70thAndSandPoint', 'UWChildrensCenterRadfordCourt'},
-        "sample_origin": 'ChildcareSwabNSend',
-        "swab_sites": {'cc_sand_point', 'cc_radford'},
+        "collection_sets": {'collections-childcare'},
     }
 
     # Fetch and iterate over reportable condition records that aren't processed
@@ -107,10 +105,7 @@ def notify(*, action: str):
                 responses = {'ncov-reporting': send_slack_post_request(record, slack_webhooks['ncov-reporting'])}
 
                 # Also send Childcare specific results to the #ncov-reporting-childcare channel
-                if (record.site in childcare['sites'] or
-                    record.sample_origin == childcare['sample_origin']  or
-                    record.swab_site in childcare['swab_sites']):
-
+                if (record.collection_set_name in childcare['collection_sets']):
                     responses['ncov-reporting-childcare'] = send_slack_post_request(
                         record, slack_webhooks['ncov-reporting-childcare'])
 
