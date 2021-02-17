@@ -1,5 +1,8 @@
 """
 Process DETs for the Childcare REDCap projects.
+Out of concern for privacy (PII), for this project we decided not
+to store the participant's age on encounters. The `age` column
+on warehouse.encounter is null for encounters created.
 """
 from dateutil.relativedelta import relativedelta
 from enum import Enum
@@ -8,7 +11,6 @@ from .redcap import *
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
 import logging
-from seattleflu.id3c.cli.command import age_ceiling
 
 
 LOG = logging.getLogger(__name__)
@@ -26,7 +28,8 @@ class ChildcareProject():
         self.command_name = command_name
 
 PROJECTS = [
-        ChildcareProject(23740, 'en', 'childcare')
+        ChildcareProject(23740, 'en', 'childcare'),
+        ChildcareProject(29351, 'en', 'childcare-2021')
     ]
 
 LANGUAGE_CODE = {
@@ -49,6 +52,17 @@ INTERNAL_SYSTEM = 'https://seattleflu.org'
 SWAB_AND_SEND_SITE = 'ChildcareSwabNSend'
 RADFORD_SITE = 'UWChildrensCenterRadfordCourt'
 SANDPOINT_SITE = 'ChildcareCenter70thAndSandPoint'
+PORTAGE_BAY_SITE = 'UWChildrensCenterPortageBay'
+MINOR_SITE = 'MinorAvenueChildrensHouse'
+MAINTINYTOTS_SITE = 'TinyTotsDevelopmentCenterMain'
+EASTTINYTOTS_SITE = 'TinyTotsDevelopmentCenterEast'
+DLBEACON_SITE = 'DeniseLouieBeaconHill'
+DLMAG_SITE = 'DeniseLouieMercyMagnusonPl'
+MIGHTY_SITE = 'MightyKidz'
+BIRCH_SITE = 'BirchTreeAcademy'
+MOTHERS_SITE = 'MothersPlace'
+UWCHILDRENS_WEST_SITE = 'UWChildrensCenterWestCampus'
+UWCHILDRENS_LAUREL_SITE = 'UWChildrensCenterLaurelVillage'
 
 ENROLLMENT_EVENT_NAME_PREFIX = 'enrollment_arm_'
 ENCOUNTER_EVENT_NAME_PREFIX = 'week'
@@ -186,7 +200,18 @@ def redcap_det_childcare(*, db: DatabaseSession, cache: TTLCache, det: dict,
         # sample picked up from home instead of returning it to a dropbox.
         site_map = {
             'childcare_room_70th': SANDPOINT_SITE,
-            'childcare_room_radford' : RADFORD_SITE
+            'childcare_room_radford' : RADFORD_SITE,
+            'childcare_room_portage': PORTAGE_BAY_SITE,
+            'childcare_room_minor': MINOR_SITE,
+            'childcare_room_maintinytots': MAINTINYTOTS_SITE,
+            'childcare_room_easttinytots': EASTTINYTOTS_SITE,
+            'childcare_room_dlbeacon': DLBEACON_SITE,
+            'childcare_room_dlmag': DLMAG_SITE,
+            'childcare_room_mighty': MIGHTY_SITE,
+            'childcare_room_birch': BIRCH_SITE,
+            'childcare_room_mothers': MOTHERS_SITE,
+            'childcare_room_wcampus': UWCHILDRENS_WEST_SITE,
+            'childcare_room_laurel': UWCHILDRENS_LAUREL_SITE
         }
 
         location = None # No location will cause `create_site_reference` to use the `default_site` value.
