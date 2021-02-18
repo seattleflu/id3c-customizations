@@ -169,8 +169,9 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             elif is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
         else:
-            LOG.warning(f"The record instance has an unexpected event name: {redcap_record_instance.event_name!r} "
-                f"for record: {redcap_record_instance.get('record_id')}")
+            LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
+            f"{redcap_record_instance.get('record_id')} because the event is not one "
+            "that we process")
             continue
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
