@@ -54,7 +54,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 18
+REVISION = 19
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -948,13 +948,6 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
     record['country'] = combine_multiple_fields('country')
     record['state'] = combine_multiple_fields('state')
 
-    # Age Ceiling
-    try:
-        record['age'] = age_ceiling(int(record['age']))
-        record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
-    except ValueError:
-        record['age'] = record['age_months'] = None
-
     return questionnaire_response(record, question_categories, patient_reference, encounter_reference)
 
 
@@ -1025,6 +1018,17 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
     response = record.get(question_id)
     if not response:
         return None
+
+    # Age ceiling
+    if question_id in {'age', 'age_months'}:
+        try:
+            value = int(response)
+            if question_id == 'age':
+                response = age_ceiling(value)
+            if question_id == 'age_months':
+                response = age_ceiling(value / 12) * 12
+        except ValueError:
+            return None
 
     def cast_to_coding(string: str):
         """ Currently the only QuestionnaireItem we code is race. """
