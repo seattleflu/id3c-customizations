@@ -18,6 +18,10 @@ Environment variables required:
         messages to the Seattle Flu Study #ncov-reporting channel
     * SLACK_WEBHOOK_REPORTING_HCOV19_CHILDCARE: incoming webook URL for sending
         Slack messages to the Seattle Flu Study #ncov-reporting-childcare channel
+    * SLACK_WEBHOOK_REPORTING_HCOV19_APPLE: incoming webook URL for sending
+        Slack messages to the Seattle Flu Study #ncov-reporting-apple channel
+    * SLACK_WEBHOOK_REPORTING_HCOV19_SCHOOLS: incoming webook URL for sending
+        Slack messages to the Seattle Flu Study #ncov-reporting-schools channel
 """
 import os
 import json
@@ -68,14 +72,27 @@ def notify(*, action: str):
 
     slack_webhooks = {
         "ncov-reporting": webhook("HCOV19"),
-        "ncov-reporting-childcare": webhook("HCOV19_CHILDCARE"),
     }
 
-    childcare = {
-        "sites": {'ChildcareSwabNSend', 'ChildcareCenter70thAndSandPoint', 'UWChildrensCenterRadfordCourt'},
-        "sample_origin": 'ChildcareSwabNSend',
-        "swab_sites": {'cc_sand_point', 'cc_radford'},
-    }
+    projects = [
+        {
+            "collection_sets": {"collections-childcare"},
+            "slack_channel_name": "ncov-reporting-childcare",
+            "slack_webhook": webhook("HCOV19_CHILDCARE"),
+        },
+
+        {
+            "collection_sets": {"collections-apple-respiratory"},
+            "slack_channel_name": "ncov-reporting-apple",
+            "slack_webhook": webhook("HCOV19_APPLE"),
+        },
+
+        {
+            "collection_sets": {"collections-school-testing-home", "collections-school-testing-observed"},
+            "slack_channel_name": "ncov-reporting-schools",
+            "slack_webhook": webhook("HCOV19_SCHOOLS"),
+        }
+    ]
 
     # Fetch and iterate over reportable condition records that aren't processed
     #
@@ -106,13 +123,11 @@ def notify(*, action: str):
 
                 responses = {'ncov-reporting': send_slack_post_request(record, slack_webhooks['ncov-reporting'])}
 
-                # Also send Childcare specific results to the #ncov-reporting-childcare channel
-                if (record.site in childcare['sites'] or
-                    record.sample_origin == childcare['sample_origin']  or
-                    record.swab_site in childcare['swab_sites']):
-
-                    responses['ncov-reporting-childcare'] = send_slack_post_request(
-                        record, slack_webhooks['ncov-reporting-childcare'])
+                # Also send study-specific results to their respective channels
+                for project in projects:
+                    if (record.collection_set_name in project['collection_sets']):
+                        responses[project['slack_channel_name']] = send_slack_post_request(
+                            record, project['slack_webhook'])
 
                 # Check all POSTs to Slack were successful to mark as processed
                 # This does mean that if one fails but others succeed, there
