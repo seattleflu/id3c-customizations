@@ -44,7 +44,7 @@ class StudyArm(Enum):
     PRIMARY = 'primary'
     SECONDARY = 'secondary'
 
-REVISION = 0
+REVISION = 1
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = 'https://seattleflu.org'
@@ -369,7 +369,7 @@ def get_collection_date(record: REDCapRecord) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
-    return record['date_on_tube'] or record['kit_reg_date'] or record['illness_q_date'] or \
+    return record['date_on_tube'] or record['kit_reg_date'] or record['symptom_check_timestamp'] or \
         record['back_end_scan_date']
 
 
@@ -512,7 +512,7 @@ def create_operational_questionnaire_response(record: REDCapRecord, patient_refe
     ]
 
     date_questions = [
-        'illness_q_date_time',
+        'symptom_check_timestamp',
         'kit_reg_date_time',
         'samp_process_date',
         'return_pu_date_time',
