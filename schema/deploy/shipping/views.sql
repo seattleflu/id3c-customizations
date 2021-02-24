@@ -1144,7 +1144,11 @@ create or replace view shipping.hcov19_presence_absence_result_v1 as
       https://seattle-flu-study.slack.com/archives/CV1E2BC8N/p1584570226450500?thread_ts=1584569401.449800&cid=CV1E2BC8N
     */
     order by
-        sample_id, presence_absence_id desc
+        sample_id,
+        case pa.details ->> 'assay_type'
+          when 'Clia' then 1
+        end nulls last,
+        presence_absence_id desc
 ;
 
 
