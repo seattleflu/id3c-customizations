@@ -2211,8 +2211,7 @@ create or replace view shipping.reportable_condition_v1 as
         case
           when present then 'positive'
           when present is null then 'inconclusive'
-        end as result,
-        collection_id_set.name as collection_set_name
+        end as result
 
     from warehouse.presence_absence
     join warehouse.target using (target_id)
