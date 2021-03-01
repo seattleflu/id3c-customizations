@@ -322,7 +322,9 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 # Don't set locations because the f/u survey doesn't ask for home address.
                 follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
                     encounter_id = create_encounter_id(redcap_record_instance, True),
-                    encounter_date = redcap_record_instance['fu_timestamp'].split()[0],
+                    encounter_date = extract_date_from_survey_timestamp(redcap_record_instance, 'week_followup') \
+                        or datetime.strptime(redcap_record_instance.get('fu_timestamp'),
+                        '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d'),
                     patient_reference = patient_reference,
                     site_reference = site_reference,
                     collection_code = CollectionCode.HOME_HEALTH,
