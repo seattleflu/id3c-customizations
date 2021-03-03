@@ -369,8 +369,9 @@ def get_collection_date(record: REDCapRecord) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
-    return record['date_on_tube'] or record['kit_reg_date'] or record['symptom_check_timestamp'] or \
-        record['back_end_scan_date']
+    return record['date_on_tube'] or record['kit_reg_date'] \
+        or extract_date_from_survey_timestamp(record, 'symptom_check') \
+        or record['back_end_scan_date']
 
 
 def create_enrollment_questionnaire_response(record: REDCapRecord, study_arm: StudyArm,
