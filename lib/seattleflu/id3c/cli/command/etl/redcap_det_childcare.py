@@ -555,6 +555,8 @@ def create_operational_questionnaire_response(record: REDCapRecord, patient_refe
         record['date_on_tube_match_kit_reg_text'] = \
             date_on_tube_match_kit_reg_map[record['date_on_tube_match_kit_reg']]
 
+    record['symptom_check_timestamp'] = extract_date_from_survey_timestamp(record, 'symptom_check')
+
     return create_questionnaire_response(
         record = record,
         question_categories = question_categories,
