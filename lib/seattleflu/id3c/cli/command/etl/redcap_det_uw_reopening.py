@@ -498,6 +498,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'vaccine_method',
         'vaccine_where',
         'uw_housing_group',
+        'added_surveillance_groups',
     ]
 
     date_questions = [
