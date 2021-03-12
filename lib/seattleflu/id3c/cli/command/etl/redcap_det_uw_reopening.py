@@ -162,6 +162,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
+            check_enrollment_data_quality(redcap_record_instance)
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
             if is_complete('kiosk_registration_4c7f', redcap_record_instance):
@@ -863,3 +864,22 @@ def get_date_from_repeat_instance(instance_id: int) -> str:
     Returns the date as a string because that is how it is used.
     """
     return (STUDY_START_DATE + relativedelta(days=(instance_id -1))).strftime('%Y-%m-%d')
+
+
+def check_enrollment_data_quality(record: REDCapRecord) -> None:
+    """
+    Warns if the enrollment record violates data quality checks.
+    """
+
+    # UW Housing residence groups: a participant should be in at most 1 group.
+    housing_groups = [f'uw_housing_group_{i}' for i in 'abcdefg']
+    housing_group_count = sum(map(lambda group: int(record[group]), housing_groups))
+    if housing_group_count > 1:
+        LOG.warning(f"Record {record['record_id']} enrollment data quality issue: "
+        f"In {housing_group_count} UW Housing residence groups")
+
+    # Weekly test invitations: a participant should not be in a UW Housing residence
+    # group and also have a value set for `added_surveillance_groups`
+    if housing_group_count > 0 and record['added_surveillance_groups']:
+        LOG.warning(f"Record {record['record_id']} enrollment data quality issue: "
+        "In a UW Housing residence group and has a value for `added_surveillance_groups`")
