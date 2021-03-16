@@ -874,7 +874,7 @@ def check_enrollment_data_quality(record: REDCapRecord) -> None:
 
     # UW Housing residence groups: a participant should be in at most 1 group.
     housing_groups = [f'uw_housing_group_{i}' for i in 'abcdefg']
-    housing_group_count = sum(map(lambda group: int(record[group]), housing_groups))
+    housing_group_count = sum(map(lambda group: int(record[group] or 0), housing_groups))
     if housing_group_count > 1:
         LOG.warning(f"Record {record['record_id']} enrollment data quality issue: "
         f"In {housing_group_count} UW Housing residence groups")
