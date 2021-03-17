@@ -312,3 +312,6 @@ shipping/views [shipping/views@2021-02-19] 2021-02-24T23:03:11Z Jover Lee <jover
 
 shipping/views [shipping/views@2021-02-24] 2021-03-09T17:48:03Z Chris Craft <jccraft@uw.edu> # Incorporate added_surveillance_groups variable into __uw_priority_queue_v1
 @2021-03-15 2021-03-15T17:35:43Z Chris Craft <jccraft@uw.edu> # Schema as of 15 March 2021
+
+shipping/views [shipping/views@2021-03-15] 2021-03-16T23:51:29Z Chris Craft <jccraft@uw.edu> # Speed up the __uw_encounters view
+@2021-03-18 2021-03-18T16:48:08Z Chris Craft <jccraft@uw.edu> # Schema as of 18 March 2021
