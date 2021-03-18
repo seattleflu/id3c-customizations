@@ -2857,7 +2857,6 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_method') as vaccine_method
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_where') as vaccine_where
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_housing_group') as uw_housing_group
-  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'added_surveillance_groups') as added_surveillance_groups
 
   --string question arrays
   ,(select string_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'countries_visited_base') as countries_visited_base
@@ -3012,7 +3011,6 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , enroll_details.vaccine_method
   , enroll_details.vaccine_where
   , enroll_details.uw_housing_group
-  , enroll_details.added_surveillance_groups
 
   , enroll_details.countries_visited_base
   , enroll_details.states_visited_base
@@ -3184,8 +3182,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_prior_test_positive_date,
             prior_test_positive_date_base::date as prior_test_positive_date_base,
             alerts_off,
-            uw_greek_member,
-            added_surveillance_groups
+            uw_greek_member
         from warehouse.encounter
         join warehouse.individual using (individual_id)
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
@@ -3290,37 +3287,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and (latest_invite_date is null or latest_invite_date < current_date)
 	),
 
-  -- Select added_surveillance_groups if they are in the group for today
-    added_surveillance_groups as (
-        select
-            redcap_url,
-            redcap_project_id,
-            redcap_record_id,
-            redcap_event_name,
-            redcap_repeat_instance,
-            encountered,
-            individual,
-            tier,
-            latest_invite_date,
-            latest_collection_date,
-            2 as priority,
-            'surveillance' as priority_reason,
-
-            latest_positive_hcov19_collection_date,
-            latest_prior_test_positive_date,
-            prior_test_positive_date_base,
-            alerts_off
-        from uw_enrollments
-        -- Filter to added_surveillance_groups for today.
-        -- To_Char(current_date, 'day') returns a string padded to 9 characters, so trim it.
-        -- Example: where 'tuesday' = 'tuesday'
-        where added_surveillance_groups = trim(To_Char(current_date, 'day'))
-        -- Filter to participants who are not UW Housing residents because they already get invited weekly
-        and uw_housing_group is null
-         -- Filter to encounters for participants whose last invite was before today
-        and (latest_invite_date is null or latest_invite_date < current_date)
-	),
-
     -- Select enrollments for baseline testing
     baseline as (
         select
@@ -3379,8 +3345,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         where (on_campus_2x_week or uw_greek_member)
         -- Filter to participants who are not UW Housing residents because they already get invited weekly
         and uw_housing_group is null
-        -- Filter to participants who are not in an added surveillance group becuase they already get invited weekly
-        and added_surveillance_groups is null
         -- Filter to participants whose last invite was over 3 days before today
         and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
         -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
@@ -3466,14 +3430,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
     prior_test_positive_date_base, alerts_off
     from surge_testing
-
-    union all
-
-    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
-    encountered, individual, tier, latest_invite_date, latest_collection_date, priority,
-    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
-    prior_test_positive_date_base, alerts_off
-    from added_surveillance_groups
     ) as a
     where
     -- Filter for participants who have not tested positive with us in the past 90 days
