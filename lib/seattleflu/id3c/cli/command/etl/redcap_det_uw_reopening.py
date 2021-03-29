@@ -723,9 +723,7 @@ def create_testing_determination_internal_questionnaire_response(record: REDCapR
     """
     Returns a FHIR Questionnaire Response resource entry for the
     testing_determination_internal instrument. This instrument is used
-    to communicate with the Priority Queue application. Note that for this
-    questionnaire we do want to return answers for all questions even if they are
-    not answered.
+    to communicate with the Priority Queue application.
     """
     boolean_questions = [
         'testing_trigger',
@@ -736,9 +734,14 @@ def create_testing_determination_internal_questionnaire_response(record: REDCapR
         'testing_type',
     ]
 
+    date_questions = [
+        'testing_date',
+    ]
+
     question_categories = {
         'valueBoolean': boolean_questions,
         'valueString': string_questions,
+        'valueDate': date_questions
     }
 
     return create_questionnaire_response(
