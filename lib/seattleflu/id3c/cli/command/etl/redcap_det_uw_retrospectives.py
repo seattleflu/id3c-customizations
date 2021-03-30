@@ -348,6 +348,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'snf-skilled nursing facility'                          : 'snf',
         'snf: snf-skilled nursing facility'                     : 'snf',
         'still a patient'                                       : None,
+        'still a pati: still a patient'                         : None,
     }
 
     standardized_disposition = standardize_whitespace(disposition.lower())
