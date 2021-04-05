@@ -189,9 +189,4 @@ select 1/(count(*) = 1)::int
 where array[table_schema, table_name]::text[]
     = pg_catalog.parse_ident('shipping.linelist_data_for_wa_doh_v1');
 
-select 1/(count(*) =1)::int
-  from information_schema.views
-where array[table_schema, table_name]::text[]
-    = pg_catalog.parse_ident('shipping.genome_submission_metadata_v1');
-
 rollback;

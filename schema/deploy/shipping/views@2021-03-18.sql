@@ -37,7 +37,6 @@ drop view if exists shipping.reportable_condition_v1;
 drop view if exists shipping.metadata_for_augur_build_v3;
 drop view if exists shipping.metadata_for_augur_build_v2;
 drop view if exists shipping.genomic_sequences_for_augur_build_v1;
-drop view if exists shipping.genome_submission_metadata_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
@@ -2082,60 +2081,6 @@ comment on view shipping.flu_assembly_jobs_v1 is
 -- Does not need HCoV-19 visibility and should filter it out
 -- anyway, but be safe.
 alter view shipping.flu_assembly_jobs_v1 owner to "view-owner";
-
-
-create or replace view shipping.genome_submission_metadata_v1 as
-
-    select
-        sample.identifier as sfs_sample_identifier,
-        sampleid.barcode as sfs_sample_barcode,
-        collectionid.barcode as sfs_collection_barcode,
-        -- Fall back on encountered date if the collected date is not available
-        coalesce(sample.collected::date, encounter.encountered::date) as collection_date,
-        case sample.details ->> 'swab_type'
-          when 'ans' then 'Anterior nasal swab'
-          when 'mtb' then 'Mid-turbinate nasal swab'
-          when 'np' then 'Nasopharyngeal swab'
-          else null
-        end as swab_type,
-        -- Separate by study arm for easier reporting of VoCs to study leads
-        case
-          when identifier_set.name in ('collections-scan', 'collections-scan-kiosks') then 'SCAN'
-          when identifier_set.name in ('collections-adult-family-home-outbreak', 'collections-workplace-outbreak') then 'AFH/Workplace'
-          when identifier_set.name in ('collections-childcare') then 'Childcare'
-          when identifier_set.name in ('collections-apple-respiratory', 'collections-apple-respiratory-serial') then 'Apple'
-          when identifier_set.name in ('collections-household-general', 'collections-household-intervention',
-                                       'collections-household-intervention-asymptomatic', 'collections-household-observation',
-                                       'collections-household-observation-asymptomatic') then 'Households'
-          when identifier_set.name in ('collections-kaiser') then 'Kaiser'
-          when identifier_set.name in ('collections-kiosks', 'collections-kiosks-asymptomatic') then 'Shelters'
-          when identifier_set.name in ('collections-school-testing-home', 'collections-school-testing-observed') then 'Snohomish Schools'
-          when identifier_set.name in ('collections-seattleflu.org') then 'SCH'
-          when identifier_set.name in ('collections-uw-home', 'collections-uw-observed') then 'HCT'
-          else 'SFS'
-        end as source,
-        location.hierarchy -> 'puma' as puma,
-        -- If location is null, assume the sample is from within Washington.
-        coalesce(initcap(replace(location.hierarchy -> 'state', '_', ' ')), 'Washington') as state
-
-    from warehouse.sample
-    join warehouse.identifier sampleid on sampleid.uuid::text = sample.identifier
-    left join warehouse.identifier collectionid on collectionid.uuid::text = sample.collection_identifier
-    left join warehouse.identifier_set on collectionid.identifier_set_id = identifier_set.identifier_set_id
-    left join warehouse.encounter using (encounter_id)
-    left join warehouse.primary_encounter_location using (encounter_id)
-    left join warehouse.location using (location_id);
-
-comment on view shipping.genome_submission_metadata_v1 is
-  'View of minimal metadata used for consensus genome submissions';
-
-revoke all
-    on shipping.genome_submission_metadata_v1
-  from "assembly-exporter";
-
-grant select
-    on shipping.genome_submission_metadata_v1
-  to "assembly-exporter";
 
 
 create or replace view shipping.genomic_sequences_for_augur_build_v1 as
