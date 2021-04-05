@@ -319,3 +319,4 @@ shipping/views [shipping/views@2021-03-15] 2021-03-16T23:51:29Z Chris Craft <jcc
 roles/assembly-exporter/create 2021-02-26T00:11:34Z Jover Lee <joverlee@fredhutch.org> # Role for exporting data for genome assembly
 roles/assembly-exporter/grants 2021-02-26T00:18:32Z Jover Lee <joverlee@fredhutch.org> # General grants for the "assembly-exporter" role
 shipping/views [shipping/views@2021-03-18] 2021-04-02T23:03:42Z Jover Lee <joverlee@fredhutch.org> # Add view for basic metadata for consensus genome submissions
+@2021-04-05 2021-04-05T18:09:17Z Jover Lee <joverlee@fredhutch.org> # Schema as of 05 April 2021
