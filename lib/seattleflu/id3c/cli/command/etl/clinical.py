@@ -177,6 +177,7 @@ def sex(sex_name) -> str:
         1.0: "male",
         0.0: "female",
         "other": "other",
+        "unknown": None,
     }
 
     def standardize_sex(sex):
@@ -225,11 +226,14 @@ def hispanic_latino(ethnic_group: Optional[Any]) -> list:
     ethnic_map = {
         "Not Hispanic or Latino": "no",
         "Non-Hispanic/Latino": "no",
+        "Non-Hispanic": "no",
         "Hispanic or Latino": "yes",
         "Hispanic/Latino": "yes",
+        "Hispanic": "yes",
         0.0: "no",
         1.0: "yes",
         "Patient Refused/Did Not Wish To Indicate": None,
+        "Patient Refused": None,
         "Unknown": None,
     }
 
