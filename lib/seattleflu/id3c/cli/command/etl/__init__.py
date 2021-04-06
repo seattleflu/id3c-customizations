@@ -82,8 +82,11 @@ def race(races: Optional[Any]) -> list:
     # Keys must be lowercase for case-insensitive lookup
     race_map = {
         "americanindianoralaskanative": "americanIndianOrAlaskaNative",
+        "american indian": "americanIndianOrAlaskaNative",
+        "american indian and alaska native": "americanIndianOrAlaskaNative",
         "american indian or alaska native": "americanIndianOrAlaskaNative",
         "amerind": "americanIndianOrAlaskaNative",
+        "native american": "americanIndianOrAlaskaNative",
         "native_american": "americanIndianOrAlaskaNative",
         "indian": "americanIndianOrAlaskaNative",
         "native": "americanIndianOrAlaskaNative",
@@ -95,6 +98,7 @@ def race(races: Optional[Any]) -> list:
         "black": "blackOrAfricanAmerican",
 
         "nativehawaiian": "nativeHawaiian",
+        "native hawaiian and other pacific islander" : "nativeHawaiian",
         "native hawaiian or other pacific islander": "nativeHawaiian",
         "native hawaiian or other pacific islande": "nativeHawaiian",
         "hawaiian-pacislander": "nativeHawaiian",
@@ -103,12 +107,15 @@ def race(races: Optional[Any]) -> list:
         "ha_pi": "nativeHawaiian",
 
         "white": "white",
+        "white or caucasian": "white",
 
         "other": "other",
         "other race": "other",
         "multiple races": "other",
+        "more than one race": "other",
 
         "refused": None,
+        "patient refused": None,
         "prefer not to say": None,
         "did not wish to indicate": None,
         "unknown": None,
