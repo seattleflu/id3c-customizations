@@ -37,6 +37,7 @@ drop view if exists shipping.reportable_condition_v1;
 drop view if exists shipping.metadata_for_augur_build_v3;
 drop view if exists shipping.metadata_for_augur_build_v2;
 drop view if exists shipping.genomic_sequences_for_augur_build_v1;
+drop view if exists shipping.genome_submission_metadata_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
@@ -3129,16 +3130,23 @@ create materialized view shipping.__uw_encounters as (
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'record_id' ) as redcap_record_id
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'event_name' ) as redcap_event_name
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'screen_positive') as screen_positive
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_symptoms') as daily_symptoms
-    , (select case string_response[1] when 'yes' then true else false end from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_exposure') as daily_exposure
-    , (select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'daily_exposure_known_pos') as daily_exposure_known_pos
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'testing_trigger') as testing_trigger
-    , (select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'surge_selected_flag') as surge_selected_flag
+    , q_screen_positive.boolean_response as screen_positive
+    , q_daily_symptoms.boolean_response as daily_symptoms
+    , case when q_daily_exposure.encounter_id is null then null when q_daily_exposure.string_response[1] = 'yes' then true else false end as daily_exposure
+    , q_daily_exposure_known_pos.string_response[1] as daily_exposure_known_pos
+    , q_testing_trigger.boolean_response as testing_trigger
+    , q_surge_selected_flag.boolean_response as surge_selected_flag
     , (select max(collected)::date from warehouse.sample where encounter_id = encounter.encounter_id group by encounter_id) as sample_collection_date
-    , (select date_response[1]::date from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prior_test_positive_date') as prior_test_positive_date
+    , q_prior_test_positive_date.date_response[1]::date as prior_test_positive_date
 	from warehouse.encounter
 	join warehouse.individual using (individual_id)
+	left join shipping.fhir_questionnaire_responses_v1 q_screen_positive on q_screen_positive.encounter_id = encounter.encounter_id and q_screen_positive.link_id = 'screen_positive'
+	left join shipping.fhir_questionnaire_responses_v1 q_daily_symptoms on q_daily_symptoms.encounter_id = encounter.encounter_id and q_daily_symptoms.link_id = 'daily_symptoms'
+	left join shipping.fhir_questionnaire_responses_v1 q_daily_exposure on q_daily_exposure.encounter_id = encounter.encounter_id and q_daily_exposure.link_id = 'daily_exposure'
+	left join shipping.fhir_questionnaire_responses_v1 q_daily_exposure_known_pos on q_daily_exposure_known_pos.encounter_id = encounter.encounter_id and q_daily_exposure_known_pos.link_id = 'daily_exposure_known_pos'
+	left join shipping.fhir_questionnaire_responses_v1 q_testing_trigger on q_testing_trigger.encounter_id = encounter.encounter_id and q_testing_trigger.link_id = 'testing_trigger'
+	left join shipping.fhir_questionnaire_responses_v1 q_surge_selected_flag on q_surge_selected_flag.encounter_id = encounter.encounter_id and q_surge_selected_flag.link_id = 'surge_selected_flag'
+	left join shipping.fhir_questionnaire_responses_v1 q_prior_test_positive_date on q_prior_test_positive_date.encounter_id = encounter.encounter_id and q_prior_test_positive_date.link_id = 'prior_test_positive_date'
 	where encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name": "encounter_arm_1"}}}'
 )
 ;
