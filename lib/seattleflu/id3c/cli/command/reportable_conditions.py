@@ -88,7 +88,10 @@ def notify(*, action: str):
         },
 
         {
-            "collection_sets": {"collections-school-testing-home", "collections-school-testing-observed"},
+            "collection_sets": {"collections-school-testing-home",
+              "collections-school-testing-observed",
+              "collections-radxup-yakima-schools-home",
+              "collections-radxup-yakima-schools-observed"},
             "slack_channel_name": "ncov-reporting-schools",
             "slack_webhook": webhook("HCOV19_SCHOOLS"),
         }
