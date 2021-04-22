@@ -320,3 +320,6 @@ roles/assembly-exporter/create 2021-02-26T00:11:34Z Jover Lee <joverlee@fredhutc
 roles/assembly-exporter/grants 2021-02-26T00:18:32Z Jover Lee <joverlee@fredhutch.org> # General grants for the "assembly-exporter" role
 shipping/views [shipping/views@2021-03-18] 2021-04-02T23:03:42Z Jover Lee <joverlee@fredhutch.org> # Add view for basic metadata for consensus genome submissions
 @2021-04-05 2021-04-05T18:09:17Z Jover Lee <joverlee@fredhutch.org> # Schema as of 05 April 2021
+
+shipping/views [shipping/views@2021-04-05] 2021-04-21T18:01:02Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Include yakima schools study in RoR shipping views
+@2021-04-22 2021-04-22T16:39:09Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Schema as of 22 April 2021

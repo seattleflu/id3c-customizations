@@ -2084,61 +2084,6 @@ comment on view shipping.flu_assembly_jobs_v1 is
 alter view shipping.flu_assembly_jobs_v1 owner to "view-owner";
 
 
-create or replace view shipping.genome_submission_metadata_v1 as
-
-    select
-        sample.identifier as sfs_sample_identifier,
-        sampleid.barcode as sfs_sample_barcode,
-        collectionid.barcode as sfs_collection_barcode,
-        -- Fall back on encountered date if the collected date is not available
-        coalesce(sample.collected::date, encounter.encountered::date) as collection_date,
-        case sample.details ->> 'swab_type'
-          when 'ans' then 'Anterior nasal swab'
-          when 'mtb' then 'Mid-turbinate nasal swab'
-          when 'np' then 'Nasopharyngeal swab'
-          else null
-        end as swab_type,
-        -- Separate by study arm for easier reporting of VoCs to study leads
-        case
-          when identifier_set.name in ('collections-scan', 'collections-scan-kiosks') then 'SCAN'
-          when identifier_set.name in ('collections-adult-family-home-outbreak', 'collections-workplace-outbreak') then 'AFH/Workplace'
-          when identifier_set.name in ('collections-childcare') then 'Childcare'
-          when identifier_set.name in ('collections-apple-respiratory', 'collections-apple-respiratory-serial') then 'Apple'
-          when identifier_set.name in ('collections-household-general', 'collections-household-intervention',
-                                       'collections-household-intervention-asymptomatic', 'collections-household-observation',
-                                       'collections-household-observation-asymptomatic') then 'Households'
-          when identifier_set.name in ('collections-kaiser') then 'Kaiser'
-          when identifier_set.name in ('collections-kiosks', 'collections-kiosks-asymptomatic') then 'Shelters'
-          when identifier_set.name in ('collections-school-testing-home', 'collections-school-testing-observed') then 'Snohomish Schools'
-          when identifier_set.name in ('collections-seattleflu.org') then 'SCH'
-          when identifier_set.name in ('collections-uw-home', 'collections-uw-observed') then 'HCT'
-          when identifier_set.name in ('collections-radxup-yakima-schools-home', 'collections-radxup-yakima-schools-observed') then 'Yakima Schools'
-          else 'SFS'
-        end as source,
-        location.hierarchy -> 'puma' as puma,
-        -- If location is null, assume the sample is from within Washington.
-        coalesce(initcap(replace(location.hierarchy -> 'state', '_', ' ')), 'Washington') as state
-
-    from warehouse.sample
-    join warehouse.identifier sampleid on sampleid.uuid::text = sample.identifier
-    left join warehouse.identifier collectionid on collectionid.uuid::text = sample.collection_identifier
-    left join warehouse.identifier_set on collectionid.identifier_set_id = identifier_set.identifier_set_id
-    left join warehouse.encounter using (encounter_id)
-    left join warehouse.primary_encounter_location using (encounter_id)
-    left join warehouse.location using (location_id);
-
-comment on view shipping.genome_submission_metadata_v1 is
-  'View of minimal metadata used for consensus genome submissions';
-
-revoke all
-    on shipping.genome_submission_metadata_v1
-  from "assembly-exporter";
-
-grant select
-    on shipping.genome_submission_metadata_v1
-  to "assembly-exporter";
-
-
 create or replace view shipping.genomic_sequences_for_augur_build_v1 as
 
     select distinct on (sample.identifier, organism.lineage, segment)
@@ -2307,10 +2252,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-workplace-outbreak',
                                    'collections-apple-respiratory',
                                    'collections-school-testing-home',
-                                   'collections-school-testing-observed',
-                                   'collections-radxup-yakima-schools-home',
-                                   'collections-radxup-yakima-schools-observed'
-                                   )
+                                   'collections-school-testing-observed')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
     order by encountered desc;
@@ -2438,8 +2380,6 @@ create or replace view shipping.return_results_v3 as
           when 'collections-apple-respiratory' then false
           when 'collections-school-testing-home' then false
           when 'collections-school-testing-observed' then true
-          when 'collections-radxup-yakima-schools-home' then false
-          when 'collections-radxup-yakima-schools-observed' then true
           else null
         end as staff_observed,
         case when identifier_set.name in (
@@ -2464,9 +2404,7 @@ create or replace view shipping.return_results_v3 as
           'collections-workplace-outbreak',
           'collections-apple-respiratory',
           'collections-school-testing-home',
-          'collections-school-testing-observed',
-          'collections-radxup-yakima-schools-home',
-          'collections-radxup-yakima-schools-observed'
+          'collections-school-testing-observed'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
