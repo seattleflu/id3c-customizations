@@ -176,6 +176,7 @@ def sex(sex_name) -> str:
         "f": "female",
         1.0: "male",
         0.0: "female",
+        "clinically undetermined": "other",
         "other": "other",
         "unknown": None,
     }
