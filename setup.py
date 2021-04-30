@@ -66,6 +66,10 @@ setup(
     ],
 
     extras_require = {
+        "dev": [
+            "mypy",
+            "pytest",
+        ],
         "locations": [
             "pandas >=1.0.1,<2",
             "snakemake",
