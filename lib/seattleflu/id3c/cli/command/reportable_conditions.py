@@ -22,6 +22,10 @@ Environment variables required:
         Slack messages to the Seattle Flu Study #ncov-reporting-apple channel
     * SLACK_WEBHOOK_REPORTING_HCOV19_SCHOOLS: incoming webook URL for sending
         Slack messages to the Seattle Flu Study #ncov-reporting-schools channel
+    * SLACK_WEBHOOK_REPORTING_HCOV19_AFH: incoming webook URL for sending
+        Slack messages to the Seattle Flu Study #ncov-reporting-afh channel
+    * SLACK_WEBHOOK_REPORTING_HCOV19_WORKPLACE: incoming webook URL for sending
+        Slack messages to the Seattle Flu Study #ncov-reporting-workplace channel
 """
 import os
 import json
@@ -94,6 +98,18 @@ def notify(*, action: str):
               "collections-radxup-yakima-schools-observed"},
             "slack_channel_name": "ncov-reporting-schools",
             "slack_webhook": webhook("HCOV19_SCHOOLS"),
+        },
+
+        {
+            "collection_sets": {"collections-adult-family-home-outbreak"},
+            "slack_channel_name": "ncov-reporting-afh",
+            "slack_webhook": webhook("HCOV19_AFH"),
+        },
+
+        {
+            "collection_sets": {"collections-workplace-outbreak"},
+            "slack_channel_name": "ncov-reporting-workplace",
+            "slack_webhook": webhook("HCOV19_WORKPLACE"),
         }
     ]
 
