@@ -14,7 +14,7 @@ import json
 import logging
 import os
 from datetime import date, datetime
-from more_itertools import bucket
+from more_itertools import bucket, chunked
 from psycopg2.extras import execute_values
 from typing import List
 from id3c.cli import cli
@@ -31,6 +31,8 @@ LOG = logging.getLogger(__name__)
 STUDY_START_DATE = date(2020, 9, 24)
 
 TESTING_INSTRUMENT = "testing_determination_internal"
+
+REDCAP_BATCH_SIZE = 250
 
 
 @cli.command("offer-uw-testing", help = __doc__)
@@ -143,7 +145,11 @@ def offer_uw_testing(*, at: str, log_offers: bool, db: DatabaseSession, action: 
         # actually update records.
         project = Project(url, project_id, dry_run = dry_run)
 
-        offer_count += project.update_records(offers)
+        batches = list(chunked(offers, REDCAP_BATCH_SIZE))
+
+        for i, batch in enumerate(batches, 1):
+            LOG.info(f"Updating REDCap record batch {i:,}/{len(batches):,} of size {len(batch):,}")
+            offer_count += project.update_records(batch)
 
         # Insert synthetic DETs into our receiving table to trigger a new
         # import.  This helps complete the roundtrip data update for the REDCap
