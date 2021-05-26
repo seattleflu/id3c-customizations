@@ -16,10 +16,17 @@ drop function public.pg_stat_get_activity_nonsuperuser();
 
 create function public.pg_stat_get_activity_nonsuperuser() returns table(
     pid integer, usename name, application_name text, client_addr inet,
-    state_change timestamp with time zone, state text) as
+    state_change timestamp with time zone, state text, metabase jsonb) as
     $$
     select
-        pid, usename, application_name, client_addr, state_change, state
+        pid, usename, application_name, client_addr, state_change, state,
+        nullif(
+            jsonb_strip_nulls(
+                public.hstore_to_jsonb(
+                    public.hstore(
+                        array['user_id', 'query_type', 'query_hash'],
+                        regexp_match(query, e'^-- Metabase:: userID: (.+?) queryType: (.+?) queryHash: (.+?)\n')))),
+            '{}'::jsonb) as metabase
         from pg_catalog.pg_stat_activity;
     $$
     language sql
