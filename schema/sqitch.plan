@@ -323,3 +323,4 @@ shipping/views [shipping/views@2021-03-18] 2021-04-02T23:03:42Z Jover Lee <jover
 
 shipping/views [shipping/views@2021-04-05] 2021-04-21T18:01:02Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Include yakima schools study in RoR shipping views
 @2021-04-22 2021-04-22T16:39:09Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Schema as of 22 April 2021
+roles/idle-session-disconnector/grants [roles/idle-session-disconnector/grants@2021-04-22] 2021-05-25T18:57:21Z Thomas Sibley <tsibley@fredhutch.org> # Add "metabase" column

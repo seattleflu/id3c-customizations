@@ -9,12 +9,9 @@ revoke all on all tables in schema receiving, warehouse, shipping from "idle-ses
 grant connect on database :"DBNAME" to "idle-session-disconnector";
 
 -- Regular users cannot see the state of sessions that they don't own. Create a
--- new view + function using security definer with limited columns that this
--- role can access to see a session's state.
-drop view public.pg_stat_activity_nonsuperuser;
-drop function public.pg_stat_get_activity_nonsuperuser();
-
-create function public.pg_stat_get_activity_nonsuperuser() returns table(
+-- new view using security definer with limited columns that this role can
+-- access to see a session's state.
+create or replace function public.pg_stat_get_activity_nonsuperuser() returns table(
     pid integer, usename name, application_name text, client_addr inet,
     state_change timestamp with time zone, state text) as
     $$
@@ -35,7 +32,7 @@ grant execute
     on function public.pg_stat_get_activity_nonsuperuser
     to "idle-session-disconnector";
 
-create view public.pg_stat_activity_nonsuperuser as
+create or replace view public.pg_stat_activity_nonsuperuser as
     select * from public.pg_stat_get_activity_nonsuperuser();
 
 grant select
