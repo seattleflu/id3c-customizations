@@ -908,6 +908,11 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'attend_event',
         'wfh',
         'industry',
+        'attend_event_jan2021',
+        'indoor_facility',
+        'social_precautions',
+        'no_mask',
+        'high_risk_feb2021'
     ]
 
     date_questions = [
