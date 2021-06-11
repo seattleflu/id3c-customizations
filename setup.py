@@ -69,6 +69,8 @@ setup(
         "dev": [
             "mypy",
             "pytest",
+            "types-requests",
+            "types-python-dateutil",
         ],
         "locations": [
             "pandas >=1.0.1,<2",

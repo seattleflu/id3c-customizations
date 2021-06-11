@@ -850,6 +850,18 @@
             "markers": "python_version < '3.8'",
             "version": "==1.4.3"
         },
+        "types-python-dateutil": {
+            "hashes": [
+                "sha256:498492e71dfb983ecc47924fb4f0987d205901ebd1d59f9a1c6603f3f970a62b"
+            ],
+            "version": "==0.1.2"
+        },
+        "types-requests": {
+            "hashes": [
+                "sha256:5b1864f1564adb810123c563b4de86236c14058978ec1294b07a988c532cb079"
+            ],
+            "version": "==0.1.10"
+        },
         "typing-extensions": {
             "hashes": [
                 "sha256:0ac0f89795dd19de6b97debb0c6af1c70987fd80a2d62d1958f7e56fcc31b497",
