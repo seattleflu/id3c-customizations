@@ -17,7 +17,7 @@ from functools import partial
 from math import ceil
 from id3c.db.session import DatabaseSession
 from id3c.cli import cli
-from id3c.cli.io.pandas import dump_ndjson, load_file_as_dataframe
+from id3c.cli.io.pandas import dump_ndjson, load_file_as_dataframe, read_excel
 from . import (
     add_provenance,
     age_ceiling,
@@ -335,13 +335,9 @@ def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple) -> pd.Data
     given clinical records DataFrame *df*
     """
     manifest_data = pd.DataFrame()
-    dtypes = {
-        'sample_id': 'string',
-        'kp_id': 'string'
-    }
 
     for filename in manifest_filenames:
-        manifest = pd.read_excel(filename, sheet_name = 'aliquoting', dtypes = dtypes)
+        manifest = read_excel(filename, sheet_name = 'aliquoting')
         manifest_data = manifest_data.append(manifest)
 
     manifest_data.dropna(subset = ['kp_id'], inplace = True)
