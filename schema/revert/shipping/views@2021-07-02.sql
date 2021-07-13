@@ -608,41 +608,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  integer_response[1] as pierce
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'pierce'
-        ),
-
-        attend_event_jan2021 as (
-          select encounter_id,
-                 string_response[1] as attend_event_jan2021
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'attend_event_jan2021'
-        ),
-
-        indoor_facility as (
-          select encounter_id,
-                 string_response[1] as indoor_facility
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'indoor_facility'
-        ),
-
-        social_precautions as (
-          select encounter_id,
-                 string_response as social_precautions
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'social_precautions'
-        ),
-
-        no_mask as (
-          select encounter_id,
-                 string_response as no_mask
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'no_mask'
-        ),
-
-        high_risk_feb2021 as (
-          select encounter_id,
-                 string_response as high_risk_feb2021
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'high_risk_feb2021'
         )
 
     select
@@ -695,12 +660,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
         industry,
         illness_questionnaire_date,
         yakima,
-        pierce,
-        attend_event_jan2021,
-        indoor_facility,
-        social_precautions,
-        no_mask,
-        high_risk_feb2021
+        pierce
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -749,11 +709,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join illness_questionnaire_date using (encounter_id)
       left join yakima using (encounter_id)
       left join pierce using (encounter_id)
-      left join attend_event_jan2021 using (encounter_id)
-      left join indoor_facility using (encounter_id)
-      left join social_precautions using (encounter_id)
-      left join no_mask using (encounter_id)
-      left join high_risk_feb2021 using (encounter_id)
   ;
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
@@ -1547,11 +1502,6 @@ create materialized view shipping.scan_encounters_v1 as
         industry,
         yakima,
         pierce,
-        attend_event_jan2021,
-        indoor_facility,
-        social_precautions,
-        no_mask,
-        high_risk_feb2021,
 
         sample.sample_id,
         sample.identifier as sample,
@@ -2162,7 +2112,6 @@ create or replace view shipping.genome_submission_metadata_v1 as
           when identifier_set.name in ('collections-school-testing-home', 'collections-school-testing-observed') then 'Snohomish Schools'
           when identifier_set.name in ('collections-seattleflu.org') then 'SCH'
           when identifier_set.name in ('collections-uw-home', 'collections-uw-observed') then 'HCT'
-          when identifier_set.name in ('collections-radxup-yakima-schools-home', 'collections-radxup-yakima-schools-observed') then 'Yakima Schools'
           else 'SFS'
         end as source,
         location.hierarchy -> 'puma' as puma,
@@ -2357,10 +2306,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-workplace-outbreak',
                                    'collections-apple-respiratory',
                                    'collections-school-testing-home',
-                                   'collections-school-testing-observed',
-                                   'collections-radxup-yakima-schools-home',
-                                   'collections-radxup-yakima-schools-observed'
-                                   )
+                                   'collections-school-testing-observed')
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
     order by encountered desc;
@@ -2488,8 +2434,6 @@ create or replace view shipping.return_results_v3 as
           when 'collections-apple-respiratory' then false
           when 'collections-school-testing-home' then false
           when 'collections-school-testing-observed' then true
-          when 'collections-radxup-yakima-schools-home' then false
-          when 'collections-radxup-yakima-schools-observed' then true
           else null
         end as staff_observed,
         case when identifier_set.name in (
@@ -2514,9 +2458,7 @@ create or replace view shipping.return_results_v3 as
           'collections-workplace-outbreak',
           'collections-apple-respiratory',
           'collections-school-testing-home',
-          'collections-school-testing-observed',
-          'collections-radxup-yakima-schools-home',
-          'collections-radxup-yakima-schools-observed'
+          'collections-school-testing-observed'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
