@@ -3244,7 +3244,7 @@ create materialized view shipping.__uw_encounters as (
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance
     , q_screen_positive.boolean_response as screen_positive
     , q_daily_symptoms.boolean_response as daily_symptoms
-    , case when q_daily_exposure.encounter_id is null then null when q_daily_exposure.string_response[1] = 'yes' then true else false end as daily_exposure
+    , case when q_daily_exposure.encounter_id is null then null when q_daily_exposure.string_response[1] in ('yes', 'yes_vac') then true else false end as daily_exposure
     , q_daily_exposure_known_pos.string_response[1] as daily_exposure_known_pos
     , q_testing_trigger.boolean_response as testing_trigger
     , q_surge_selected_flag.boolean_response as surge_selected_flag
