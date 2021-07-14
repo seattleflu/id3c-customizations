@@ -3466,7 +3466,6 @@ grant select
   on shipping.uw_priority_queue_v1
   to "uw-priority-queue-processor";
 
-commit;
 
 
 create or replace view shipping.linelist_data_for_wa_doh_v1 as (
@@ -3548,3 +3547,5 @@ grant select
 
 comment on view shipping.linelist_data_for_wa_doh_v1 is
   'Custom view of hCoV-19 results for preparing linelists for Washington Department of Health';
+
+commit;
