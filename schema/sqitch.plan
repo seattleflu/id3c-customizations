@@ -326,3 +326,8 @@ shipping/views [shipping/views@2021-04-05] 2021-04-21T18:01:02Z Kristen Schwabe-
 roles/idle-session-disconnector/grants [roles/idle-session-disconnector/grants@2021-04-22] 2021-05-25T18:57:21Z Thomas Sibley <tsibley@fredhutch.org> # Add "metabase" column
 warehouse/site/data [warehouse/site/data@2021-04-22] 2021-07-01T23:56:48Z Thomas Sibley <tsibley@fredhutch.org> # Update site data for new sites and cleanups
 @2021-07-02 2021-07-02T20:53:31Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 2 July 2021
+
+shipping/views [shipping/views@2021-07-02] 2021-07-13T20:17:46Z Dave Reinhart <davidrr@uw.edu> # Add new SCAN questionnaire fields to scan_encounters_v1 and fhir_encounter_details_v2 shipping views
+@2021-07-13 2021-07-13T20:58:57Z Dave Reinhart <davidrr@uw.edu> # Schema as of 13 July 2021
+shipping/views [shipping/views@2021-07-13] 2021-07-13T21:05:00Z Dave Reinhart <davidrr@uw.edu> # shipping.__uw_encounters: treat HCT daily_exposure value yes_vac the same as yes
+@2021-07-13b 2021-07-13T21:25:06Z Dave Reinhart <davidrr@uw.edu> # Schema as of later on 13 July 2021

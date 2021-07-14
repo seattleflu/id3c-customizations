@@ -608,6 +608,41 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  integer_response[1] as pierce
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'pierce'
+        ),
+
+        attend_event_jan2021 as (
+          select encounter_id,
+                 string_response[1] as attend_event_jan2021
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'attend_event_jan2021'
+        ),
+
+        indoor_facility as (
+          select encounter_id,
+                 string_response[1] as indoor_facility
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'indoor_facility'
+        ),
+
+        social_precautions as (
+          select encounter_id,
+                 string_response as social_precautions
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'social_precautions'
+        ),
+
+        no_mask as (
+          select encounter_id,
+                 string_response as no_mask
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'no_mask'
+        ),
+
+        high_risk_feb2021 as (
+          select encounter_id,
+                 string_response as high_risk_feb2021
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'high_risk_feb2021'
         )
 
     select
@@ -660,7 +695,12 @@ create or replace view shipping.fhir_encounter_details_v2 as
         industry,
         illness_questionnaire_date,
         yakima,
-        pierce
+        pierce,
+        attend_event_jan2021,
+        indoor_facility,
+        social_precautions,
+        no_mask,
+        high_risk_feb2021
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -709,6 +749,11 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join illness_questionnaire_date using (encounter_id)
       left join yakima using (encounter_id)
       left join pierce using (encounter_id)
+      left join attend_event_jan2021 using (encounter_id)
+      left join indoor_facility using (encounter_id)
+      left join social_precautions using (encounter_id)
+      left join no_mask using (encounter_id)
+      left join high_risk_feb2021 using (encounter_id)
   ;
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
@@ -1502,6 +1547,11 @@ create materialized view shipping.scan_encounters_v1 as
         industry,
         yakima,
         pierce,
+        attend_event_jan2021,
+        indoor_facility,
+        social_precautions,
+        no_mask,
+        high_risk_feb2021,
 
         sample.sample_id,
         sample.identifier as sample,
@@ -3194,7 +3244,7 @@ create materialized view shipping.__uw_encounters as (
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance
     , q_screen_positive.boolean_response as screen_positive
     , q_daily_symptoms.boolean_response as daily_symptoms
-    , case when q_daily_exposure.encounter_id is null then null when q_daily_exposure.string_response[1] = 'yes' then true else false end as daily_exposure
+    , case when q_daily_exposure.encounter_id is null then null when q_daily_exposure.string_response[1] in ('yes', 'yes_vac') then true else false end as daily_exposure
     , q_daily_exposure_known_pos.string_response[1] as daily_exposure_known_pos
     , q_testing_trigger.boolean_response as testing_trigger
     , q_surge_selected_flag.boolean_response as surge_selected_flag

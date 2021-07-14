@@ -908,6 +908,11 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'attend_event',
         'wfh',
         'industry',
+        'attend_event_jan2021',
+        'indoor_facility',
+        'social_precautions',
+        'no_mask',
+        'high_risk_feb2021',
     ]
 
     date_questions = [
@@ -940,6 +945,9 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'prior_test_type',
         'contact',
         'industry',
+        'social_precautions',
+        'no_mask',
+        'high_risk_feb2021',
     ]
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(record, field)
