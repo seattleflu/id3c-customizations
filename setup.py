@@ -69,6 +69,7 @@ setup(
         "dev": [
             "mypy",
             "pytest",
+            "sqlparse",
             "types-requests",
             "types-python-dateutil",
         ],
