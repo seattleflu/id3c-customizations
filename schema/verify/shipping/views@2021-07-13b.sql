@@ -137,11 +137,6 @@ select 1/(count(*) = 1)::int
 select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.scan_hcov19_result_counts_v2');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.scan_enrollments_v1');
 
 select 1/(count(*) = 1)::int
