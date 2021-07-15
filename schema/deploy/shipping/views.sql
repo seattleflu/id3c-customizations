@@ -2845,7 +2845,8 @@ create or replace view shipping.scan_hcov19_result_counts_v2 as
                             '5311613', '5311614', '5311615', '5311616') then 'king'
               else null
           end as county,
-          upper(priority_code) as priority_code
+          upper(priority_code) as priority_code,
+          scan_study_arm
 
       from shipping.scan_encounters_v1
       join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
@@ -2856,6 +2857,7 @@ create or replace view shipping.scan_hcov19_result_counts_v2 as
     select
         hcov19_result_release_date,
         priority_code,
+        scan_study_arm,
         count(*) filter (where hcov19_result in ('positive', 'inconclusive')) as total_hcov19_positives,
         count(*) filter (where hcov19_result = 'negative') as total_hcov19_negatives,
         count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'king') as king_county_positives,
@@ -2867,7 +2869,7 @@ create or replace view shipping.scan_hcov19_result_counts_v2 as
         count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county is null) as other_positives,
         count(*) filter (where hcov19_result = 'negative' and county is null) as other_negatives
     from scan_hcov19_results
-    group by hcov19_result_release_date, priority_code
+    group by hcov19_result_release_date, priority_code, scan_study_arm
 ;
 
 comment on view shipping.scan_hcov19_result_counts_v2 is
