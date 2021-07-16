@@ -32,7 +32,7 @@ create function public.pg_stat_get_activity_nonsuperuser() returns table(
     language sql
     volatile
     security definer
-    set search_path = pg_catalog;
+    set search_path = pg_catalog; -- tests/search-path: ignore
 
 revoke execute
     on function public.pg_stat_get_activity_nonsuperuser
