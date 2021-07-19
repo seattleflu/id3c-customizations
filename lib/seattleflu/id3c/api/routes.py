@@ -131,6 +131,19 @@ def get_scan_positives(session):
     return Response((row[0] + '\n' for row in positives), mimetype="application/x-ndjson")
 
 
+@api_v2.route("/shipping/scan-hcov19-positives", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_scan_positives__v2(session):
+    """
+    Export aggregate numbers of hCoV-19 result counts for SCAN, grouped by priority code
+    """
+    LOG.debug("Exporting hCoV-19 result counts for SCAN with priority code")
+
+    positives = datastore.fetch_rows_from_table(session, ("shipping", "scan_hcov19_result_counts_v2"))
+
+    return Response((row[0] + '\n' for row in positives), mimetype="application/x-ndjson")
+
+
 @api_v1.route("/shipping/scan-enrollments", methods = ['GET'])
 @authenticated_datastore_session_required
 def get_scan_enrollments(session):
