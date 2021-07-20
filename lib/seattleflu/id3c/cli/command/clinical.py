@@ -17,7 +17,7 @@ from functools import partial
 from math import ceil
 from id3c.db.session import DatabaseSession
 from id3c.cli import cli
-from id3c.cli.io.pandas import dump_ndjson, load_file_as_dataframe
+from id3c.cli.io.pandas import dump_ndjson, load_file_as_dataframe, read_excel
 from . import (
     add_provenance,
     age_ceiling,
@@ -266,11 +266,18 @@ def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
 
 @clinical.command("parse-kp")
 @click.argument("kp_filename", metavar = "<KP Clinical Data filename>")
-@click.argument("kp_specimen_manifest_filename", metavar = "<KP Specimen Manifest filename>")
+@click.argument("kp_specimen_manifest_filename",
+    metavar = "<KP Specimen Manifest filename(s)>",
+    nargs   = -1)
+@click.option("--manifest-format",
+    metavar="<manifest format>",
+    default="year2",
+    type=click.Choice(['year1','year2']),
+    help="The format of input manifest file; default is \"year2\"")
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
 
-def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
+def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output):
     """
     Process clinical data from KP.
 
@@ -282,7 +289,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
 
     clinical_records = trim_whitespace(clinical_records)
     clinical_records = add_provenance(clinical_records, kp_filename)
-    clinical_records = add_kp_manifest_data(clinical_records, kp_specimen_manifest_filename)
+    clinical_records = add_kp_manifest_data(clinical_records, kp_specimen_manifest_filename, manifest_format)
 
     clinical_records = convert_numeric_columns_to_binary(clinical_records)
     clinical_records = rename_symptoms_columns(clinical_records)
@@ -291,7 +298,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
 
     clinical_records['FluShot'] = clinical_records['fluvaxdt'].notna()
 
-    column_map = {  # Missing census_tract
+    column_map = {
         "enrollid": "individual",
         "enrolldate": "encountered",
         "barcode": "barcode",
@@ -301,8 +308,13 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
         "hispanic": "HispanicLatino",
         "symptom": "Symptoms",
         "FluShot": "FluShot",
+        "censustract": "census_tract",
         "_provenance": "_provenance",
     }
+
+    if manifest_format=="year1":
+        del column_map["censustract"]
+    
     clinical_records = clinical_records.rename(columns=column_map)
 
     barcode_quality_control(clinical_records, output)
@@ -326,23 +338,34 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, output):
     dump_ndjson(clinical_records)
 
 
-def add_kp_manifest_data(df: pd.DataFrame, manifest_filename: str) -> pd.DataFrame:
+def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple, manifest_format: str) -> pd.DataFrame:
     """
-    Join the specimen manifest data from the given *manifest_filename* with the
+    Join the specimen manifest data from the given *manifest_filenames* with the
     given clinical records DataFrame *df*
     """
-    barcode = 'Barcode ID (Sample ID)'
-    dtypes = {barcode: 'string'}
+    manifest_data = pd.DataFrame()
 
-    manifest_data = pd.read_excel(manifest_filename, sheet_name='KP', dtype=dtypes)
+    if manifest_format=="year1":
+        sheet_name = 'KP'
+        rename_map = {
+            'Barcode ID (Sample ID)': 'barcode',
+            'kp_id': 'enrollid',
+        }
+    else:
+        sheet_name = 'aliquoting'
+        rename_map = {
+            'sample_id': 'barcode',
+            'kp_id': 'enrollid',
+        }
 
+    for filename in manifest_filenames:
+        manifest = read_excel(filename, sheet_name = sheet_name)
+        manifest_data = manifest_data.append(manifest)
+
+    manifest_data.dropna(subset = ['kp_id'], inplace = True)
+    
     regex = re.compile(r"^KP-([0-9]{6,})-[0-9]$", re.IGNORECASE)
     manifest_data.kp_id = manifest_data.kp_id.apply(lambda x: regex.sub('WA\\1', x))
-
-    rename_map = {
-        barcode: 'barcode',
-        'kp_id': 'enrollid',
-    }
 
     manifest_data = manifest_data.rename(columns=rename_map)
     manifest_data = trim_whitespace(manifest_data)
