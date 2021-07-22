@@ -18,7 +18,6 @@ begin;
 drop view if exists shipping.scan_redcap_enrollments_v1;
 drop view if exists shipping.scan_enrollments_v1;
 drop view if exists shipping.scan_hcov19_result_counts_v1;
-drop view if exists shipping.scan_hcov19_result_counts_v2;
 drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
@@ -2825,75 +2824,6 @@ grant select
     to "scan-dashboard-exporter";
 
 
-create or replace view shipping.scan_hcov19_result_counts_v2 as
-
-    with scan_hcov19_results as (
-      select
-          case
-              when hcov19_pa.present is true then 'positive'
-              when hcov19_pa.present is false then 'negative'
-              when hcov19_pa.present is null then 'inconclusive'
-          end as hcov19_result,
-          hcov19_result_release_date,
-          case
-              when puma in ('5310901', '5310902') then 'yakima'
-              when puma in ('5311701', '5311702', '5311703',
-                            '5311704', '5311705', '5311706') then 'snohomish'
-              when puma in ('5311601', '5311602', '5311603', '5311604',
-                            '5311605', '5311606', '5311607', '5311608',
-                            '5311609', '5311610', '5311611', '5311612',
-                            '5311613', '5311614', '5311615', '5311616') then 'king'
-              else null
-          end as county,
-          upper(priority_code) as priority_code,
-          scan_study_arm
-
-      from shipping.scan_encounters_v1
-      join shipping.hcov19_presence_absence_result_v1 as hcov19_pa using (sample_id)
-      where
-        hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
-    )
-
-    select
-        hcov19_result_release_date,
-        priority_code,
-        scan_study_arm,
-        count(*) filter (where hcov19_result in ('positive', 'inconclusive')) as total_hcov19_positives,
-        count(*) filter (where hcov19_result = 'negative') as total_hcov19_negatives,
-        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'king') as king_county_positives,
-        count(*) filter (where hcov19_result = 'negative' and county = 'king') as king_county_negatives,
-        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'snohomish') as snohomish_county_positives,
-        count(*) filter (where hcov19_result = 'negative' and county = 'snohomish') as snohomish_county_negatives,
-        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county = 'yakima') as yakima_county_positives,
-        count(*) filter (where hcov19_result = 'negative' and county = 'yakima') as yakima_county_negatives,
-        count(*) filter (where hcov19_result in ('positive', 'inconclusive') and county is null) as other_positives,
-        count(*) filter (where hcov19_result = 'negative' and county is null) as other_negatives
-    from scan_hcov19_results
-    group by hcov19_result_release_date, priority_code, scan_study_arm
-;
-
-comment on view shipping.scan_hcov19_result_counts_v2 is
-  'A view of counts of hcov19 results from the SCAN project grouped by date results were released, with priority codes.';
-
--- Even if it's just aggregate counts of hcov19 results,
--- we should probably restrict access to this view to only hcov19-visibility
--- and scan-dashboard-exporter.
---  -Jover, 9 July 2020
-revoke all on shipping.scan_hcov19_result_counts_v2 from reporter;
-
-grant select
-    on shipping.scan_hcov19_result_counts_v2
-    to "hcov19-visibility";
-
-revoke all
-    on shipping.scan_hcov19_result_counts_v2
-  from "scan-dashboard-exporter";
-
-grant select
-    on shipping.scan_hcov19_result_counts_v2
-    to "scan-dashboard-exporter";
-
-
 create or replace view shipping.scan_enrollments_v1 as
 
     with location_names as (
@@ -3314,7 +3244,7 @@ create materialized view shipping.__uw_encounters as (
     , jsonb_extract_path_text (encounter.details, '_provenance', 'redcap', 'repeat_instance' ) as redcap_repeat_instance
     , q_screen_positive.boolean_response as screen_positive
     , q_daily_symptoms.boolean_response as daily_symptoms
-    , case when q_daily_exposure.encounter_id is null then null when q_daily_exposure.string_response[1] in ('yes', 'yes_vac') then true else false end as daily_exposure
+    , case when q_daily_exposure.encounter_id is null then null when q_daily_exposure.string_response[1] = 'yes' then true else false end as daily_exposure
     , q_daily_exposure_known_pos.string_response[1] as daily_exposure_known_pos
     , q_testing_trigger.boolean_response as testing_trigger
     , q_surge_selected_flag.boolean_response as surge_selected_flag

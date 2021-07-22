@@ -331,3 +331,6 @@ shipping/views [shipping/views@2021-07-02] 2021-07-13T20:17:46Z Dave Reinhart <d
 @2021-07-13 2021-07-13T20:58:57Z Dave Reinhart <davidrr@uw.edu> # Schema as of 13 July 2021
 shipping/views [shipping/views@2021-07-13] 2021-07-13T21:05:00Z Dave Reinhart <davidrr@uw.edu> # shipping.__uw_encounters: treat HCT daily_exposure value yes_vac the same as yes
 @2021-07-13b 2021-07-13T21:25:06Z Dave Reinhart <davidrr@uw.edu> # Schema as of later on 13 July 2021
+
+shipping/views [shipping/views@2021-07-13b] 2021-07-15T17:29:28Z Todd Seidelmann <seidelma@uw.edu> # Add shipping.scan_hcov19_result_counts_v2 view
+@2021-07-14 2021-07-15T17:34:06Z Todd Seidelmann <seidelma@uw.edu> # Schema as of 2021-07-14
