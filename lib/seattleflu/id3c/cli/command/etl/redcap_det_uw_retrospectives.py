@@ -225,7 +225,8 @@ def create_encounter_location_references(db: DatabaseSession, record: dict, resi
     origin_site_map = {
         "hmc_retro": "RetrospectiveHarborview",
         "uwmc_retro": "RetrospectiveUWMedicalCenter",
-        "nwh_retro": "RetrospectiveNorthwest"
+        "nwh_retro": "RetrospectiveNorthwest",
+        "phskc_retro": "RetrospectivePHSKC",
     }
 
     if sample_origin not in origin_site_map:

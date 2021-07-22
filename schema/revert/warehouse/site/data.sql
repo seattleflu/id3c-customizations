@@ -5,7 +5,7 @@ begin;
 
 insert into warehouse.site(identifier, details)
     values
-        ('BirchTreeAcademy',                        '{}'),
+        ('BirchTreeAcademy',                        '{"category": "community",  "type": "childcare"}'),
         ('CapitolHillLightRailStation',             '{"category": "community",  "type": "publicSpace",
             "swab_site": "%cap(it[ao]l)?_hill%"}'),
         ('ChildcareCenter70thAndSandPoint',         '{"category": "community",  "type": "childcare",
@@ -20,8 +20,8 @@ insert into warehouse.site(identifier, details)
         ('ColumbiaCenter',                          '{"category": "community",  "type": "workplace",
             "swab_site": "columbia_center"}'),
         ('Costco',                                  '{"category": "community",  "type": "workplace"}'),
-        ('DeniseLouieBeaconHill',                   '{}'),
-        ('DeniseLouieMercyMagnusonPl',              '{}'),
+        ('DeniseLouieBeaconHill',                   '{"category": "community",  "type": "childcare"}'),
+        ('DeniseLouieMercyMagnusonPl',              '{"category": "community",  "type": "childcare"}'),
         ('DESC',                                    '{"category": "community",  "type": "shelter",
             "swab_site": "desc"}'),
         ('FredHutchLobby',                          '{"category": "community",  "type": "workplace",
@@ -38,10 +38,10 @@ insert into warehouse.site(identifier, details)
             "sample_origin": "kp"}'),
         ('KingStreetStation',                       '{"category": "community",  "type": "publicSpace",
             "swab_site": "king_street%"}'),
-        ('MightyKidz',                              '{}'),
-        ('MinorAvenueChildrensHouse',               '{}'),
-        ('MothersPlace',                            '{}'),
-        ('PICAWA',                                  '{}'),
+        ('MightyKidz',                              '{"category": "community",  "type": "childcare"}'),
+        ('MinorAvenueChildrensHouse',               '{"category": "community",  "type": "childcare"}'),
+        ('MothersPlace',                            '{"category": "community",  "type": "childcare"}'),
+        ('PICAWA',                                  '{"category": "community",  "type": "publicSpace"}'),
         ('PioneerSquare',                           '{"category": "clinic",     "type": "clinic"}'),
         ('RetrospectiveChildrensHospitalSeattle',   '{"category": "hospital",   "type": "retrospective",
             "sample_origin": "sch_retro"}'),
@@ -62,14 +62,14 @@ insert into warehouse.site(identifier, details)
         ('StMartins',                               '{"category": "community",  "type": "shelter"}'),
         ('swabNSend',                               '{"category": "community",  "type": "swab-n-send",
             "swab_site": "swab_and_send"}'),
-        ('TinyTotsDevelopmentCenterEast',           '{}'),
-        ('TinyTotsDevelopmentCenterMain',           '{}'),
+        ('TinyTotsDevelopmentCenterEast',           '{"category": "community",  "type": "childcare"}'),
+        ('TinyTotsDevelopmentCenterMain',           '{"category": "community",  "type": "childcare"}'),
         ('UWBothell',                               '{"category": "community",  "type": "collegeCampus"}'),
-        ('UWChildrensCenterLaurelVillage',          '{}'),
-        ('UWChildrensCenterPortageBay',             '{}'),
+        ('UWChildrensCenterLaurelVillage',          '{"category": "community",  "type": "childcare"}'),
+        ('UWChildrensCenterPortageBay',             '{"category": "community",  "type": "childcare"}'),
         ('UWChildrensCenterRadfordCourt',           '{"category": "community",  "type": "childcare",
             "swab_site": "cc_radford"}'),
-        ('UWChildrensCenterWestCampus',             '{}'),
+        ('UWChildrensCenterWestCampus',             '{"category": "community",  "type": "childcare"}'),
         ('UWClub',                                  '{"category": "community",  "type": "collegeCampus"}'),
         ('UWDaycare',                               '{"category": "community",  "type": "childcare"}'),
         ('UWGreek',                                 '{"category": "community",  "type": "collegeCampus",
@@ -91,5 +91,7 @@ insert into warehouse.site(identifier, details)
     on conflict (identifier) do update
         set details = EXCLUDED.details
 ;
+
+delete from warehouse.site where identifier = 'RetrospectivePHSKC';
 
 commit;

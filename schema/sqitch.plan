@@ -334,3 +334,6 @@ shipping/views [shipping/views@2021-07-13] 2021-07-13T21:05:00Z Dave Reinhart <d
 
 shipping/views [shipping/views@2021-07-13b] 2021-07-15T17:29:28Z Todd Seidelmann <seidelma@uw.edu> # Add shipping.scan_hcov19_result_counts_v2 view
 @2021-07-14 2021-07-15T17:34:06Z Todd Seidelmann <seidelma@uw.edu> # Schema as of 2021-07-14
+
+warehouse/site/data [warehouse/site/data@2021-07-02] 2021-07-12T21:29:50Z Thomas Sibley <tsibley@fredhutch.org> # Add RetrospectivePHSKC site
+@2021-07-21 2021-07-12T21:40:24Z Thomas Sibley <tsibley@fredhutch.org> # schema as of 21 July 2021
