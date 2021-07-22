@@ -47,7 +47,7 @@ begin
 
     set local role reporter;
 
-    assert expected_count = (
+    assert 0 = (
         select count(*)
         from warehouse.presence_absence
         join warehouse.target using (target_id)

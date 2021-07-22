@@ -2,5 +2,6 @@
 
 begin;
 
+set local role "hcov19-visibility";
 
 rollback;

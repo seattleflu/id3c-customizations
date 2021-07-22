@@ -2,9 +2,6 @@
 
 begin;
 
-create role "hcov19-visibility";
-
-comment on role "hcov19-visibility" is
-    'Allows access to HCoV-19 presence/absence results';
+drop role "hcov19-visibility";
 
 commit;

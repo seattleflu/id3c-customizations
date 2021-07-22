@@ -3,5 +3,10 @@
 
 begin;
 
+do $$
+begin
+    assert pg_has_role('view-owner', 'reporter', 'usage');
+end
+$$;
 
 rollback;
