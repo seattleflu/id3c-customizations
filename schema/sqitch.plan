@@ -344,3 +344,5 @@ roles/view-owner/grants [roles/view-owner/grants@2021-07-14] 2021-07-21T19:22:26
 roles/view-owner/create [roles/view-owner/create@2021-07-14] 2021-07-21T19:15:33Z Thomas Sibley <tsibley@fredhutch.org> # Remove view-owner role
 roles/hcov19-visibility/create [roles/hcov19-visibility/create@2021-07-14] 2021-07-21T19:16:06Z Thomas Sibley <tsibley@fredhutch.org> # Remove hcov19-visibility role
 @2021-07-22 2021-07-22T20:16:59Z Thomas Sibley <tsibley@fredhutch.org> # schema after removing RLS
+shipping/views [shipping/views@2021-07-22] 2021-07-23T18:33:12Z Todd <seidelma@MacBook-Pro-2012.local> # Add permissions for return_results_v3 view
+@2021-07-23 2021-07-23T18:35:06Z Todd <seidelma@MacBook-Pro-2012.local> # Schema as of 7/23/2021

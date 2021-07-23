@@ -1198,6 +1198,31 @@ create or replace view shipping.hcov19_presence_absence_result_v1 as
         presence_absence_id desc
 ;
 
+
+/* The shipping.hcov19_presence_absence_result_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.hcov19_presence_absence_result_v1 from reporter;
+
+grant select
+    on shipping.hcov19_presence_absence_result_v1
+    to "hcov19-visibility";
+
 comment on view shipping.hcov19_presence_absence_result_v1 is
   'Custom view of hCoV-19 samples with non-clinical presence-absence results';
 
@@ -1345,6 +1370,32 @@ create or replace view shipping.hcov19_observation_v1 as
             or sample.details->>'sample_origin' != 'es')
 ;
 
+
+/* The shipping.hcov19_observation_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.hcov19_observation_v1 from reporter;
+
+grant select
+    on shipping.hcov19_observation_v1
+    to "hcov19-visibility";
+
+
 comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
@@ -1390,6 +1441,30 @@ create or replace view shipping.observation_with_presence_absence_result_v3 as
       where
         not pa.details @> '{"device": "clinical"}'
       order by site_type, encounter, sample, target;
+
+/* The shipping.observation_with_presence_absence_result_v3 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.observation_with_presence_absence_result_v3 from reporter;
+
+grant select
+    on shipping.observation_with_presence_absence_result_v3
+    to "hcov19-visibility";
 
 comment on view shipping.observation_with_presence_absence_result_v3 is
   'Joined view of shipping.incidence_model_observation_v4, shipping.presence_absence_result_v2, and shipping.hcov19_observation_v1';
@@ -2055,6 +2130,10 @@ create or replace view shipping.flu_assembly_jobs_v1 as
 comment on view shipping.flu_assembly_jobs_v1 is
     'View of flu jobs that still need to be run through the assembly pipeline';
 
+-- Does not need HCoV-19 visibility and should filter it out
+-- anyway, but be safe.
+alter view shipping.flu_assembly_jobs_v1 owner to "view-owner";
+
 
 create or replace view shipping.genome_submission_metadata_v1 as
 
@@ -2287,6 +2366,26 @@ create or replace view shipping.reportable_condition_v1 as
     and presence_absence.details @> '{"assay_type": "Clia"}'
     order by encountered desc;
 
+/* The shipping.reportable_condition_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by
+ * reportable-condition-notifier.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.reportable_condition_v1 from reporter;
+
 grant select
    on shipping.reportable_condition_v1
    to "reportable-condition-notifier";
@@ -2449,16 +2548,32 @@ create or replace view shipping.return_results_v3 as
       hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
     ;
 
-comment on view shipping.return_results_v3 is
-  'View of barcodes and presence/absence results for SFS return of results on the UW Lab Med site';
-
-revoke all
-    on shipping.return_results_v3
-    from "return-results-exporter";
+/* The shipping.return_results_v3 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.return_results_v3 from reporter;
 
 grant select
     on shipping.return_results_v3
-    to "return-results-exporter";
+    to "hcov19-visibility";
+
+comment on view shipping.return_results_v3 is
+  'View of barcodes and presence/absence results for SFS return of results on the UW Lab Med site';
 
 
 create or replace view shipping.scan_return_results_v1 as
@@ -2517,6 +2632,30 @@ create or replace view shipping.scan_return_results_v1 as
     where
       hcov19_pa.sample_id is null or hcov19_pa.details @> '{"assay_type": "Clia"}'
     ;
+
+/* The shipping.scan_return_results_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.scan_return_results_v1 from reporter;
+
+grant select
+    on shipping.scan_return_results_v1
+    to "hcov19-visibility";
 
 comment on view shipping.scan_return_results_v1 is
   'View of barcodes and presence/absence results for SCAN return of results on the UW Lab Med site';
@@ -2606,6 +2745,12 @@ create or replace view shipping.scan_demographics_v2 as
 comment on view shipping.scan_demographics_v2 is
   'A view of basic demographic data with hcov19 results from the SCAN project for Power BI dashboards.';
 
+revoke all on shipping.scan_demographics_v2 from reporter;
+
+grant select
+    on shipping.scan_demographics_v2
+    to "hcov19-visibility";
+
 revoke all
     on shipping.scan_demographics_v2
   from "scan-dashboard-exporter";
@@ -2660,6 +2805,16 @@ create or replace view shipping.scan_hcov19_result_counts_v1 as
 
 comment on view shipping.scan_hcov19_result_counts_v1 is
   'A view of counts of hcov19 results from the SCAN project grouped by date results were released.';
+
+-- Even if it's just aggregate counts of hcov19 results,
+-- we should probably restrict access to this view to only hcov19-visibility
+-- and scan-dashboard-exporter.
+--  -Jover, 9 July 2020
+revoke all on shipping.scan_hcov19_result_counts_v1 from reporter;
+
+grant select
+    on shipping.scan_hcov19_result_counts_v1
+    to "hcov19-visibility";
 
 revoke all
     on shipping.scan_hcov19_result_counts_v1
@@ -2719,6 +2874,16 @@ create or replace view shipping.scan_hcov19_result_counts_v2 as
 
 comment on view shipping.scan_hcov19_result_counts_v2 is
   'A view of counts of hcov19 results from the SCAN project grouped by date results were released, with priority codes.';
+
+-- Even if it's just aggregate counts of hcov19 results,
+-- we should probably restrict access to this view to only hcov19-visibility
+-- and scan-dashboard-exporter.
+--  -Jover, 9 July 2020
+revoke all on shipping.scan_hcov19_result_counts_v2 from reporter;
+
+grant select
+    on shipping.scan_hcov19_result_counts_v2
+    to "hcov19-visibility";
 
 revoke all
     on shipping.scan_hcov19_result_counts_v2
@@ -3118,6 +3283,15 @@ create or replace view shipping.uw_reopening_ehs_reporting_v1 as
 
 comment on view shipping.uw_reopening_ehs_reporting_v1 is
   'For the UW reopening project, a view that combines encounter, enrollment, and hCoV-19 test result data';
+
+/* The shipping.uw_reopening_ehs_reporting_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility and ehs-results-exporter.  Revoke existing grants to every other role.  */
+ revoke all on shipping.uw_reopening_ehs_reporting_v1 from reporter;
+
+ grant select
+    on shipping.uw_reopening_ehs_reporting_v1
+    to "hcov19-visibility";
 
   revoke all
   on shipping.uw_reopening_encounters_v1
@@ -3608,6 +3782,30 @@ create or replace view shipping.linelist_data_for_wa_doh_v1 as (
       and hcov19_presence_absence_result_v1.details @> '{"assay_type": "Clia"}'
       order by sample_id, encounter_id
 );
+
+/* The shipping.linelist_data_for_wa_doh_v1 view needs hCoV-19 visibility, so
+ * remains owned by postgres, but it should only be accessible by those with
+ * hcov19-visibility.  Revoke existing grants to every other role.
+ *
+ * XXX FIXME: There is a bad interplay here if roles/x/grants is also reworked
+ * in the future.  It's part of the broader bad interplay between views and
+ * their grants.  I think it was a mistake to lump grants to each role in their
+ * own change instead of scattering them amongst the changes that create/rework
+ * tables and views and things that are granted on.  I made that choice
+ * initially so that all grants for a role could be seen in a single
+ * consolidated place, which would still be nice.  There's got to be a better
+ * system for managing this (a single idempotent change script with all ACLs
+ * that is always run after other changes? cleaner breaking up of sqitch
+ * projects?), but I don't have time to think on it much now.  Luckily for us,
+ * I think the core reporter role is unlikely to be reworked soon, but we
+ * should be wary.
+ *   -trs, 7 March 2020
+ */
+revoke all on shipping.linelist_data_for_wa_doh_v1 from reporter;
+
+grant select
+    on shipping.linelist_data_for_wa_doh_v1
+    to "hcov19-visibility";
 
 comment on view shipping.linelist_data_for_wa_doh_v1 is
   'Custom view of hCoV-19 results for preparing linelists for Washington Department of Health';
