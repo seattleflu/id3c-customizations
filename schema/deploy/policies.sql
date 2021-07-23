@@ -16,49 +16,24 @@ begin;
  */
 
 alter table warehouse.presence_absence
-    enable row level security;
+    disable row level security;
 
 drop policy if exists "public: visible if not HCoV-19"
     on warehouse.presence_absence;
 
-create policy "public: visible if not HCoV-19"
-    on warehouse.presence_absence
-    as permissive
-    for all to public using (
-        target_id not in (
-            select
-                target_id
-            from
-                warehouse.target
-                join warehouse.organism using (organism_id)
-            where
-                lineage <@ 'Human_coronavirus.2019'
-        )
-    )
-;
-
 drop policy if exists "hcov19-visibility: visible unconditionally"
     on warehouse.presence_absence;
-
-create policy "hcov19-visibility: visible unconditionally"
-    on warehouse.presence_absence
-    as permissive
-    for all to "hcov19-visibility" using (true)
-;
 
 /* This grant seems more closely coupled to our policies than the roles
  * themselves, so it lives here rather than adjacent to either the granted or
  * grantee roles.
  */
-grant "hcov19-visibility" to
+revoke "hcov19-visibility" from
     "fhir-processor",
     "presence-absence-processor",
     "reportable-condition-notifier";
 
-/* Normal p/a results don't get HCoV-19 visibility.  We'll make
- * separate views as necessary.
- *
- * XXX TODO: Statements are here since these are core views.  There's a bad
+/* XXX TODO: Statements are here since these are core views.  There's a bad
  * interplay where the owner will revert back to postgres if the core views are
  * dropped and re-created.  This is similar to ACLs interplay with
  * shipping.reportable_condition_v1 I wrote about in
@@ -66,10 +41,10 @@ grant "hcov19-visibility" to
  *   -trs, 7 March 2020
  */
 alter view shipping.presence_absence_result_v1
-    owner to "view-owner";
+    owner to current_user;
 
 alter view shipping.presence_absence_result_v2
-    owner to "view-owner";
+    owner to current_user;
 
 /* Adjust ACLs on a core table.
  *
@@ -78,16 +53,16 @@ alter view shipping.presence_absence_result_v2
  * above.
  *   -trs, 7 March 2020
  */
-revoke all
-    on receiving.presence_absence
-    from reporter;
-
-grant select (presence_absence_id, received, processing_log)
+grant select
     on receiving.presence_absence
     to reporter;
 
-grant select
+revoke select (presence_absence_id, received, processing_log)
     on receiving.presence_absence
-    to "hcov19-visibility";
+  from reporter;
+
+revoke select
+    on receiving.presence_absence
+  from "hcov19-visibility";
 
 commit;

@@ -2,5 +2,6 @@
 
 begin;
 
+set local role "view-owner";
 
 rollback;

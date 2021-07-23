@@ -2,9 +2,6 @@
 
 begin;
 
-create role "view-owner";
-
-comment on role "view-owner" is
-    'A minimally privileged role to use as the owner of views';
+drop role "view-owner";
 
 commit;
