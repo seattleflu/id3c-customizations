@@ -140,6 +140,14 @@ create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 comment on view shipping.sample_with_best_available_encounter_data_v1 is
     'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
 
+revoke all
+    on shipping.sample_with_best_available_encounter_data_v1
+  from "return-results-exporter";
+
+grant select
+   on shipping.sample_with_best_available_encounter_data_v1
+   to "return-results-exporter";
+
 
 create materialized view shipping.fhir_questionnaire_responses_v1 as
 
@@ -3611,5 +3619,14 @@ create or replace view shipping.linelist_data_for_wa_doh_v1 as (
 
 comment on view shipping.linelist_data_for_wa_doh_v1 is
   'Custom view of hCoV-19 results for preparing linelists for Washington Department of Health';
+
+revoke all
+  on shipping.linelist_data_for_wa_doh_v1
+  from "return-results-exporter";
+
+grant select
+  on shipping.linelist_data_for_wa_doh_v1
+  to "return-results-exporter";
+
 
 commit;
