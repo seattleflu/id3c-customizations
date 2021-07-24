@@ -2452,14 +2452,6 @@ create or replace view shipping.return_results_v3 as
 comment on view shipping.return_results_v3 is
   'View of barcodes and presence/absence results for SFS return of results on the UW Lab Med site';
 
-revoke all
-    on shipping.return_results_v3
-    from "return-results-exporter";
-
-grant select
-    on shipping.return_results_v3
-    to "return-results-exporter";
-
 
 create or replace view shipping.scan_return_results_v1 as
 
