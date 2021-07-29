@@ -348,3 +348,6 @@ shipping/views [shipping/views@2021-07-22] 2021-07-23T18:33:12Z Todd <seidelma@M
 @2021-07-23 2021-07-23T18:35:06Z Todd <seidelma@MacBook-Pro-2012.local> # Schema as of 7/23/2021
 shipping/views [shipping/views@2021-07-23] 2021-07-24T16:03:55Z Todd <seidelma@Todds-MacBook-Pro.local> # Fix permissions issues with several views
 @2021-07-24 2021-07-24T16:14:22Z Todd <seidelma@Todds-MacBook-Pro.local> # Schema as of 7/24/2021
+
+shipping/views [shipping/views@2021-07-24] 2021-07-27T23:46:06Z Jover Lee <joverlee@fredhutch.org> # Update genome submission metadata view
+@2021-07-27 2021-07-27T23:48:25Z Jover Lee <joverlee@fredhutch.org> # Schema as of 27 July 2021
