@@ -351,3 +351,6 @@ shipping/views [shipping/views@2021-07-23] 2021-07-24T16:03:55Z Todd <seidelma@T
 
 shipping/views [shipping/views@2021-07-24] 2021-07-27T23:46:06Z Jover Lee <joverlee@fredhutch.org> # Update genome submission metadata view
 @2021-07-27 2021-07-27T23:48:25Z Jover Lee <joverlee@fredhutch.org> # Schema as of 27 July 2021
+
+shipping/views [shipping/views@2021-07-27] 2021-08-03T17:09:40Z Todd <seidelma@MacBook-Pro-2012.local> # Add tiny-swabs support to shipping.return_results_v3
+@2021-08-03 2021-08-03T17:10:50Z Todd <seidelma@MacBook-Pro-2012.local> # Schema as of 2021/08/03
