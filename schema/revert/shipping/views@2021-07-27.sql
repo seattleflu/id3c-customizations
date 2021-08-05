@@ -2074,8 +2074,6 @@ create or replace view shipping.genome_submission_metadata_v1 as
         coalesce(sample.collected::date, encounter.encountered::date) as collection_date,
         case sample.details ->> 'swab_type'
           when 'ans' then 'Anterior nasal swab'
-          -- New tiny swabs are still ANS swabs
-          when 'tiny' then 'Anterior nasal swab'
           when 'mtb' then 'Mid-turbinate nasal swab'
           when 'np' then 'Nasopharyngeal swab'
           else null
@@ -2093,74 +2091,19 @@ create or replace view shipping.genome_submission_metadata_v1 as
           when identifier_set.name in ('collections-kiosks', 'collections-kiosks-asymptomatic') then 'Shelters'
           when identifier_set.name in ('collections-school-testing-home', 'collections-school-testing-observed') then 'Snohomish Schools'
           when identifier_set.name in ('collections-seattleflu.org') then 'SCH'
-          when identifier_set.name in ('collections-uw-home', 'collections-uw-observed', 'collections-uw-tiny-swabs') then 'HCT'
+          when identifier_set.name in ('collections-uw-home', 'collections-uw-observed') then 'HCT'
           when identifier_set.name in ('collections-radxup-yakima-schools-home', 'collections-radxup-yakima-schools-observed') then 'Yakima Schools'
           else 'SFS'
         end as source,
         location.hierarchy -> 'puma' as puma,
-        -- Convert census tract to counties for Washington counties
-        -- May be removed if county is added to `location.hierarchy`
-        case left(location.hierarchy -> 'tract', 5)
-          when '53001' then	'Adams'
-          when '53003' then	'Asotin'
-          when '53005' then	'Benton'
-          when '53007' then	'Chelan'
-          when '53009' then	'Clallam'
-          when '53011' then	'Clark'
-          when '53013' then	'Columbia'
-          when '53015' then	'Cowlitz'
-          when '53017' then	'Douglas'
-          when '53019' then	'Ferry'
-          when '53021' then	'Franklin'
-          when '53023' then	'Garfield'
-          when '53025' then	'Grant'
-          when '53027' then	'Grays Harbor'
-          when '53029' then	'Island'
-          when '53031' then	'Jefferson'
-          when '53033' then	'King'
-          when '53035' then	'Kitsap'
-          when '53037' then	'Kittitas'
-          when '53039' then	'Klickitat'
-          when '53041' then	'Lewis'
-          when '53043' then	'Lincoln'
-          when '53045' then	'Mason'
-          when '53047' then	'Okanogan'
-          when '53049' then	'Pacific'
-          when '53051' then	'Pend Oreille'
-          when '53053' then	'Pierce'
-          when '53055' then	'San Juan'
-          when '53057' then	'Skagit'
-          when '53059' then	'Skamania'
-          when '53061' then	'Snohomish'
-          when '53063' then	'Spokane'
-          when '53065' then	'Stevens'
-          when '53067' then	'Thurston'
-          when '53069' then	'Wahkiakum'
-          when '53071' then	'Walla Walla'
-          when '53073' then	'Whatcom'
-          when '53075' then	'Whitman'
-          when '53077' then	'Yakima'
-          else null
-        end as county,
         -- If location is null, assume the sample is from within Washington.
-        coalesce(initcap(replace(location.hierarchy -> 'state', '_', ' ')), 'Washington') as state,
-        case
-          -- clinical residuals are all considered baseline samples
-          when sample.details ->> 'sample_origin' in ('hmc_retro','nwh_retro','phskc_retro','sch_retro','uwmc_retro') then true
-          -- SCAN samples not from groups or priority codes are considered baseline samples
-          when identifier_set.name = 'collections-scan' and scan_study_arm != 'group_enroll_arm_4' and priority_code is null then true
-          -- SCAN priority codes for shifting sampling frame to be more representative are baseline samples
-          when priority_code in ('ACRS','JFS','OPENDOORS','PACISLWA','PICAWA-1','SCANCBO','SCANKIDS') then true
-          -- All other studies are longitudinal or cluster/outbreak investigations so not considered baseline
-          else false
-        end as baseline_surveillance
+        coalesce(initcap(replace(location.hierarchy -> 'state', '_', ' ')), 'Washington') as state
 
     from warehouse.sample
     join warehouse.identifier sampleid on sampleid.uuid::text = sample.identifier
     left join warehouse.identifier collectionid on collectionid.uuid::text = sample.collection_identifier
     left join warehouse.identifier_set on collectionid.identifier_set_id = identifier_set.identifier_set_id
     left join warehouse.encounter using (encounter_id)
-    left join shipping.scan_encounters_v1 using (encounter_id)
     left join warehouse.primary_encounter_location using (encounter_id)
     left join warehouse.location using (location_id);
 
@@ -3177,7 +3120,7 @@ create or replace view shipping.uw_reopening_ehs_reporting_v1 as
   from shipping.uw_reopening_encounters_v1 encounters
   join warehouse.identifier ids on cast(ids.uuid as text) = encounters.collection_identifier
   join shipping.return_results_v3 results on results.qrcode = ids.barcode
-  where results.status_code in (values ('positive'), ('negative'), ('inconclusive'), ('never-tested'))
+  where results.status_code in ('positive', 'negative', 'inconclusive', 'never-tested')
 )
 ;
 
