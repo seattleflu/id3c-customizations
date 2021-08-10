@@ -353,3 +353,4 @@ shipping/views [shipping/views@2021-07-24] 2021-07-27T23:46:06Z Jover Lee <jover
 @2021-07-27 2021-07-27T23:48:25Z Jover Lee <joverlee@fredhutch.org> # Schema as of 27 July 2021
 shipping/views [shipping/views@2021-07-27] 2021-08-05T03:05:40Z Dave Reinhart <davidrr@uw.edu> # Update uw_reopening_ehs_reporting_v1 view
 @2021-08-05 2021-08-05T13:47:57Z Dave Reinhart <davidrr@uw.edu> # Schema as of 5 August 2021
+shipping/views [shipping/views@2021-08-05] 2021-08-10T03:53:29Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Update priority ordering in uw_priority_queue_v1 view

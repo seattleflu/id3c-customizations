@@ -3601,8 +3601,8 @@ create or replace view shipping.uw_priority_queue_v1 as (
     from distinct_individuals
     order by
         priority asc nulls last,                        -- Prioritize first by reason testing is indicated…
-        age(latest_collection_date) desc nulls first,   -- …then, people who were least recently (if ever) tested
         age(latest_invite_date) desc nulls first,       -- …then, people who were least recently (if ever) offered a test
+        age(latest_collection_date) desc nulls first,   -- …then, people who were least recently (if ever) tested
         encountered asc,                                -- …then, people who attested positive or enrolled the longest ago
         individual asc                                  -- …and finally, by an evenly-distributed value (SHA-256 hash).
 )
