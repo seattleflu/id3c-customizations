@@ -3177,7 +3177,7 @@ create or replace view shipping.uw_reopening_ehs_reporting_v1 as
   from shipping.uw_reopening_encounters_v1 encounters
   join warehouse.identifier ids on cast(ids.uuid as text) = encounters.collection_identifier
   join shipping.return_results_v3 results on results.qrcode = ids.barcode
-  where results.status_code in (values ('positive'), ('negative'), ('inconclusive'), ('never-tested'))
+  where results.status_code in ('positive', 'negative', 'inconclusive', 'never-tested')
 )
 ;
 
