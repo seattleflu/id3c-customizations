@@ -24,8 +24,14 @@ class HuskyProject():
         self.lang = lang
         self.command_name = command_name
 
+
+REDCAP_URL  = 'https://hct.redcap.rit.uw.edu/' # REDCap server hostname
+REDCAP_PID  = 45                              # REDCap project ID
+REDCAP_LANG = 'en'                            # Survey language
+ETL_COMMAND = 'uw-reopening'                  # Run as 'id3c etl redcap-det <ETL_COMMAND>'
+
 PROJECTS = [
-        HuskyProject(23854, "en", "uw-reopening")
+        HuskyProject(REDCAP_PID, REDCAP_LANG, ETL_COMMAND)
     ]
 
 LANGUAGE_CODE = {
@@ -40,10 +46,8 @@ class EventType(Enum):
     ENROLLMENT = 'enrollment'
     ENCOUNTER = 'encounter'
 
-
 REVISION = 2
 
-REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
 ENROLLMENT_EVENT_NAME = "enrollment_arm_1"
 ENCOUNTER_EVENT_NAME = "encounter_arm_1"
