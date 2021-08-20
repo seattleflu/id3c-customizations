@@ -697,7 +697,11 @@ def extract_date_from_survey_timestamp(record: REDCapRecord, survey_name: str) -
     is in local (Pacific) time. The timestamp will be populated only if the instrument was filled out
     as a survey. The timestamp field cannot be set via a REDCap data import.
     """
-    if record and survey_name and is_complete(survey_name, record) and record.get(f'{survey_name}_timestamp'):
+    if (record and
+            survey_name and
+            is_complete(survey_name, record) and
+            record.get(f'{survey_name}_timestamp') and
+            record.get(f'{survey_name}_timestamp') != '[not completed]'):
         return datetime.strptime(record.get(f'{survey_name}_timestamp'),
             '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
 
