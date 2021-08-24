@@ -19,6 +19,7 @@ __all__ = [
     "longitudinal",
     "reportable_conditions",
     "offer_uw_testing",
+    "backfill_sample_ids",
 ]
 
 
