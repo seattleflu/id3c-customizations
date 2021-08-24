@@ -2093,8 +2093,7 @@ create or replace view shipping.genome_submission_metadata_v1 as
           when identifier_set.name in ('collections-kiosks', 'collections-kiosks-asymptomatic') then 'Shelters'
           when identifier_set.name in ('collections-school-testing-home', 'collections-school-testing-observed') then 'Snohomish Schools'
           when identifier_set.name in ('collections-seattleflu.org') then 'SCH'
-          when identifier_set.name in ('collections-uw-home', 'collections-uw-observed', 'collections-uw-tiny-swabs',
-                                       'collections-uw-tiny-swabs-home', 'collections-uw-tiny-swabs-observed') then 'HCT'
+          when identifier_set.name in ('collections-uw-home', 'collections-uw-observed', 'collections-uw-tiny-swabs') then 'HCT'
           when identifier_set.name in ('collections-radxup-yakima-schools-home', 'collections-radxup-yakima-schools-observed') then 'Yakima Schools'
           else 'SFS'
         end as source,
@@ -2339,8 +2338,6 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-environmental',
                                    'collections-uw-home',
                                    'collections-uw-observed',
-                                   'collections-uw-tiny-swabs-home',
-                                   'collections-uw-tiny-swabs-observed',
                                    'collections-household-general',
                                    'collections-childcare',
                                    'collections-adult-family-home-outbreak',
@@ -2452,8 +2449,6 @@ create or replace view shipping.return_results_v3 as
           when 'collections-uw-observed' then true
           when 'collections-scan' then false
           when 'collections-uw-home' then false
-          when 'collections-uw-tiny-swabs-home' then false
-          when 'collections-uw-tiny-swabs-observed' then true
           when 'collections-childcare' then false
           when 'collections-adult-family-home-outbreak' then true
           when 'collections-workplace-outbreak' then true
@@ -2481,8 +2476,6 @@ create or replace view shipping.return_results_v3 as
           'collections-scan-kiosks',
           'collections-uw-home',
           'collections-uw-observed',
-          'collections-uw-tiny-swabs-home',
-          'collections-uw-tiny-swabs-observed',
           'collections-childcare',
           'collections-adult-family-home-outbreak',
           'collections-workplace-outbreak',
@@ -3608,8 +3601,8 @@ create or replace view shipping.uw_priority_queue_v1 as (
     from distinct_individuals
     order by
         priority asc nulls last,                        -- Prioritize first by reason testing is indicated…
-        age(latest_invite_date) desc nulls first,       -- …then, people who were least recently (if ever) offered a test
         age(latest_collection_date) desc nulls first,   -- …then, people who were least recently (if ever) tested
+        age(latest_invite_date) desc nulls first,       -- …then, people who were least recently (if ever) offered a test
         encountered asc,                                -- …then, people who attested positive or enrolled the longest ago
         individual asc                                  -- …and finally, by an evenly-distributed value (SHA-256 hash).
 )
