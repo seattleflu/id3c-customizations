@@ -271,7 +271,8 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             prioritized_barcodes = [
                 redcap_record_instance["collect_barcode_kiosk"],
                 redcap_record_instance["return_utm_barcode"],
-                redcap_record_instance["pre_scan_barcode"]]
+                redcap_record_instance["pre_scan_barcode"],
+                redcap_record_instance["barcode_swabsend"]]
 
             specimen_entry, specimen_reference = create_specimen(
                 prioritized_barcodes = prioritized_barcodes,
