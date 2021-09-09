@@ -2961,7 +2961,7 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine') as received_this_season_flu_vaccine_date
 
   from warehouse.encounter encounter
-  where encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name":"enrollment_arm_1"}}}'
+  where encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
 )
 ;
 
@@ -2985,9 +2985,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , individual_id as enrollment_individual_id
   from warehouse.encounter
   where
-      encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name":"enrollment_arm_1"}}}'
-    or
-      encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"enrollment_arm_1"}}}'
+      encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
   ),
 
   encounters as
@@ -3000,9 +2998,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , details
   from warehouse.encounter
   where
-      encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name":"encounter_arm_1"}}}'
-    or
-      encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"encounter_arm_1"}}}'
+      encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%'
   )
 
   select
@@ -3234,10 +3230,7 @@ create materialized view shipping.__uw_encounters as (
 	left join shipping.fhir_questionnaire_responses_v1 q_surge_selected_flag on q_surge_selected_flag.encounter_id = encounter.encounter_id and q_surge_selected_flag.link_id = 'surge_selected_flag'
 	left join shipping.fhir_questionnaire_responses_v1 q_prior_test_positive_date on q_prior_test_positive_date.encounter_id = encounter.encounter_id and q_prior_test_positive_date.link_id = 'prior_test_positive_date'
 	where
-            encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name": "encounter_arm_1"}}}'
-          or
-            encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"encounter_arm_1"}}}'
-
+            encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%'
 )
 ;
 
@@ -3288,7 +3281,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         join warehouse.individual using (individual_id)
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
         left join uw_individual_summaries on uw_individual_summaries.individual = individual.identifier
-        where encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name": "enrollment_arm_1"}}}'
+        where encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
     ),
 
     -- Select encounters for testing based on positive daily attestations
