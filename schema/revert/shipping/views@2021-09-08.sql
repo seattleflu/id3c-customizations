@@ -3002,7 +3002,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   where
       encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name":"encounter_arm_1"}}}'
     or
-      encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"encounter_arm_1"}}}'
+      encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"enrollment_arm_1"}}}'
   )
 
   select
@@ -3233,11 +3233,11 @@ create materialized view shipping.__uw_encounters as (
 	left join shipping.fhir_questionnaire_responses_v1 q_testing_trigger on q_testing_trigger.encounter_id = encounter.encounter_id and q_testing_trigger.link_id = 'testing_trigger'
 	left join shipping.fhir_questionnaire_responses_v1 q_surge_selected_flag on q_surge_selected_flag.encounter_id = encounter.encounter_id and q_surge_selected_flag.link_id = 'surge_selected_flag'
 	left join shipping.fhir_questionnaire_responses_v1 q_prior_test_positive_date on q_prior_test_positive_date.encounter_id = encounter.encounter_id and q_prior_test_positive_date.link_id = 'prior_test_positive_date'
-	where
+	where 
             encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name": "encounter_arm_1"}}}'
           or
-            encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"encounter_arm_1"}}}'
-
+            encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"enrollment_arm_1"}}}'
+ 
 )
 ;
 
