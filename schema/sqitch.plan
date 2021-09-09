@@ -367,3 +367,6 @@ shipping/views [shipping/views@2021-08-10] 2021-08-23T23:57:21Z Kristen Schwabe-
 
 shipping/views [shipping/views@2021-08-23] 2021-09-07T19:53:05Z Todd Seidelmann <seidelma@uw.edu> # Add new HCT REDCap URL
 @2021-09-07 2021-09-07T19:54:12Z Todd Seidelmann <seidelma@uw.edu> # Schema as of 7 September 2021
+
+shipping/views [shipping/views@2021-09-07] 2021-09-09T02:03:42Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Fix shipping views with HCT encounter events
+
