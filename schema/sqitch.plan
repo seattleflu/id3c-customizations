@@ -369,4 +369,5 @@ shipping/views [shipping/views@2021-08-23] 2021-09-07T19:53:05Z Todd Seidelmann 
 @2021-09-07 2021-09-07T19:54:12Z Todd Seidelmann <seidelma@uw.edu> # Schema as of 7 September 2021
 
 shipping/views [shipping/views@2021-09-07] 2021-09-09T02:03:42Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Fix shipping views with HCT encounter events
+@2021-09-08 2021-09-09T04:10:34Z Dave Reinhart <davidrr@uw.edu> # Schema as of 8 September 2021
 
