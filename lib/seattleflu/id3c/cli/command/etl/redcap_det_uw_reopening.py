@@ -167,6 +167,23 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
             check_enrollment_data_quality(redcap_record_instance)
+
+            # For now, skip processing enrollment DETS for any record copied over
+            # between 2020 and 2021 HCT REDCap projects, using a record_id cutoff
+            # as a proxy. The migrated data has sporadic missingness that has yet to
+            # be resolved, and we don't want to overwrite good enrollment data
+            # with missing values in ID3C.
+            # XXX TODO: Once the missingness from the data migration is resolved,
+            # we'll resume processing of enrollment data for all records, and likely
+            # manually generate DETs to capture the migrated enrollment data too.
+            #   -KSF, 10 Sept 2021
+            REDCAP_RECORD_ID_CUTOFF = 32024
+            if int(redcap_record_instance.get('record_id')) <= REDCAP_RECORD_ID_CUTOFF:
+                LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
+                f"{redcap_record_instance.get('record_id')} because its a migrated enrollment "
+                "and we currently don't want to reprocess it.")
+                continue
+
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
             if is_complete('kiosk_registration_4c7f', redcap_record_instance):
