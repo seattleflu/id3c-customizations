@@ -217,7 +217,8 @@ def send_slack_post_request(record: Any, url: str) -> requests.Response:
     }
 
     if not record.site:
-        data["Manifest"] = basename(record.workbook)
+        if record.workbook:
+            data["Manifest"] = basename(record.workbook)
 
         if record.sample_origin:
             data["Manifest origin"] = record.sample_origin
