@@ -373,3 +373,4 @@ shipping/views [shipping/views@2021-09-07] 2021-09-09T02:03:42Z Kristen Schwabe-
 
 shipping/views [shipping/views@2021-09-08] 2021-09-09T21:23:25Z Todd Seidelmann <seidelma@uw.edu> # Use only UW REDCap instance for EH&S views\n\nAlso switch to using encounter.identifier field instead of encounter.details.
 @2021-09-09 2021-09-09T21:33:10Z Todd Seidelmann <seidelma@uw.edu> # Schema as of 09-September-2021
+shipping/views [shipping/views@2021-09-09] 2021-09-14T18:18:04Z Dave Reinhart <davidrr@uw.edu> # Add SCAN questionnaire vaccine fields to scan_encounter_v1 and fhir_encounter_details_v2 shipping views

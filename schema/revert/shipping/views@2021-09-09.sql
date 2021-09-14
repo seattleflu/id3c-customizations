@@ -652,55 +652,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  string_response as high_risk_feb2021
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'high_risk_feb2021'
-        ),
-
-        overall_risk_jan2021 as (
-          select encounter_id,
-                 string_response as overall_risk_jan2021
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'overall_risk_jan2021'
-        ),
-
-        covid_vax as (
-          select encounter_id,
-                 string_response[1] as covid_vax
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'covid_vax'
-        ),
-
-        covid_doses as (
-          select encounter_id,
-                 string_response[1] as covid_doses
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'covid_doses'
-        ),
-
-        vac_name_1 as (
-          select encounter_id,
-                 string_response[1] as vac_name_1
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vac_name_1'
-        ),
-
-        vac_date as (
-          select encounter_id,
-                 date_response[1] as vac_date
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vac_date'
-        ),
-
-        vac_name_2 as (
-          select encounter_id,
-                 string_response[1] as vac_name_2
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vac_name_2'
-        ),
-
-        vac_date_2 as (
-          select encounter_id,
-                 date_response[1] as vac_date_2
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vac_date_2'
         )
 
     select
@@ -758,14 +709,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
         indoor_facility,
         social_precautions,
         no_mask,
-        high_risk_feb2021,
-        overall_risk_jan2021,
-        covid_vax,
-        covid_doses,
-        vac_name_1,
-        vac_date,
-        vac_name_2,
-        vac_date_2
+        high_risk_feb2021
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -819,13 +763,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join social_precautions using (encounter_id)
       left join no_mask using (encounter_id)
       left join high_risk_feb2021 using (encounter_id)
-      left join overall_risk_jan2021 using (encounter_id)
-      left join covid_vax using (encounter_id)
-      left join covid_doses using (encounter_id)
-      left join vac_name_1 using (encounter_id)
-      left join vac_date using (encounter_id)
-      left join vac_name_2 using (encounter_id)
-      left join vac_date_2 using (encounter_id)
   ;
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
@@ -1549,37 +1486,7 @@ create materialized view shipping.scan_encounters_v1 as
         social_precautions,
         no_mask,
         high_risk_feb2021,
-        overall_risk_jan2021,
-        covid_vax,
-        covid_doses,
-        vac_name_1,
-        vac_date,
-        vac_name_2,
-        vac_date_2,
-        case
-          when covid_vax = 'no' then 'not_vaccinated'
-          when covid_vax in (values('dont_know'), ('dont_say')) then 'unknown'
-          when covid_vax = 'yes' then
-            case
-              when vac_name_1 = 'johnson' and date_part('day', encountered::timestamp - vac_date::timestamp) >= 14 then 'fully_vaccinated'
-              when vac_name_1 in (values('pfizer'), ('moderna')) and vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14 then 'fully_vaccinated'
-              when vac_name_1 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date::timestamp) >= 1 then 'partially_vaccinated'
-              when date_part('day', encountered::timestamp - vac_date::timestamp) = 0 then 'not_vaccinated'
-              else 'unknown'
-            end
-          else 'unknown'
-        end as vaccination_status,
-        case
-          when vac_name_1 is not null and (vac_name_2 is null or vac_name_1 = vac_name_2) then vac_name_1
-          when vac_name_1 is not null and (vac_name_1 != vac_name_2) then 'multiple'
-          else null
-        end as vaccine_manufacturer,
-        case
-          when vac_name_1 = 'johnson' and date_part('day', encountered::timestamp - vac_date::timestamp) >= 14 then to_char(vac_date::date + interval '14 day', 'YYYY-MM-DD')
-          when vac_name_1 in (values('pfizer'), ('moderna')) and vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14 then to_char(vac_date_2::date + interval '14 day', 'YYYY-MM-DD')
-          else null
-        end as fully_vaccinated_date,
-        
+
         sample.sample_id,
         sample.identifier as sample,
         sample.details @> '{"note": "never-tested"}' as never_tested
@@ -3054,7 +2961,7 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine') as received_this_season_flu_vaccine_date
 
   from warehouse.encounter encounter
-  where encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
+  where encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name":"enrollment_arm_1"}}}'
 )
 ;
 
@@ -3078,7 +2985,9 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , individual_id as enrollment_individual_id
   from warehouse.encounter
   where
-      encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
+      encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name":"enrollment_arm_1"}}}'
+    or
+      encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"enrollment_arm_1"}}}'
   ),
 
   encounters as
@@ -3091,7 +3000,9 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , details
   from warehouse.encounter
   where
-      encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%'
+      encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name":"encounter_arm_1"}}}'
+    or
+      encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"encounter_arm_1"}}}'
   )
 
   select
@@ -3323,7 +3234,10 @@ create materialized view shipping.__uw_encounters as (
 	left join shipping.fhir_questionnaire_responses_v1 q_surge_selected_flag on q_surge_selected_flag.encounter_id = encounter.encounter_id and q_surge_selected_flag.link_id = 'surge_selected_flag'
 	left join shipping.fhir_questionnaire_responses_v1 q_prior_test_positive_date on q_prior_test_positive_date.encounter_id = encounter.encounter_id and q_prior_test_positive_date.link_id = 'prior_test_positive_date'
 	where
-            encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%'
+            encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name": "encounter_arm_1"}}}'
+          or
+            encounter.details @> '{"_provenance": {"redcap": {"url": "https://redcap.iths.org/", "project_id":23854, "event_name":"encounter_arm_1"}}}'
+
 )
 ;
 
@@ -3374,7 +3288,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         join warehouse.individual using (individual_id)
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
         left join uw_individual_summaries on uw_individual_summaries.individual = individual.identifier
-        where encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
+        where encounter.details @> '{"_provenance": {"redcap": {"url": "https://hct.redcap.rit.uw.edu/", "project_id":45, "event_name": "enrollment_arm_1"}}}'
     ),
 
     -- Select encounters for testing based on positive daily attestations
