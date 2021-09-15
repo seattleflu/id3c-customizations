@@ -158,6 +158,10 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         system_identifier = INTERNAL_SYSTEM)
 
     persisted_resource_entries = [patient_entry, *location_resource_entries]
+    
+    REDCAP_RECORD_ID_CUTOFF = 32024
+    MIGRATED_RECORD = True if int(enrollment['record_id']) <= REDCAP_RECORD_ID_CUTOFF else False
+    migrated_record_encounter_found = False
 
     for redcap_record_instance in redcap_record_instances:
 
@@ -177,8 +181,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             # we'll resume processing of enrollment data for all records, and likely
             # manually generate DETs to capture the migrated enrollment data too.
             #   -KSF, 10 Sept 2021
-            REDCAP_RECORD_ID_CUTOFF = 32024
-            if int(redcap_record_instance.get('record_id')) <= REDCAP_RECORD_ID_CUTOFF:
+            if MIGRATED_RECORD:
                 LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
                 f"{redcap_record_instance.get('record_id')} because its a migrated enrollment "
                 "and we currently don't want to reprocess it.")
@@ -186,6 +189,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
+            migrated_record_encounter_found = True
             if is_complete('kiosk_registration_4c7f', redcap_record_instance):
                 collection_method = CollectionMethod.KIOSK
             elif is_complete('test_order_survey', redcap_record_instance):
@@ -379,13 +383,17 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         persisted_resource_entries.extend(list(filter(None, current_instance_entries)))
 
-
-    return create_bundle_resource(
-        bundle_id = str(uuid4()),
-        timestamp = datetime.now().astimezone().isoformat(),
-        source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
-        entries = list(filter(None, persisted_resource_entries))
-    )
+    if MIGRATED_RECORD and not migrated_record_encounter_found:
+        LOG.info("Skipping record because it is a migrated record with only enrollment data: "
+                f"{enrollment.get('record_id')}")
+        return None
+    else:
+        return create_bundle_resource(
+            bundle_id = str(uuid4()),
+            timestamp = datetime.now().astimezone().isoformat(),
+            source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
+            entries = list(filter(None, persisted_resource_entries))
+        )
 
 
 def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[str]:
