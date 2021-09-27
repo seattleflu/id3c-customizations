@@ -85,6 +85,7 @@ insert into warehouse.site(identifier, details)
         ('UWSuzzalloLibrary',                       '{"category": "community",  "type": "collegeCampus",
             "swab_site": "%suzzal+o"}'),
         ('UWReopeningSwabNSend',                    '{"category": "community",  "type": "uw-reopening"}'),
+        ('UWReopeningDropbox',                      '{"category": "community",  "type": "uw-reopening"}'),
         ('UWTacoma',                                '{"category": "community",  "type": "collegeCampus"}'),
         ('WestCampusChildCareCenter',               '{"category": "community",  "type": "childcare"}'),
         ('WestlakeLightRailStation',                '{"category": "community",  "type": "publicSpace"}'),
