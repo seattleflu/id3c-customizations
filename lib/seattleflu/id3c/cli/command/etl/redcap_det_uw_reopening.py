@@ -191,7 +191,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
-            migrated_record_encounter_found = True
             if is_complete('kiosk_registration_4c7f', redcap_record_instance):
                 collection_method = CollectionMethod.KIOSK
             elif is_complete('test_order_survey', redcap_record_instance):
@@ -206,13 +205,15 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
         # create an encounter.
-        if event_type == EventType.ENCOUNTER \
-            and not is_complete('daily_attestation', redcap_record_instance) \
+        if event_type == EventType.ENCOUNTER:
+            if not is_complete('daily_attestation', redcap_record_instance) \
                 and not collection_method  \
                 and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
                     LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
                     continue
-
+            elif MIGRATED_RECORD:
+                migrated_record_encounter_found = True
+                
         # site_reference refers to where the sample was collected
         record_location = None
         if collection_method == CollectionMethod.KIOSK:
