@@ -296,7 +296,8 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             (collection_method == CollectionMethod.KIOSK and \
             is_complete('kiosk_registration_4c7f', redcap_record_instance)) or \
             (collection_method == CollectionMethod.UW_DROPBOX and \
-            is_complete('husky_test_kit_registration', redcap_record_instance))
+            is_complete('husky_test_kit_registration', redcap_record_instance) and \
+            redcap_record_instance["barcode_swabsend"])
 
         if specimen_received:
             # Use barcode fields in this order.
