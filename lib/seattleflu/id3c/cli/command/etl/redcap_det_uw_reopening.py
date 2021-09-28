@@ -41,6 +41,7 @@ project.id: project.lang
 class CollectionMethod(Enum):
     SWAB_AND_SEND = 'swab_and_send'
     KIOSK = 'kiosk'
+    UW_DROPBOX = 'uw_dropbox'
 
 class EventType(Enum):
     ENROLLMENT = 'enrollment'
@@ -52,6 +53,7 @@ INTERNAL_SYSTEM = "https://seattleflu.org"
 ENROLLMENT_EVENT_NAME = "enrollment_arm_1"
 ENCOUNTER_EVENT_NAME = "encounter_arm_1"
 SWAB_AND_SEND_SITE = 'UWReopeningSwabNSend'
+UW_DROPBOX_SITE = 'UWReopeningDropbox'
 STUDY_START_DATE = datetime(2020, 9, 24) # Study start date of 2020-09-24
 
 REQUIRED_ENROLLMENT_INSTRUMENTS = [
@@ -189,11 +191,12 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
-            migrated_record_encounter_found = True
             if is_complete('kiosk_registration_4c7f', redcap_record_instance):
                 collection_method = CollectionMethod.KIOSK
             elif is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
+            elif is_complete('husky_test_kit_registration', redcap_record_instance):
+                collection_method = CollectionMethod.UW_DROPBOX
         else:
             LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
             f"{redcap_record_instance.get('record_id')} because the event is not one "
@@ -202,13 +205,15 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         # Skip an ENCOUNTER instance if we don't have the data we need to
         # create an encounter.
-        if event_type == EventType.ENCOUNTER \
-            and not is_complete('daily_attestation', redcap_record_instance) \
+        if event_type == EventType.ENCOUNTER:
+            if not is_complete('daily_attestation', redcap_record_instance) \
                 and not collection_method  \
                 and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
                     LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
                     continue
-
+            elif MIGRATED_RECORD:
+                migrated_record_encounter_found = True
+                
         # site_reference refers to where the sample was collected
         record_location = None
         if collection_method == CollectionMethod.KIOSK:
@@ -225,7 +230,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         site_reference = create_site_reference(
             location = record_location,
             site_map = location_site_map,
-            default_site = SWAB_AND_SEND_SITE,
+            default_site = UW_DROPBOX_SITE if CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
         # Handle various symptoms.
@@ -252,7 +257,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             system_identifier = INTERNAL_SYSTEM)
 
         collection_code = None
-        if event_type == EventType.ENROLLMENT or collection_method == CollectionMethod.SWAB_AND_SEND:
+        if event_type == EventType.ENROLLMENT or collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
             collection_code = CollectionCode.HOME_HEALTH
         elif collection_method == CollectionMethod.KIOSK:
             collection_code = CollectionCode.FIELD
@@ -283,13 +288,15 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     f"for record: {redcap_record_instance.get('record_id')}, instance: "
                     f"{redcap_record_instance.get('redcap_repeat_instance')}")
                 continue
-
+ 
         specimen_entry = None
         specimen_observation_entry = None
         specimen_received = (collection_method == CollectionMethod.SWAB_AND_SEND and \
             is_complete('post_collection_data_entry_qc', redcap_record_instance)) or \
             (collection_method == CollectionMethod.KIOSK and \
-            is_complete('kiosk_registration_4c7f', redcap_record_instance))
+            is_complete('kiosk_registration_4c7f', redcap_record_instance)) or \
+            (collection_method == CollectionMethod.UW_DROPBOX and \
+            is_complete('husky_test_kit_registration', redcap_record_instance))
 
         if specimen_received:
             # Use barcode fields in this order.
@@ -417,7 +424,9 @@ def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[
             or (record.get('time_test_order') and datetime.strptime(record.get('time_test_order'),
                 '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')) \
             or extract_date_from_survey_timestamp(record, 'testing_determination_internal') \
-            or record.get('testing_date')
+            or record.get('testing_date') \
+            or extract_date_from_survey_timestamp(record, 'husky_test_kit_registration') \
+            or record.get('kit_reg_date')
 
         # We have seen cases when the `attestation_date` is not getting set
         # by REDCap in the `daily_attesation` instrument. Here, we get the date
@@ -468,7 +477,7 @@ def get_collection_date(record: REDCapRecord, collection_method: CollectionMetho
     if collection_method == CollectionMethod.KIOSK:
         collection_date = extract_date_from_survey_timestamp(record, "kiosk_registration_4c7f") or record.get("nasal_swab_q")
 
-    elif collection_method == CollectionMethod.SWAB_AND_SEND:
+    elif collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
         collection_date = record.get("date_on_tube") \
             or extract_date_from_survey_timestamp(record, "husky_test_kit_registration") \
             or record.get("kit_reg_date") \

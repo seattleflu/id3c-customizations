@@ -49,8 +49,6 @@ insert into warehouse.site(identifier, details)
             "sample_origin": "hmc_retro"}'),
         ('RetrospectiveNorthwest',                  '{"category": "hospital",   "type": "retrospective",
             "sample_origin": "nwh_retro"}'),
-        ('RetrospectivePHSKC',                      '{"category": "community",  "type": "retrospective",
-            "sample_origin": "phskc_retro"}'),
         ('RetrospectiveUWMedicalCenter',            '{"category": "hospital",   "type": "retrospective",
             "sample_origin": "uwmc_retro"}'),
         ('SCAN',                                    '{"category": "community", "type": "SCAN",
@@ -93,5 +91,7 @@ insert into warehouse.site(identifier, details)
     on conflict (identifier) do update
         set details = EXCLUDED.details
 ;
+
+delete from warehouse.site where identifier = 'RetrospectivePHSKC';
 
 commit;

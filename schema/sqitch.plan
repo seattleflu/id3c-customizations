@@ -375,3 +375,5 @@ shipping/views [shipping/views@2021-09-08] 2021-09-09T21:23:25Z Todd Seidelmann 
 @2021-09-09 2021-09-09T21:33:10Z Todd Seidelmann <seidelma@uw.edu> # Schema as of 09-September-2021
 shipping/views [shipping/views@2021-09-09] 2021-09-14T18:18:04Z Dave Reinhart <davidrr@uw.edu> # Add SCAN questionnaire vaccine fields to scan_encounter_v1 and fhir_encounter_details_v2 shipping views
 @2021-09-14 2021-09-14T19:41:23Z Dave Reinhart <davidrr@uw.edu> # Schema as of 14 September 2021
+warehouse/site/data [warehouse/site/data@2021-09-14] 2021-09-27T19:17:00Z Dave Reinhart <davidrr@uw.edu> # Add UWReopeningDropbox to sites table
+@2021-09-27 2021-09-27T19:20:10Z Dave Reinhart <davidrr@uw.edu> # Schema as of 27 September 2021
