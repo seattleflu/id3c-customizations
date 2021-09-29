@@ -230,7 +230,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         site_reference = create_site_reference(
             location = record_location,
             site_map = location_site_map,
-            default_site = UW_DROPBOX_SITE if CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
+            default_site = UW_DROPBOX_SITE if collection_method == CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
         # Handle various symptoms.
