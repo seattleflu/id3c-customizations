@@ -165,12 +165,25 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
     MIGRATED_RECORD = True if int(enrollment['record_id']) <= REDCAP_RECORD_ID_CUTOFF else False
     migrated_record_encounter_found = False
 
+    det_document = det.get('document', {})
+
+    # Filter redcap record instances to only the current one specified in the DET
+    if det_document.get('redcap_event_name')==ENROLLMENT_EVENT_NAME:
+        redcap_record_instances = [enrollment]
+    elif det_document.get('redcap_event_name')==ENCOUNTER_EVENT_NAME:
+        redcap_record_instances = [r for r in redcap_record_instances if r['redcap_repeat_instance'] == det_document.get('redcap_repeat_instance')]
+    else:
+        LOG.warning(f"Skipping record {enrollment.get('record_id')} because {det_document.get('redcap_event_name')} is not an event that we process")
+        return None
+
+
     for redcap_record_instance in redcap_record_instances:
 
         event_type = None
         collection_method = None
 
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
+
             event_type = EventType.ENROLLMENT
             check_enrollment_data_quality(redcap_record_instance)
 
@@ -198,13 +211,13 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             elif is_complete('husky_test_kit_registration', redcap_record_instance):
                 collection_method = CollectionMethod.UW_DROPBOX
         else:
-            LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
+            LOG.info(f"Skipping instance: {redcap_record_instance.event_name!r} for record "
             f"{redcap_record_instance.get('record_id')} because the event is not one "
             "that we process")
             continue
 
-        # Skip an ENCOUNTER instance if we don't have the data we need to
-        # create an encounter.
+        # Skip an ENCOUNTER instance if its not included in the DET or if we don't have
+        # the data we need to create an encounter.
         if event_type == EventType.ENCOUNTER:
             if not is_complete('daily_attestation', redcap_record_instance) \
                 and not collection_method  \
@@ -230,7 +243,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         site_reference = create_site_reference(
             location = record_location,
             site_map = location_site_map,
-            default_site = UW_DROPBOX_SITE if collection_method == CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
+            default_site = UW_DROPBOX_SITE if CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
         # Handle various symptoms.
