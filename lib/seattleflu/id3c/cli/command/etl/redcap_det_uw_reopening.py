@@ -176,217 +176,219 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         LOG.warning(f"Skipping record {enrollment.get('record_id')} because {det_document.get('redcap_event_name')} is not an event that we process")
         return None
 
+    if not len(redcap_record_instances) == 1:
+        LOG.warning(f"There are {len(redcap_record_instances)} event instances for this DET of record {enrollment.get('record_id')}. Skipping record.")
+        return None
 
-    for redcap_record_instance in redcap_record_instances:
+    redcap_record_instance = redcap_record_instances[0]
+    
+    event_type = None
+    collection_method = None
 
-        event_type = None
-        collection_method = None
+    if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
 
-        if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
+        event_type = EventType.ENROLLMENT
+        check_enrollment_data_quality(redcap_record_instance)
 
-            event_type = EventType.ENROLLMENT
-            check_enrollment_data_quality(redcap_record_instance)
+        # For now, skip processing enrollment DETS for any record copied over
+        # between 2020 and 2021 HCT REDCap projects, using a record_id cutoff
+        # as a proxy. The migrated data has sporadic missingness that has yet to
+        # be resolved, and we don't want to overwrite good enrollment data
+        # with missing values in ID3C.
+        # XXX TODO: Once the missingness from the data migration is resolved,
+        # we'll resume processing of enrollment data for all records, and likely
+        # manually generate DETs to capture the migrated enrollment data too.
+        #   -KSF, 10 Sept 2021
+        if MIGRATED_RECORD:
+            LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
+            f"{redcap_record_instance.get('record_id')} because its a migrated enrollment "
+            "and we currently don't want to reprocess it.")
+            return None
 
-            # For now, skip processing enrollment DETS for any record copied over
-            # between 2020 and 2021 HCT REDCap projects, using a record_id cutoff
-            # as a proxy. The migrated data has sporadic missingness that has yet to
-            # be resolved, and we don't want to overwrite good enrollment data
-            # with missing values in ID3C.
-            # XXX TODO: Once the missingness from the data migration is resolved,
-            # we'll resume processing of enrollment data for all records, and likely
-            # manually generate DETs to capture the migrated enrollment data too.
-            #   -KSF, 10 Sept 2021
-            if MIGRATED_RECORD:
-                LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
-                f"{redcap_record_instance.get('record_id')} because its a migrated enrollment "
-                "and we currently don't want to reprocess it.")
-                continue
+    elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
+        event_type = EventType.ENCOUNTER
+        if is_complete('kiosk_registration_4c7f', redcap_record_instance):
+            collection_method = CollectionMethod.KIOSK
+        elif is_complete('test_order_survey', redcap_record_instance):
+            collection_method = CollectionMethod.SWAB_AND_SEND
+        elif is_complete('husky_test_kit_registration', redcap_record_instance):
+            collection_method = CollectionMethod.UW_DROPBOX
+    else:
+        LOG.info(f"Skipping instance: {redcap_record_instance.event_name!r} for record "
+        f"{redcap_record_instance.get('record_id')} because the event is not one "
+        "that we process")
+        return None
 
-        elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
-            event_type = EventType.ENCOUNTER
-            if is_complete('kiosk_registration_4c7f', redcap_record_instance):
-                collection_method = CollectionMethod.KIOSK
-            elif is_complete('test_order_survey', redcap_record_instance):
-                collection_method = CollectionMethod.SWAB_AND_SEND
-            elif is_complete('husky_test_kit_registration', redcap_record_instance):
-                collection_method = CollectionMethod.UW_DROPBOX
-        else:
-            LOG.info(f"Skipping instance: {redcap_record_instance.event_name!r} for record "
-            f"{redcap_record_instance.get('record_id')} because the event is not one "
-            "that we process")
-            continue
-
-        # Skip an ENCOUNTER instance if its not included in the DET or if we don't have
-        # the data we need to create an encounter.
-        if event_type == EventType.ENCOUNTER:
-            if not is_complete('daily_attestation', redcap_record_instance) \
-                and not collection_method  \
-                and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
-                    LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
-                    continue
-            elif MIGRATED_RECORD:
-                migrated_record_encounter_found = True
-                
-        # site_reference refers to where the sample was collected
-        record_location = None
-        if collection_method == CollectionMethod.KIOSK:
-            record_location = redcap_record_instance.get('location_type')
-
-        location_site_map = {
-            'bothell':  'UWBothell',
-            'odegaard': 'UWOdegaardLibrary',
-            'slu':      'UWSouthLakeUnion',
-            'tacoma':   'UWTacoma',
-            'uw_club':  'UWClub'
-            }
-
-        site_reference = create_site_reference(
-            location = record_location,
-            site_map = location_site_map,
-            default_site = UW_DROPBOX_SITE if CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
-            system_identifier = INTERNAL_SYSTEM)
-
-        # Handle various symptoms.
-        contained: List[dict] = []
-        diagnosis: List[dict] = []
-
-        # Map the various symptoms variables to their onset date.
-        # For daily_symptoms_covid_like we don't know the actual onset date. The questions asks
-        # "in the past 24 hours"
-        if event_type == EventType.ENCOUNTER:
-            symptom_onset_map = {
-                'daily_symptoms_covid_like': None,
-                'symptoms': redcap_record_instance['symptom_onset'],
-                'symptoms_kiosk': redcap_record_instance['symptom_duration_kiosk'],
-                'symptoms_swabsend': redcap_record_instance['symptom_duration_swabsend']
-            }
-        elif event_type == EventType.ENROLLMENT:
-            symptom_onset_map = {'symptoms_base': redcap_record_instance['symptom_onset_base']}
-
-        contained, diagnosis = build_contained_and_diagnosis(
-            patient_reference = patient_reference,
-            record = redcap_record_instance,
-            symptom_onset_map = symptom_onset_map,
-            system_identifier = INTERNAL_SYSTEM)
-
-        collection_code = None
-        if event_type == EventType.ENROLLMENT or collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
-            collection_code = CollectionCode.HOME_HEALTH
-        elif collection_method == CollectionMethod.KIOSK:
-            collection_code = CollectionCode.FIELD
-
-        encounter_date = get_encounter_date(redcap_record_instance, event_type)
-
-        initial_encounter_entry, initial_encounter_reference = create_encounter(
-            encounter_id = create_encounter_id(redcap_record_instance, False),
-            encounter_date = encounter_date,
-            patient_reference = patient_reference,
-            site_reference = site_reference,
-            locations = location_resource_entries,
-            diagnosis = diagnosis,
-            contained = contained,
-            collection_code = collection_code,
-            system_identifier = INTERNAL_SYSTEM,
-            record = redcap_record_instance)
-
-        # Skip the entire record if we can't create the enrollment encounter.
-        # Otherwise, just skip the record instance.
-        if not initial_encounter_entry:
-            if event_type == EventType.ENROLLMENT:
-                LOG.warning("Skipping record because we could not create the enrollment encounter for record: "
-                    f"{redcap_record_instance.get('record_id')}")
+    # Skip an ENCOUNTER instance if its not included in the DET or if we don't have
+    # the data we need to create an encounter.
+    if event_type == EventType.ENCOUNTER:
+        if not is_complete('daily_attestation', redcap_record_instance) \
+            and not collection_method  \
+            and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
+                LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
                 return None
-            else:
-                LOG.warning("Skipping record instance with insufficient information to construct the initial encounter "
-                    f"for record: {redcap_record_instance.get('record_id')}, instance: "
-                    f"{redcap_record_instance.get('redcap_repeat_instance')}")
-                continue
- 
-        specimen_entry = None
-        specimen_observation_entry = None
-        specimen_received = (collection_method == CollectionMethod.SWAB_AND_SEND and \
-            is_complete('post_collection_data_entry_qc', redcap_record_instance)) or \
-            (collection_method == CollectionMethod.KIOSK and \
-            is_complete('kiosk_registration_4c7f', redcap_record_instance)) or \
-            (collection_method == CollectionMethod.UW_DROPBOX and \
-            is_complete('husky_test_kit_registration', redcap_record_instance) and \
-            redcap_record_instance["barcode_swabsend"])
+        elif MIGRATED_RECORD:
+            migrated_record_encounter_found = True
+            
+    # site_reference refers to where the sample was collected
+    record_location = None
+    if collection_method == CollectionMethod.KIOSK:
+        record_location = redcap_record_instance.get('location_type')
 
-        if specimen_received:
-            # Use barcode fields in this order.
-            prioritized_barcodes = [
-                redcap_record_instance["collect_barcode_kiosk"],
-                redcap_record_instance["return_utm_barcode"],
-                redcap_record_instance["pre_scan_barcode"],
-                redcap_record_instance["barcode_swabsend"]]
+    location_site_map = {
+        'bothell':  'UWBothell',
+        'odegaard': 'UWOdegaardLibrary',
+        'slu':      'UWSouthLakeUnion',
+        'tacoma':   'UWTacoma',
+        'uw_club':  'UWClub'
+        }
 
-            specimen_entry, specimen_reference = create_specimen(
-                prioritized_barcodes = prioritized_barcodes,
-                patient_reference = patient_reference,
-                collection_date = get_collection_date(redcap_record_instance, collection_method),
-                sample_received_time = redcap_record_instance['samp_process_date'],
-                able_to_test = redcap_record_instance['able_to_test'],
-                system_identifier = INTERNAL_SYSTEM)
+    site_reference = create_site_reference(
+        location = record_location,
+        site_map = location_site_map,
+        default_site = UW_DROPBOX_SITE if CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
+        system_identifier = INTERNAL_SYSTEM)
 
-            specimen_observation_entry = create_specimen_observation_entry(
-                specimen_reference = specimen_reference,
-                patient_reference = patient_reference,
-                encounter_reference = initial_encounter_reference)
-        else:
-            LOG.info("Creating encounter for record instance without sample")
+    # Handle various symptoms.
+    contained: List[dict] = []
+    diagnosis: List[dict] = []
 
-        if specimen_received and not specimen_entry:
-            LOG.warning("Skipping record instance. We think the specimen was received, "
-                 "but we're unable to create the specimen_entry for record: "
-                 f"{redcap_record_instance.get('record_id')}, instance: {redcap_record_instance.get('redcap_repeat_instance')}"
-                 )
-            continue
+    # Map the various symptoms variables to their onset date.
+    # For daily_symptoms_covid_like we don't know the actual onset date. The questions asks
+    # "in the past 24 hours"
+    if event_type == EventType.ENCOUNTER:
+        symptom_onset_map = {
+            'daily_symptoms_covid_like': None,
+            'symptoms': redcap_record_instance['symptom_onset'],
+            'symptoms_kiosk': redcap_record_instance['symptom_duration_kiosk'],
+            'symptoms_swabsend': redcap_record_instance['symptom_duration_swabsend']
+        }
+    elif event_type == EventType.ENROLLMENT:
+        symptom_onset_map = {'symptoms_base': redcap_record_instance['symptom_onset_base']}
 
-        computed_questionnaire_entry = None
-        enrollment_questionnaire_entry = None
-        daily_questionnaire_entry = None
-        testing_determination_internal_questionnaire_entry = None
-        follow_up_encounter_entry = None
-        follow_up_questionnaire_entry = None
-        follow_up_computed_questionnaire_entry = None
+    contained, diagnosis = build_contained_and_diagnosis(
+        patient_reference = patient_reference,
+        record = redcap_record_instance,
+        symptom_onset_map = symptom_onset_map,
+        system_identifier = INTERNAL_SYSTEM)
 
-        computed_questionnaire_entry = create_computed_questionnaire_response(
-            redcap_record_instance, patient_reference, initial_encounter_reference,
-            birthdate, parse_date_from_string(initial_encounter_entry['resource']['period']['start']))
+    collection_code = None
+    if event_type == EventType.ENROLLMENT or collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
+        collection_code = CollectionCode.HOME_HEALTH
+    elif collection_method == CollectionMethod.KIOSK:
+        collection_code = CollectionCode.FIELD
 
+    encounter_date = get_encounter_date(redcap_record_instance, event_type)
+
+    initial_encounter_entry, initial_encounter_reference = create_encounter(
+        encounter_id = create_encounter_id(redcap_record_instance, False),
+        encounter_date = encounter_date,
+        patient_reference = patient_reference,
+        site_reference = site_reference,
+        locations = location_resource_entries,
+        diagnosis = diagnosis,
+        contained = contained,
+        collection_code = collection_code,
+        system_identifier = INTERNAL_SYSTEM,
+        record = redcap_record_instance)
+
+    # Skip the entire record if we can't create the enrollment encounter.
+    # Otherwise, just skip the record instance.
+    if not initial_encounter_entry:
         if event_type == EventType.ENROLLMENT:
-            enrollment_questionnaire_entry = create_enrollment_questionnaire_response(
-            enrollment, patient_reference, initial_encounter_reference)
+            LOG.warning("Skipping record because we could not create the enrollment encounter for record: "
+                f"{redcap_record_instance.get('record_id')}")
         else:
-            testing_determination_internal_questionnaire_entry = \
-                create_testing_determination_internal_questionnaire_response(
-                redcap_record_instance, patient_reference, initial_encounter_reference)
+            LOG.warning("Skipping record instance with insufficient information to construct the initial encounter "
+                f"for record: {redcap_record_instance.get('record_id')}, instance: "
+                f"{redcap_record_instance.get('redcap_repeat_instance')}")
+        return None
 
-            daily_questionnaire_entry = \
-                create_daily_questionnaire_response(
-                redcap_record_instance, patient_reference, initial_encounter_reference)
+    specimen_entry = None
+    specimen_observation_entry = None
+    specimen_received = (collection_method == CollectionMethod.SWAB_AND_SEND and \
+        is_complete('post_collection_data_entry_qc', redcap_record_instance)) or \
+        (collection_method == CollectionMethod.KIOSK and \
+        is_complete('kiosk_registration_4c7f', redcap_record_instance)) or \
+        (collection_method == CollectionMethod.UW_DROPBOX and \
+        is_complete('husky_test_kit_registration', redcap_record_instance) and \
+        redcap_record_instance["barcode_swabsend"])
 
-            if is_complete('week_followup', redcap_record_instance):
-                # Don't set locations because the f/u survey doesn't ask for home address.
-                follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
-                    encounter_id = create_encounter_id(redcap_record_instance, True),
-                    encounter_date = extract_date_from_survey_timestamp(redcap_record_instance, 'week_followup') \
-                        or datetime.strptime(redcap_record_instance.get('fu_timestamp'),
-                        '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d'),
-                    patient_reference = patient_reference,
-                    site_reference = site_reference,
-                    collection_code = CollectionCode.HOME_HEALTH,
-                    parent_encounter_reference = initial_encounter_reference,
-                    encounter_reason_code = follow_up_encounter_reason_code(),
-                    encounter_identifier_suffix = "_follow_up",
-                    system_identifier = INTERNAL_SYSTEM,
-                    record = redcap_record_instance)
+    if specimen_received:
+        # Use barcode fields in this order.
+        prioritized_barcodes = [
+            redcap_record_instance["collect_barcode_kiosk"],
+            redcap_record_instance["return_utm_barcode"],
+            redcap_record_instance["pre_scan_barcode"],
+            redcap_record_instance["barcode_swabsend"]]
 
-                follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
-                    redcap_record_instance, patient_reference, follow_up_encounter_reference)
-                follow_up_computed_questionnaire_entry = create_computed_questionnaire_response(
-                    redcap_record_instance, patient_reference, follow_up_encounter_reference,
-                    birthdate, parse_date_from_string(follow_up_encounter_entry['resource']['period']['start']))
+        specimen_entry, specimen_reference = create_specimen(
+            prioritized_barcodes = prioritized_barcodes,
+            patient_reference = patient_reference,
+            collection_date = get_collection_date(redcap_record_instance, collection_method),
+            sample_received_time = redcap_record_instance['samp_process_date'],
+            able_to_test = redcap_record_instance['able_to_test'],
+            system_identifier = INTERNAL_SYSTEM)
+
+        specimen_observation_entry = create_specimen_observation_entry(
+            specimen_reference = specimen_reference,
+            patient_reference = patient_reference,
+            encounter_reference = initial_encounter_reference)
+    else:
+        LOG.info("Creating encounter for record instance without sample")
+
+    if specimen_received and not specimen_entry:
+        LOG.warning("Skipping record instance. We think the specimen was received, "
+                "but we're unable to create the specimen_entry for record: "
+                f"{redcap_record_instance.get('record_id')}, instance: {redcap_record_instance.get('redcap_repeat_instance')}"
+                )
+        return None
+
+    computed_questionnaire_entry = None
+    enrollment_questionnaire_entry = None
+    daily_questionnaire_entry = None
+    testing_determination_internal_questionnaire_entry = None
+    follow_up_encounter_entry = None
+    follow_up_questionnaire_entry = None
+    follow_up_computed_questionnaire_entry = None
+
+    computed_questionnaire_entry = create_computed_questionnaire_response(
+        redcap_record_instance, patient_reference, initial_encounter_reference,
+        birthdate, parse_date_from_string(initial_encounter_entry['resource']['period']['start']))
+
+    if event_type == EventType.ENROLLMENT:
+        enrollment_questionnaire_entry = create_enrollment_questionnaire_response(
+        enrollment, patient_reference, initial_encounter_reference)
+    else:
+        testing_determination_internal_questionnaire_entry = \
+            create_testing_determination_internal_questionnaire_response(
+            redcap_record_instance, patient_reference, initial_encounter_reference)
+
+        daily_questionnaire_entry = \
+            create_daily_questionnaire_response(
+            redcap_record_instance, patient_reference, initial_encounter_reference)
+
+        if is_complete('week_followup', redcap_record_instance):
+            # Don't set locations because the f/u survey doesn't ask for home address.
+            follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
+                encounter_id = create_encounter_id(redcap_record_instance, True),
+                encounter_date = extract_date_from_survey_timestamp(redcap_record_instance, 'week_followup') \
+                    or datetime.strptime(redcap_record_instance.get('fu_timestamp'),
+                    '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d'),
+                patient_reference = patient_reference,
+                site_reference = site_reference,
+                collection_code = CollectionCode.HOME_HEALTH,
+                parent_encounter_reference = initial_encounter_reference,
+                encounter_reason_code = follow_up_encounter_reason_code(),
+                encounter_identifier_suffix = "_follow_up",
+                system_identifier = INTERNAL_SYSTEM,
+                record = redcap_record_instance)
+
+            follow_up_questionnaire_entry = create_follow_up_questionnaire_response(
+                redcap_record_instance, patient_reference, follow_up_encounter_reference)
+            follow_up_computed_questionnaire_entry = create_computed_questionnaire_response(
+                redcap_record_instance, patient_reference, follow_up_encounter_reference,
+                birthdate, parse_date_from_string(follow_up_encounter_entry['resource']['period']['start']))
 
 
         current_instance_entries = [
