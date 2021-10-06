@@ -191,11 +191,21 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
-            if is_complete('kiosk_registration_4c7f', redcap_record_instance):
+
+            kiosk_reg_complete = is_complete('kiosk_registration_4c7f', redcap_record_instance)
+            test_order_survey_complete = is_complete('test_order_survey', redcap_record_instance)
+            husky_test_kit_reg_complete = is_complete('husky_test_kit_registration', redcap_record_instance)
+
+            if kiosk_reg_complete and (test_order_survey_complete or husky_test_kit_reg_complete):
+                LOG.warning(f"Skipping event: {redcap_record_instance.event_name!r} for record "
+                f"{redcap_record_instance.get('record_id')} because multiple collection methods "
+                f" were found in the same instance ({redcap_record_instance.get('redcap_repeat_instance')})")
+                continue
+            elif kiosk_reg_complete:
                 collection_method = CollectionMethod.KIOSK
-            elif is_complete('test_order_survey', redcap_record_instance):
+            elif test_order_survey_complete:
                 collection_method = CollectionMethod.SWAB_AND_SEND
-            elif is_complete('husky_test_kit_registration', redcap_record_instance):
+            elif husky_test_kit_reg_complete:
                 collection_method = CollectionMethod.UW_DROPBOX
         else:
             LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
