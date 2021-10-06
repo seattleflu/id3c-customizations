@@ -192,6 +192,12 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
 
+            # Each instance can only have one collection method. Swab-n-send utilizes both the
+            # test_order_survey and husky_test_kit_registration forms while UW Dropbox utilizes only the
+            # husky_test_kit_registration form. Because there are no other available indicators in the data,
+            # if the test_order_survey form is not complete and the husky_test_kit_registration form is, it
+            # is assumed to be a UW Dropbox sample.
+            #    -DRR, 06 Oct 2021
             kiosk_reg_complete = is_complete('kiosk_registration_4c7f', redcap_record_instance)
             test_order_survey_complete = is_complete('test_order_survey', redcap_record_instance)
             husky_test_kit_reg_complete = is_complete('husky_test_kit_registration', redcap_record_instance)
