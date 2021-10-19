@@ -168,3 +168,16 @@ def get_scan_enrollments_internal(session):
     enrollments = datastore.fetch_rows_from_table(session, ("shipping", "scan_redcap_enrollments_v1"))
 
     return Response((row[0] + '\n' for row in enrollments), mimetype="application/x-ndjson")
+
+
+@api_v1.route("/shipping/latest-results", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_latest_results(session):
+    """
+    Export latest results without PHI
+    """
+    LOG.debug("Exporting latest results for LIMS integration")
+
+    latest_results = datastore.fetch_rows_from_table(session, ("shipping", "latest_results"))
+
+    return Response((row[0] + '\n' for row in latest_results), mimetype="application/x-ndjson")
