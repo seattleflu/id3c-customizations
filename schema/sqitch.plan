@@ -377,3 +377,6 @@ shipping/views [shipping/views@2021-09-09] 2021-09-14T18:18:04Z Dave Reinhart <d
 @2021-09-14 2021-09-14T19:41:23Z Dave Reinhart <davidrr@uw.edu> # Schema as of 14 September 2021
 warehouse/site/data [warehouse/site/data@2021-09-14] 2021-09-27T19:17:00Z Dave Reinhart <davidrr@uw.edu> # Add UWReopeningDropbox to sites table
 @2021-09-27 2021-09-27T19:20:10Z Dave Reinhart <davidrr@uw.edu> # Schema as of 27 September 2021
+
+shipping/latest_results 2021-10-19T18:12:18Z Dave Reinhart <davidrr@uw.edu> # Table to store final output of latest return of results for QC workflows.
+roles/return-results-exporter/grants [roles/return-results-exporter/grants@2021-09-27] 2021-10-19T18:37:22Z Dave Reinhart <davidrr@uw.edu> # Add permissions for return-results-exporter role on shipping.latest_results table.
