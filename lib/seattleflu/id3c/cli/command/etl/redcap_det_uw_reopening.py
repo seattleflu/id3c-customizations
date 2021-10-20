@@ -476,7 +476,7 @@ def get_collection_date(record: REDCapRecord, collection_method: CollectionMetho
     collection_date = None
 
     if collection_method == CollectionMethod.KIOSK:
-        collection_date = extract_date_from_survey_timestamp(record, "kiosk_registration_4c7f") or record.get("nasal_swab_q")
+        collection_date = record.get("nasal_swab_q") or extract_date_from_survey_timestamp(record, "kiosk_registration_4c7f")
 
     elif collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
         collection_date = record.get("date_on_tube") \
