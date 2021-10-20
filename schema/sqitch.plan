@@ -381,3 +381,7 @@ warehouse/site/data [warehouse/site/data@2021-09-14] 2021-09-27T19:17:00Z Dave R
 shipping/latest_results 2021-10-19T18:12:18Z Dave Reinhart <davidrr@uw.edu> # Table to store final output of latest return of results for QC workflows.
 roles/return-results-exporter/grants [roles/return-results-exporter/grants@2021-09-27] 2021-10-19T18:37:22Z Dave Reinhart <davidrr@uw.edu> # Add permissions for return-results-exporter role on shipping.latest_results table.
 @2021-10-19 2021-10-19T19:46:06Z Dave Reinhart <davidrr@uw.edu> # Schema as of 19 October 2021
+
+roles/latest-results-viewer/create 2021-10-19T23:53:08Z Dave Reinhart <davidrr@uw.edu> # Add role with read-only permissions for use with latest_results API
+roles/latest-results-viewer/grants 2021-10-19T23:56:45Z Dave Reinhart <davidrr@uw.edu> # Grant permission to latest_results_viewer
+@2021-10-21 2021-10-21T15:54:28Z Dave Reinhart <davidrr@uw.edu> # Schema as of 21 October 2021
