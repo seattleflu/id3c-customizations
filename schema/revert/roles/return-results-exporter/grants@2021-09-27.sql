@@ -17,9 +17,5 @@ grant select
     on shipping.return_results_v1
     to "return-results-exporter";
 
-grant select
-    on shipping.return_results_v2
-    to "return-results-exporter";
-
 
 commit;
