@@ -25,6 +25,14 @@ grant select
     on shipping.return_results_v3
     to "return-results-exporter";
 
+grant select
+  on shipping.sample_with_best_available_encounter_data_v1
+  to "return-results-exporter";
+
+grant select
+  on shipping.linelist_data_for_wa_doh_v1
+  to "return-results-exporter";
+
 grant delete, insert
     on shipping.latest_results
     to "return-results-exporter";
