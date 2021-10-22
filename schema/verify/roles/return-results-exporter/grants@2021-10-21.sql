@@ -7,12 +7,10 @@ select 1/pg_catalog.has_database_privilege('return-results-exporter', :'DBNAME',
 select 1/pg_catalog.has_schema_privilege('return-results-exporter', 'shipping', 'usage')::int;
 select 1/pg_catalog.has_table_privilege('return-results-exporter', 'shipping.return_results_v1', 'select')::int;
 select 1/pg_catalog.has_table_privilege('return-results-exporter', 'shipping.return_results_v2', 'select')::int;
-select 1/pg_catalog.has_table_privilege('return-results-exporter', 'shipping.return_results_v3', 'select')::int;
-select 1/(pg_catalog.has_table_privilege('return-results-exporter', 'shipping.latest_results', 'insert,delete'))::int;
+select 1/pg_catalog.has_table_privilege('return-results-exporter', 'shipping.latest_results', 'insert,delete')::int;
 
 select 1/(not pg_catalog.has_table_privilege('return-results-exporter', 'shipping.return_results_v1', 'insert,update,delete'))::int;
 select 1/(not pg_catalog.has_table_privilege('return-results-exporter', 'shipping.return_results_v2', 'insert,update,delete'))::int;
-select 1/(not pg_catalog.has_table_privilege('return-results-exporter', 'shipping.return_results_v3', 'insert,update,delete'))::int;
 select 1/(not pg_catalog.has_table_privilege('return-results-exporter', 'shipping.latest_results', 'select,update'))::int;
 
 rollback;

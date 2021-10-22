@@ -385,3 +385,5 @@ roles/return-results-exporter/grants [roles/return-results-exporter/grants@2021-
 roles/latest-results-viewer/create 2021-10-19T23:53:08Z Dave Reinhart <davidrr@uw.edu> # Add role with read-only permissions for use with latest_results API
 roles/latest-results-viewer/grants 2021-10-19T23:56:45Z Dave Reinhart <davidrr@uw.edu> # Grant permission to latest_results_viewer
 @2021-10-21 2021-10-21T15:54:28Z Dave Reinhart <davidrr@uw.edu> # Schema as of 21 October 2021
+roles/return-results-exporter/grants [roles/return-results-exporter/grants@2021-10-21] 2021-10-22T00:21:54Z Dave Reinhart <davidrr@uw.edu> # Add permissions for return_results_v3 to return-results-exporter
+@2021-10-21b 2021-10-22T00:25:09Z Dave Reinhart <davidrr@uw.edu> # Schema as of later on 21 October 2021
