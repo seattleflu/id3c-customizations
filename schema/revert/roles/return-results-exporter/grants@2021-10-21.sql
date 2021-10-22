@@ -21,8 +21,5 @@ grant select
     on shipping.return_results_v2
     to "return-results-exporter";
 
-grant delete, insert
-    on shipping.latest_results
-    to "return-results-exporter";
 
 commit;
