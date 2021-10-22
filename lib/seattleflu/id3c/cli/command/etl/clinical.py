@@ -236,6 +236,7 @@ def hispanic_latino(ethnic_group: Optional[Any]) -> list:
         "Patient Refused/Did Not Wish To Indicate": None,
         "Patient Refused": None,
         "Unknown": None,
+        "Unavailable or Unknown": None,
     }
 
     if ethnic_group not in ethnic_map:
