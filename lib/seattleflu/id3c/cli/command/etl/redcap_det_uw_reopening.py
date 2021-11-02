@@ -168,7 +168,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
-            check_enrollment_data_quality(redcap_record_instance)
+            #check_enrollment_data_quality(redcap_record_instance)
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
@@ -472,8 +472,8 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     # Do not include `core_age_years` because we calculate the age ourselves in the computed questionnaire.
     integer_questions = [
         'weight',
-        'height_total',
-        'tier'
+        #'height_total',
+        #'tier'
     ]
 
     string_questions = [
@@ -532,7 +532,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'uw_medicine_yesno',
         'inperson_classes',
         'uw_job',
-        'uw_greek_member',
+        #'uw_greek_member',
         'live_other_uw',
         'uw_apt_yesno',
         'core_pregnant',
@@ -546,13 +546,15 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'swab_and_send_calc',
         'kiosk_calc',
         'covid_test_week_base',
-        'uw_housing_resident',
-        'on_campus_2x_week',
+        #'uw_housing_resident',
+        #'on_campus_2x_week',
     ]
 
+    '''
     decimal_questions = [
         'bmi'
     ]
+    '''
 
     coding_questions = [
         'core_race'
@@ -576,7 +578,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'valueInteger': integer_questions,
         'valueString': string_questions,
         'valueDate': date_questions,
-        'valueDecimal': decimal_questions
+        #'valueDecimal': decimal_questions
     }
 
     for field in checkbox_fields:
@@ -586,6 +588,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     record['countries_visited_base'] = combine_multiple_fields(record, 'country', '_base')
     record['states_visited_base'] = combine_multiple_fields(record, 'state', '_base')
 
+    '''
     # Set the study tier
     tier = None
     if record['tier_1'] == '1':
@@ -595,9 +598,11 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     elif record['tier_3'] == '1':
         tier = 3
     record['tier'] = tier
+    '''
 
     vaccine_item = create_vaccine_item(record["vaccine"], record['vaccine_year'], record['vaccine_month'], 'dont_know')
 
+    '''
     # Set the UW housing group
     housing_group = None
     if record.get('uw_housing_group_a') == '1':
@@ -615,7 +620,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     elif record.get('uw_housing_group_g') == '1':
         housing_group = 'g'
     record['uw_housing_group'] = housing_group
-
+    '''
 
     return create_questionnaire_response(
         record = record,
@@ -883,7 +888,7 @@ def get_date_from_repeat_instance(instance_id: int) -> str:
     """
     return (STUDY_START_DATE + relativedelta(days=(instance_id -1))).strftime('%Y-%m-%d')
 
-
+'''
 def check_enrollment_data_quality(record: REDCapRecord) -> None:
     """
     Warns if the enrollment record violates data quality checks.
@@ -901,3 +906,4 @@ def check_enrollment_data_quality(record: REDCapRecord) -> None:
     if housing_group_count > 0 and record['added_surveillance_groups']:
         LOG.warning(f"Record {record['record_id']} enrollment data quality issue: "
         "In a UW Housing residence group and has a value for `added_surveillance_groups`")
+'''
