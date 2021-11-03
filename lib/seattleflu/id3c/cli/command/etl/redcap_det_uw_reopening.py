@@ -161,10 +161,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
     persisted_resource_entries = [patient_entry, *location_resource_entries]
     
-    REDCAP_RECORD_ID_CUTOFF = 32024
-    MIGRATED_RECORD = True if int(enrollment['record_id']) <= REDCAP_RECORD_ID_CUTOFF else False
-    migrated_record_encounter_found = False
-
     for redcap_record_instance in redcap_record_instances:
 
         event_type = None
@@ -173,21 +169,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
             check_enrollment_data_quality(redcap_record_instance)
-
-            # For now, skip processing enrollment DETS for any record copied over
-            # between 2020 and 2021 HCT REDCap projects, using a record_id cutoff
-            # as a proxy. The migrated data has sporadic missingness that has yet to
-            # be resolved, and we don't want to overwrite good enrollment data
-            # with missing values in ID3C.
-            # XXX TODO: Once the missingness from the data migration is resolved,
-            # we'll resume processing of enrollment data for all records, and likely
-            # manually generate DETs to capture the migrated enrollment data too.
-            #   -KSF, 10 Sept 2021
-            if MIGRATED_RECORD:
-                LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
-                f"{redcap_record_instance.get('record_id')} because its a migrated enrollment "
-                "and we currently don't want to reprocess it.")
-                continue
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
@@ -211,8 +192,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
                     LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
                     continue
-            elif MIGRATED_RECORD:
-                migrated_record_encounter_found = True
                 
         # site_reference refers to where the sample was collected
         record_location = None
@@ -391,17 +370,12 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         persisted_resource_entries.extend(list(filter(None, current_instance_entries)))
 
-    if MIGRATED_RECORD and not migrated_record_encounter_found:
-        LOG.info("Skipping record because it is a migrated record with only enrollment data: "
-                f"{enrollment.get('record_id')}")
-        return None
-    else:
-        return create_bundle_resource(
-            bundle_id = str(uuid4()),
-            timestamp = datetime.now().astimezone().isoformat(),
-            source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
-            entries = list(filter(None, persisted_resource_entries))
-        )
+    return create_bundle_resource(
+        bundle_id = str(uuid4()),
+        timestamp = datetime.now().astimezone().isoformat(),
+        source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
+        entries = list(filter(None, persisted_resource_entries))
+    )
 
 
 def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[str]:
