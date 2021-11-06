@@ -372,6 +372,9 @@ def create_encounter_class(redcap_record: dict) -> dict:
     encounter_class = redcap_record.get('patient_class', '')
 
     mapper = {
+        "outpatient" : "AMB",
+        "inpatient"  : "IMP",
+        "emergency"  : "EMER",
         "op"    : "AMB",
         "ed"    : "EMER",  # can also code as "AMB"
         "ip"    : "IMP",
