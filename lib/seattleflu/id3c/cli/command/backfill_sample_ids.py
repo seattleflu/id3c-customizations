@@ -25,7 +25,8 @@ def backfill_sample_ids(*, db: DatabaseSession, action: DatabaseSessionAction):
             join warehouse.identifier on sample.collection_identifier = identifier.uuid::text
             join warehouse.identifier_set using (identifier_set_id)
             where identifier is null and
-            identifier_set.name in ('collections-uw-tiny-swabs-home', 'collections-uw-tiny-swabs-observed')
+            identifier_set.name in ('collections-uw-tiny-swabs-home', 'collections-uw-tiny-swabs-observed', 
+                'collections-scan-tiny-swabs', 'collections-adult-family-home-outbreak-tiny-swabs', 'collections-workplace-outbreak-tiny-swabs')
             order by sample.sample_id
             """)
 
