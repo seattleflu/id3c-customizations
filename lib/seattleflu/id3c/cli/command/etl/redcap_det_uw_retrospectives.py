@@ -413,6 +413,7 @@ def create_encounter_status(redcap_record: dict) -> str:
         'preadmit'  : 'arrived',
         'lwbs'      : 'cancelled',  # LWBS = left without being seen.
         'discharged': 'finished',
+        'completed' : 'finished',
     }
 
     standardized_status = standardize_whitespace(status.lower())
