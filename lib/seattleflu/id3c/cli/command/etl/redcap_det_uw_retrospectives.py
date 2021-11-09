@@ -523,32 +523,34 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     """
     result = redcap_record[test]
 
-    if not result or result.startswith('Reorder requested, '):
+    standardized_result = standardize_whitespace(result.lower()) if result else None
+
+    if not standardized_result or standardized_result.startswith('reorder requested,'):
         return None
 
     test_result_map = {
-        'Negative'                          : False,
-        'None detected'                     : False,
-        'None detected.'                    : False,
-        'Not detected (qualifier value)'    : False,
-        'Detected'                          : True,
-        'Detected (qualifier value)'        : True,
-        'Positive'                          : True,
-        'Cancel, order changed'             : None,
-        'Canceled by practitioner'          : None,
-        'Duplicate request'                 : None,
-        'Inconclusive'                      : None, # XXX: Ingest this someday as present = null?
-        'Inconclusive.'                     : None, # XXX: Ingest this someday as present = null?
-        'Indeterminate'                     : None, # XXX: Ingest this someday as present = null?
-        'PENDING'                           : None,
-        'Test not applicable'               : None,
-        'Wrong test ordered by practitioner': None,
+        'negative'                          : False,
+        'none detected'                     : False,
+        'none detected.'                    : False,
+        'not detected (qualifier value)'    : False,
+        'detected'                          : True,
+        'detected (qualifier value)'        : True,
+        'positive'                          : True,
+        'cancel, order changed'             : None,
+        'canceled by practitioner'          : None,
+        'duplicate request'                 : None,
+        'inconclusive'                      : None, # XXX: Ingest this someday as present = null?
+        'inconclusive.'                     : None, # XXX: Ingest this someday as present = null?
+        'indeterminate'                     : None, # XXX: Ingest this someday as present = null?
+        'pending'                           : None,
+        'test not applicable'               : None,
+        'wrong test ordered by practitioner': None,
     }
 
-    if result not in test_result_map:
-        raise Exception(f"Unknown test result value «{result}».")
+    if standardized_result not in test_result_map:
+        raise Exception(f"Unknown test result value «{standardized_result}».")
 
-    return test_result_map[result]
+    return test_result_map[standardized_result]
 
 
 def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
