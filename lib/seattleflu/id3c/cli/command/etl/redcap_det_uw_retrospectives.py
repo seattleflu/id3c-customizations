@@ -3,6 +3,7 @@ Process REDCAP DETs that are specific to UW retrospective samples from
 the Clinical Data Pulls Project.
 """
 import logging
+import re
 from collections import defaultdict
 from uuid import uuid4
 from datetime import datetime
@@ -298,8 +299,11 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     disposition = redcap_record['discharge_disposition']
     if not disposition:
         return None
+    
+    # Lowercase, remove leading number characters, and standardize whitespace
+    standardized_disposition = standardize_whitespace(re.sub('^\d+', '', disposition.lower()))
 
-    if disposition.startswith('Disch/Trans/Planned IP Readm'):
+    if standardized_disposition.startswith('disch/trans/planned ip readm'):
         # This feels like sensitive information. Don't code the entire string.
         return 'other-hcf'
 
@@ -337,7 +341,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'dischrg/tr: disch/trans fed hospital'                  : 'other-hcf',
         'disch/trans/planned readm to designated cancer ctr or children\'s hospital': 'other-hcf',
         'disch/trans/planned readm to hospital'                 : 'other-hcf',
-        'Disch/Trans/Planned IP Readm between Service Area 20 NW/UWMC Campus': 'other-hcf',
+        #'Disch/Trans/Planned IP Readm between Service Area 20 NW/UWMC Campus': 'other-hcf',
         'discharged/transferred to a hospital-based medicare approved swing bed' : 'other-hcf',
         'disch/trans to a distinct psych unit/hospital'         : 'psy',
         'dsch/tran: disch/trans to a distinct psych unit/hospital': 'psy',
@@ -351,8 +355,6 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'still a patient'                                       : None,
         'still a pati: still a patient'                         : None,
     }
-
-    standardized_disposition = standardize_whitespace(disposition.lower())
 
     if standardized_disposition not in mapper:
         raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
