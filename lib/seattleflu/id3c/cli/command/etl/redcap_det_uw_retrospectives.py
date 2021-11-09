@@ -414,6 +414,7 @@ def create_encounter_status(redcap_record: dict) -> str:
         'arrived'   : 'arrived',
         'preadmit'  : 'arrived',
         'lwbs'      : 'cancelled',  # LWBS = left without being seen.
+        'canceled'  : 'cancelled',
         'completed' : 'finished',
         'discharged': 'finished',
     }
@@ -532,22 +533,26 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
         return None
 
     test_result_map = {
-        'negative'                          : False,
-        'none detected'                     : False,
-        'none detected.'                    : False,
-        'not detected (qualifier value)'    : False,
-        'detected'                          : True,
-        'detected (qualifier value)'        : True,
-        'positive'                          : True,
-        'cancel, order changed'             : None,
-        'canceled by practitioner'          : None,
-        'duplicate request'                 : None,
-        'inconclusive'                      : None, # XXX: Ingest this someday as present = null?
-        'inconclusive.'                     : None, # XXX: Ingest this someday as present = null?
-        'indeterminate'                     : None, # XXX: Ingest this someday as present = null?
-        'pending'                           : None,
-        'test not applicable'               : None,
-        'wrong test ordered by practitioner': None,
+        'negative'                              : False,
+        'none detected'                         : False,
+        'none detected.'                        : False,
+        'not detected (qualifier value)'        : False,
+        'detected'                              : True,
+        'detected (qualifier value)'            : True,
+        'positive'                              : True,
+        'cancel, order changed'                 : None,
+        'cancel, see detail'                    : None,
+        'canceled by practitioner'              : None,
+        'duplicate request'                     : None,
+        'inconclusive'                          : None, # XXX: Ingest this someday as present = null?
+        'inconclusive.'                         : None, # XXX: Ingest this someday as present = null?
+        'indeterminate'                         : None, # XXX: Ingest this someday as present = null?
+        'pending'                               : None,
+        'test not applicable'                   : None,
+        'wrong test ordered by practitioner'    : None,
+        'follow-up testing required. sample recollection requested.': None,
+        'disregard results, wrong chart.'       : None,
+        'wrong test selected by uw laboratory'  : None
     }
 
     if standardized_result not in test_result_map:
