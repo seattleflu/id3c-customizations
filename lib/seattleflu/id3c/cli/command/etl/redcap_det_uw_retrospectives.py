@@ -527,7 +527,9 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     """
     result = redcap_record[test]
 
-    standardized_result = standardize_whitespace(result.lower()) if result else None
+    # Lowercase, remove non-alpahnumeric characters(except spaces), then standardize whitespace
+    # Removal of non-alphanumeric characters is to account for inconsistencies in the data received
+    standardized_result = standardize_whitespace(re.sub(r'[^a-z0-9 ]+','',result.lower())) if result else None
 
     if not standardized_result or standardized_result.startswith('reorder requested,'):
         return None
@@ -535,23 +537,21 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     test_result_map = {
         'negative'                              : False,
         'none detected'                         : False,
-        'none detected.'                        : False,
-        'not detected (qualifier value)'        : False,
+        'not detected qualifier value'          : False,
         'detected'                              : True,
-        'detected (qualifier value)'            : True,
+        'detected qualifier value'              : True,
         'positive'                              : True,
-        'cancel, order changed'                 : None,
-        'cancel, see detail'                    : None,
+        'cancel order changed'                  : None,
+        'cancel see detail'                     : None,
         'canceled by practitioner'              : None,
         'duplicate request'                     : None,
         'inconclusive'                          : None, # XXX: Ingest this someday as present = null?
-        'inconclusive.'                         : None, # XXX: Ingest this someday as present = null?
         'indeterminate'                         : None, # XXX: Ingest this someday as present = null?
         'pending'                               : None,
         'test not applicable'                   : None,
         'wrong test ordered by practitioner'    : None,
-        'follow-up testing required. sample recollection requested.': None,
-        'disregard results, wrong chart.'       : None,
+        'followup testing required sample recollection requested': None,
+        'disregard results wrong chart'         : None,
         'wrong test selected by uw laboratory'  : None
     }
 
