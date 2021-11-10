@@ -3,6 +3,7 @@ Process REDCAP DETs that are specific to UW retrospective samples from
 the Clinical Data Pulls Project.
 """
 import logging
+import re
 from collections import defaultdict
 from uuid import uuid4
 from datetime import datetime
@@ -298,8 +299,11 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     disposition = redcap_record['discharge_disposition']
     if not disposition:
         return None
+    
+    # Lowercase, remove leading number characters, and standardize whitespace
+    standardized_disposition = standardize_whitespace(re.sub('^\d+', '', disposition.lower()))
 
-    if disposition.startswith('Disch/Trans/Planned IP Readm'):
+    if standardized_disposition.startswith('disch/trans/planned ip readm'):
         # This feels like sensitive information. Don't code the entire string.
         return 'other-hcf'
 
@@ -337,7 +341,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'dischrg/tr: disch/trans fed hospital'                  : 'other-hcf',
         'disch/trans/planned readm to designated cancer ctr or children\'s hospital': 'other-hcf',
         'disch/trans/planned readm to hospital'                 : 'other-hcf',
-        'Disch/Trans/Planned IP Readm between Service Area 20 NW/UWMC Campus': 'other-hcf',
+        #'Disch/Trans/Planned IP Readm between Service Area 20 NW/UWMC Campus': 'other-hcf',
         'discharged/transferred to a hospital-based medicare approved swing bed' : 'other-hcf',
         'disch/trans to a distinct psych unit/hospital'         : 'psy',
         'dsch/tran: disch/trans to a distinct psych unit/hospital': 'psy',
@@ -351,8 +355,6 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'still a patient'                                       : None,
         'still a pati: still a patient'                         : None,
     }
-
-    standardized_disposition = standardize_whitespace(disposition.lower())
 
     if standardized_disposition not in mapper:
         raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
@@ -412,6 +414,8 @@ def create_encounter_status(redcap_record: dict) -> str:
         'arrived'   : 'arrived',
         'preadmit'  : 'arrived',
         'lwbs'      : 'cancelled',  # LWBS = left without being seen.
+        'canceled'  : 'cancelled',
+        'completed' : 'finished',
         'discharged': 'finished',
     }
 
@@ -523,32 +527,38 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     """
     result = redcap_record[test]
 
-    if not result or result.startswith('Reorder requested, '):
+    # Lowercase, remove non-alpahnumeric characters(except spaces), then standardize whitespace
+    # Removal of non-alphanumeric characters is to account for inconsistencies in the data received
+    standardized_result = standardize_whitespace(re.sub(r'[^a-z0-9 ]+','',result.lower())) if result else None
+
+    if not standardized_result or standardized_result.startswith('reorder requested,'):
         return None
 
     test_result_map = {
-        'Negative'                          : False,
-        'None detected'                     : False,
-        'None detected.'                    : False,
-        'Not detected (qualifier value)'    : False,
-        'Detected'                          : True,
-        'Detected (qualifier value)'        : True,
-        'Positive'                          : True,
-        'Cancel, order changed'             : None,
-        'Canceled by practitioner'          : None,
-        'Duplicate request'                 : None,
-        'Inconclusive'                      : None, # XXX: Ingest this someday as present = null?
-        'Inconclusive.'                     : None, # XXX: Ingest this someday as present = null?
-        'Indeterminate'                     : None, # XXX: Ingest this someday as present = null?
-        'PENDING'                           : None,
-        'Test not applicable'               : None,
-        'Wrong test ordered by practitioner': None,
+        'negative'                              : False,
+        'none detected'                         : False,
+        'not detected qualifier value'          : False,
+        'detected'                              : True,
+        'detected qualifier value'              : True,
+        'positive'                              : True,
+        'cancel order changed'                  : None,
+        'cancel see detail'                     : None,
+        'canceled by practitioner'              : None,
+        'duplicate request'                     : None,
+        'inconclusive'                          : None, # XXX: Ingest this someday as present = null?
+        'indeterminate'                         : None, # XXX: Ingest this someday as present = null?
+        'pending'                               : None,
+        'test not applicable'                   : None,
+        'wrong test ordered by practitioner'    : None,
+        'followup testing required sample recollection requested': None,
+        'disregard results wrong chart'         : None,
+        'wrong test selected by uw laboratory'  : None
     }
 
-    if result not in test_result_map:
-        raise Exception(f"Unknown test result value «{result}».")
+    if standardized_result not in test_result_map:
+        raise Exception(f"Unknown test result value «{standardized_result}».")
 
-    return test_result_map[result]
+    return test_result_map[standardized_result]
 
 
 def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
