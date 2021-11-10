@@ -531,7 +531,7 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     # Removal of non-alphanumeric characters is to account for inconsistencies in the data received
     standardized_result = standardize_whitespace(re.sub(r'[^a-z0-9 ]+','',result.lower())) if result else None
 
-    if not standardized_result or standardized_result.startswith('reorder requested,'):
+    if not standardized_result or standardized_result.startswith('reorder requested'):
         return None
 
     test_result_map = {
