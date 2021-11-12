@@ -161,10 +161,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
     persisted_resource_entries = [patient_entry, *location_resource_entries]
     
-    REDCAP_RECORD_ID_CUTOFF = 32024
-    MIGRATED_RECORD = True if int(enrollment['record_id']) <= REDCAP_RECORD_ID_CUTOFF else False
-    migrated_record_encounter_found = False
-
     for redcap_record_instance in redcap_record_instances:
 
         event_type = None
@@ -172,22 +168,9 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
-            check_enrollment_data_quality(redcap_record_instance)
-
-            # For now, skip processing enrollment DETS for any record copied over
-            # between 2020 and 2021 HCT REDCap projects, using a record_id cutoff
-            # as a proxy. The migrated data has sporadic missingness that has yet to
-            # be resolved, and we don't want to overwrite good enrollment data
-            # with missing values in ID3C.
-            # XXX TODO: Once the missingness from the data migration is resolved,
-            # we'll resume processing of enrollment data for all records, and likely
-            # manually generate DETs to capture the migrated enrollment data too.
-            #   -KSF, 10 Sept 2021
-            if MIGRATED_RECORD:
-                LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
-                f"{redcap_record_instance.get('record_id')} because its a migrated enrollment "
-                "and we currently don't want to reprocess it.")
-                continue
+            # This QC check is not currently needed because it is only checking
+            # uw_housing_group fields which are deprecated as of 2021-09-09.
+            #check_enrollment_data_quality(redcap_record_instance)
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
@@ -211,8 +194,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
                     LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
                     continue
-            elif MIGRATED_RECORD:
-                migrated_record_encounter_found = True
                 
         # site_reference refers to where the sample was collected
         record_location = None
@@ -391,17 +372,12 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         persisted_resource_entries.extend(list(filter(None, current_instance_entries)))
 
-    if MIGRATED_RECORD and not migrated_record_encounter_found:
-        LOG.info("Skipping record because it is a migrated record with only enrollment data: "
-                f"{enrollment.get('record_id')}")
-        return None
-    else:
-        return create_bundle_resource(
-            bundle_id = str(uuid4()),
-            timestamp = datetime.now().astimezone().isoformat(),
-            source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
-            entries = list(filter(None, persisted_resource_entries))
-        )
+    return create_bundle_resource(
+        bundle_id = str(uuid4()),
+        timestamp = datetime.now().astimezone().isoformat(),
+        source = f"{REDCAP_URL}{enrollment.project.id}/{enrollment.id}",
+        entries = list(filter(None, persisted_resource_entries))
+    )
 
 
 def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[str]:
@@ -498,8 +474,8 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     # Do not include `core_age_years` because we calculate the age ourselves in the computed questionnaire.
     integer_questions = [
         'weight',
-        'height_total',
-        'tier'
+        #'height_total',    # Deprecated as of 2021-09-09
+        #'tier'             # Deprecated as of 2021-09-09
     ]
 
     string_questions = [
@@ -558,7 +534,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'uw_medicine_yesno',
         'inperson_classes',
         'uw_job',
-        'uw_greek_member',
+        #'uw_greek_member'              # Deprecated as of 2021-09-09
         'live_other_uw',
         'uw_apt_yesno',
         'core_pregnant',
@@ -572,13 +548,16 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'swab_and_send_calc',
         'kiosk_calc',
         'covid_test_week_base',
-        'uw_housing_resident',
-        'on_campus_2x_week',
+        #'uw_housing_resident'          # Deprecated as of 2021-09-09
+        #'on_campus_2x_week'            # Deprecated as of 2021-09-09
     ]
 
+    # Deprecated as of 2021-09-09
+    '''
     decimal_questions = [
         'bmi'
     ]
+    '''
 
     coding_questions = [
         'core_race'
@@ -602,7 +581,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'valueInteger': integer_questions,
         'valueString': string_questions,
         'valueDate': date_questions,
-        'valueDecimal': decimal_questions
+        #'valueDecimal': decimal_questions      # no decimal questions currently
     }
 
     for field in checkbox_fields:
@@ -612,6 +591,8 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     record['countries_visited_base'] = combine_multiple_fields(record, 'country', '_base')
     record['states_visited_base'] = combine_multiple_fields(record, 'state', '_base')
 
+    # Deprecated as of 2021-09-09
+    '''
     # Set the study tier
     tier = None
     if record['tier_1'] == '1':
@@ -621,9 +602,12 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     elif record['tier_3'] == '1':
         tier = 3
     record['tier'] = tier
+    '''
 
     vaccine_item = create_vaccine_item(record["vaccine"], record['vaccine_year'], record['vaccine_month'], 'dont_know')
 
+    # Deprecated as of 2021-09-09
+    '''
     # Set the UW housing group
     housing_group = None
     if record.get('uw_housing_group_a') == '1':
@@ -641,7 +625,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     elif record.get('uw_housing_group_g') == '1':
         housing_group = 'g'
     record['uw_housing_group'] = housing_group
-
+    '''
 
     return create_questionnaire_response(
         record = record,
@@ -910,6 +894,9 @@ def get_date_from_repeat_instance(instance_id: int) -> str:
     return (STUDY_START_DATE + relativedelta(days=(instance_id -1))).strftime('%Y-%m-%d')
 
 
+# This is no longer functional with the uw_housing_group fields being deprecated. Preserving
+# code for now in case it needs to be revised or repurposed.
+'''
 def check_enrollment_data_quality(record: REDCapRecord) -> None:
     """
     Warns if the enrollment record violates data quality checks.
@@ -927,3 +914,4 @@ def check_enrollment_data_quality(record: REDCapRecord) -> None:
     if housing_group_count > 0 and record['added_surveillance_groups']:
         LOG.warning(f"Record {record['record_id']} enrollment data quality issue: "
         "In a UW Housing residence group and has a value for `added_surveillance_groups`")
+'''
