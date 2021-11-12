@@ -168,6 +168,8 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
+            # This QC check is not currently needed because it is only checking
+            # uw_housing_group fields which are deprecated as of 2021-09-09.
             #check_enrollment_data_quality(redcap_record_instance)
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
@@ -472,8 +474,8 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     # Do not include `core_age_years` because we calculate the age ourselves in the computed questionnaire.
     integer_questions = [
         'weight',
-        #'height_total',
-        #'tier'
+        #'height_total',    # Deprecated as of 2021-09-09
+        #'tier'             # Deprecated as of 2021-09-09
     ]
 
     string_questions = [
@@ -532,7 +534,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'uw_medicine_yesno',
         'inperson_classes',
         'uw_job',
-        #'uw_greek_member',
+        #'uw_greek_member'              # Deprecated as of 2021-09-09
         'live_other_uw',
         'uw_apt_yesno',
         'core_pregnant',
@@ -546,10 +548,11 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'swab_and_send_calc',
         'kiosk_calc',
         'covid_test_week_base',
-        #'uw_housing_resident',
-        #'on_campus_2x_week',
+        #'uw_housing_resident'          # Deprecated as of 2021-09-09
+        #'on_campus_2x_week'            # Deprecated as of 2021-09-09
     ]
 
+    # Deprecated as of 2021-09-09
     '''
     decimal_questions = [
         'bmi'
@@ -578,7 +581,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'valueInteger': integer_questions,
         'valueString': string_questions,
         'valueDate': date_questions,
-        #'valueDecimal': decimal_questions
+        #'valueDecimal': decimal_questions      # no decimal questions currently
     }
 
     for field in checkbox_fields:
@@ -588,6 +591,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     record['countries_visited_base'] = combine_multiple_fields(record, 'country', '_base')
     record['states_visited_base'] = combine_multiple_fields(record, 'state', '_base')
 
+    # Deprecated as of 2021-09-09
     '''
     # Set the study tier
     tier = None
@@ -602,6 +606,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
 
     vaccine_item = create_vaccine_item(record["vaccine"], record['vaccine_year'], record['vaccine_month'], 'dont_know')
 
+    # Deprecated as of 2021-09-09
     '''
     # Set the UW housing group
     housing_group = None
@@ -888,6 +893,9 @@ def get_date_from_repeat_instance(instance_id: int) -> str:
     """
     return (STUDY_START_DATE + relativedelta(days=(instance_id -1))).strftime('%Y-%m-%d')
 
+
+# This is no longer functional with the uw_housing_group fields being deprecated. Preserving
+# code for now in case it needs to be revised or repurposed.
 '''
 def check_enrollment_data_quality(record: REDCapRecord) -> None:
     """
