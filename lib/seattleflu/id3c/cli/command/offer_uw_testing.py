@@ -28,7 +28,7 @@ from ...utils import unwrap
 
 LOG = logging.getLogger(__name__)
 
-STUDY_START_DATE = date(2020, 9, 24)
+STUDY_START_DATE = date(2021, 9, 9)
 
 TESTING_INSTRUMENT = "testing_determination_internal"
 
@@ -254,10 +254,10 @@ def repeat_instance(date: date) -> int:
 
     >>> repeat_instance(STUDY_START_DATE)
     1
-    >>> repeat_instance(date(2020, 9, 24))
+    >>> repeat_instance(date(2021, 9, 9))
     1
-    >>> repeat_instance(date(2020, 11, 13))
-    51
+    >>> repeat_instance(date(2021, 11, 13))
+    66
     """
     return 1 + (date - STUDY_START_DATE).days
 
@@ -293,9 +293,9 @@ def testing_type(priority_reason: str) -> TestingType:
         'symptomatic':                  TestingType.SymptomsOrExposure,
         'exposure_to_known_positive':   TestingType.SymptomsOrExposure,
         'gathering_over_10':            TestingType.SymptomsOrExposure,
+        'travel':                       TestingType.SymptomsOrExposure,
         'baseline':                     TestingType.Baseline,
         'surveillance':                 TestingType.Surveillance,
         'surge_testing':                TestingType.ContactTracing,
-        'uw_housing_resident':          TestingType.UwHousingResident,
     }
     return testing_type[priority_reason]
