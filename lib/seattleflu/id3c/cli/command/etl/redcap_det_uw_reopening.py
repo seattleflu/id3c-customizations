@@ -54,7 +54,7 @@ ENROLLMENT_EVENT_NAME = "enrollment_arm_1"
 ENCOUNTER_EVENT_NAME = "encounter_arm_1"
 SWAB_AND_SEND_SITE = 'UWReopeningSwabNSend'
 UW_DROPBOX_SITE = 'UWReopeningDropbox'
-STUDY_START_DATE = datetime(2020, 9, 24) # Study start date of 2020-09-24
+STUDY_START_DATE = datetime(2021, 9, 9) # HCT Project 45 calculates instance numbers with Y2 Start Date 09-09-2021
 
 REQUIRED_ENROLLMENT_INSTRUMENTS = [
     'eligibility_screening',
@@ -160,7 +160,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         system_identifier = INTERNAL_SYSTEM)
 
     persisted_resource_entries = [patient_entry, *location_resource_entries]
-    
+
     for redcap_record_instance in redcap_record_instances:
 
         event_type = None
@@ -194,7 +194,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
                     LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
                     continue
-                
+
         # site_reference refers to where the sample was collected
         record_location = None
         if collection_method == CollectionMethod.KIOSK:
@@ -269,7 +269,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     f"for record: {redcap_record_instance.get('record_id')}, instance: "
                     f"{redcap_record_instance.get('redcap_repeat_instance')}")
                 continue
- 
+
         specimen_entry = None
         specimen_observation_entry = None
         specimen_received = (collection_method == CollectionMethod.SWAB_AND_SEND and \
@@ -832,6 +832,7 @@ def create_daily_questionnaire_response(record: REDCapRecord, patient_reference:
     string_questions = [
         'daily_exposure',
         'daily_exposure_known_pos',
+        'daily_travel',
         'sought_care',
         'hospital_where',
         'hospital_ed',
