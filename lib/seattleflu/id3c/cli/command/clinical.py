@@ -418,7 +418,7 @@ def collapse_columns(df: pd.DataFrame, stub: str, pid='enrollid') -> pd.DataFram
     column called "Race". Removes the original "Race*" option columns. Returns
     the new DataFrame.
     """
-    stub_data = df.filter(regex=f'{pid}|{stub}*', axis='columns')
+    stub_data = df.filter(regex=f'^({pid}|{stub}.*)$', axis='columns')
     stub_columns = list(stub_data)
     stub_columns.remove(pid)
 
