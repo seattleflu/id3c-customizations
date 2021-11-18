@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from enum import Enum
 from id3c.cli.command.etl import redcap_det
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
+from id3c.db import find_identifier
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap import *
 
@@ -272,6 +273,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         specimen_entry = None
         specimen_observation_entry = None
+        specimen_identifier = None
         specimen_received = (collection_method == CollectionMethod.SWAB_AND_SEND and \
             is_complete('post_collection_data_entry_qc', redcap_record_instance)) or \
             (collection_method == CollectionMethod.KIOSK and \
@@ -288,22 +290,40 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 redcap_record_instance["pre_scan_barcode"],
                 redcap_record_instance["barcode_swabsend"]]
 
-            specimen_entry, specimen_reference = create_specimen(
-                prioritized_barcodes = prioritized_barcodes,
-                patient_reference = patient_reference,
-                collection_date = get_collection_date(redcap_record_instance, collection_method),
-                sample_received_time = redcap_record_instance['samp_process_date'],
-                able_to_test = redcap_record_instance['able_to_test'],
-                system_identifier = INTERNAL_SYSTEM)
+            # Check if specimen barcode is valid
+            specimen_barcode = None
+            for barcode in prioritized_barcodes:
+                specimen_barcode = barcode.strip()
+                if specimen_barcode:
+                    # Disable logging when calling find_identifier here to suppess alerts
+                    # for HCT unrecognized barcodes which are being managed in LIMS
+                    logging.disable(logging.WARNING)
+                    specimen_identifier = find_identifier(db, specimen_barcode)
+                    logging.disable(logging.NOTSET)
+                    
+                    break
+            
+            if specimen_identifier:
+                specimen_entry, specimen_reference = create_specimen(
+                    prioritized_barcodes = prioritized_barcodes,
+                    patient_reference = patient_reference,
+                    collection_date = get_collection_date(redcap_record_instance, collection_method),
+                    sample_received_time = redcap_record_instance['samp_process_date'],
+                    able_to_test = redcap_record_instance['able_to_test'],
+                    system_identifier = INTERNAL_SYSTEM)
 
-            specimen_observation_entry = create_specimen_observation_entry(
-                specimen_reference = specimen_reference,
-                patient_reference = patient_reference,
-                encounter_reference = initial_encounter_reference)
+                specimen_observation_entry = create_specimen_observation_entry(
+                    specimen_reference = specimen_reference,
+                    patient_reference = patient_reference,
+                    encounter_reference = initial_encounter_reference)
+            else:
+                LOG.debug(f"No identifier found for barcode «{specimen_barcode}»")
+                LOG.info("No identifier found for barcode. Creating encounter for record instance without sample")
         else:
             LOG.info("Creating encounter for record instance without sample")
 
-        if specimen_received and not specimen_entry:
+        # Do not log warning for unrecognized barcodes, which are being tracked outside of ID3C.
+        if specimen_received and specimen_identifier and not specimen_entry:
             LOG.warning("Skipping record instance. We think the specimen was received, "
                  "but we're unable to create the specimen_entry for record: "
                  f"{redcap_record_instance.get('record_id')}, instance: {redcap_record_instance.get('redcap_repeat_instance')}"
