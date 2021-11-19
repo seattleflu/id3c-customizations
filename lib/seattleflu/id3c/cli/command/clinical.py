@@ -417,6 +417,12 @@ def collapse_columns(df: pd.DataFrame, stub: str, pid='enrollid') -> pd.DataFram
     encoding of multiple race options into a single array in a resulting
     column called "Race". Removes the original "Race*" option columns. Returns
     the new DataFrame.
+
+    >>> df = pd.DataFrame(columns = ['enrollid', 'racewhite', 'raceblack', 'raceasian', 'census_tract'])
+    >>> df.loc[0] = ['WA000000', 1, 1, 1, '00000000000']
+    >>> collapse_columns(df, 'race').columns.values.tolist()
+    ['enrollid', 'census_tract', 'race']
+
     """
     stub_data = df.filter(regex=f'^({pid}|{stub}.*)$', axis='columns')
     stub_columns = list(stub_data)
