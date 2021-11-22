@@ -556,7 +556,7 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     }
 
     if standardized_result not in test_result_map:
-        raise Exception(f"Unknown test result value «{standardized_result}».")
+        raise UnknownTestResult(f"Unknown test result value «{standardized_result}».")
 
     return test_result_map[standardized_result]
 
@@ -598,7 +598,12 @@ def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
         if results.get(code):
             continue
 
-        result = present(redcap_record, test)
+        try:
+            result = present(redcap_record, test)
+        except UnknownTestResult as e:
+            LOG.warning(e)
+            continue
+
         # Don't add empty or inconclusive results
         if result is None:
             continue
@@ -619,5 +624,12 @@ class UnknownHospitalDischargeDisposition(ValueError):
     """
     Raised by :function: `discharge_disposition` if it finds
     a discharge disposition value that is not among a set of mapped values
+    """
+    pass
+
+class UnknownTestResult(ValueError):
+    """
+    Raised by :function: `present` if it finds a test result
+    that is not among a set of mapped values
     """
     pass
