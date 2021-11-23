@@ -136,6 +136,7 @@ def create_condition_resource(condition_id: str,
                               patient_reference: dict,
                               onset_datetime: str,
                               condition_code: dict,
+                              encounter_reference = None,
                               severity = None) -> dict:
     """
     Create condition resource following the FHIR format
@@ -147,6 +148,9 @@ def create_condition_resource(condition_id: str,
         "subject": patient_reference,
         "code": condition_code,
     }
+
+    if encounter_reference:
+        condition_resource["encounter"] = encounter_reference
 
     if severity:
         condition_resource["severity"] = severity

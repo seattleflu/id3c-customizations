@@ -73,6 +73,9 @@ def redcap_det_uw_retrospectives(*,
         create_clinical_result_observation_resource
     )
 
+    immunization_entries = create_immunization(redcap_record, patient_reference)
+    condition_entries = create_conditions(redcap_record, patient_reference, encounter_reference)
+
     resource_entries = [
         patient_entry,
         specimen_entry,
@@ -81,11 +84,13 @@ def redcap_det_uw_retrospectives(*,
         specimen_observation_entry
     ]
 
-    if location_entries:
-        resource_entries.extend(location_entries)
-
+    for entries in [location_entries, immunization_entries, condition_entries]:
+        if entries:
+            resource_entries.extend(entries)
+    
     if diagnostic_report_resource_entry:
         resource_entries.append(diagnostic_report_resource_entry)
+
 
     return create_bundle_resource(
         bundle_id = str(uuid4()),
@@ -94,6 +99,34 @@ def redcap_det_uw_retrospectives(*,
         entries = list(filter(None, resource_entries))
     )
 
+
+def create_conditions(record:dict, patient_reference: dict, encounter_reference: dict) -> list:
+    """
+    Create condition resource following the FHIR format
+    (http://www.hl7.org/implement/standards/fhir/condition.html)
+    """
+    condition_entries = []
+
+    icd10_columns = ['icd10_primary', 'icd10_secondary']
+
+    for col in icd10_columns:
+        # Some records contain multiple comma-separated icd10 codes in the same field
+        icd10_code_list = [code.strip().upper() for code in record[col].split(',')]
+        onset_datetime = None
+
+        for icd10_code in filter(None, icd10_code_list):
+            condition_resource = create_condition_resource(icd10_code,
+                                    patient_reference,
+                                    onset_datetime,
+                                    create_codeable_concept("http://hl7.org/fhir/sid/icd-10", icd10_code),
+                                    encounter_reference)
+
+            condition_entries.append(create_resource_entry(
+                resource = condition_resource,
+                full_url = generate_full_url_uuid()
+            ))
+
+    return condition_entries
 
 def create_patient(record: dict) -> Optional[tuple]:
     """ Returns a FHIR Patient resource entry and reference. """
@@ -210,7 +243,7 @@ def create_encounter(db: DatabaseSession,
         encounter_status = encounter_status,
         patient_reference = patient_reference,
         location_references = encounter_location_references,
-        hospitalization = hospitalization
+        hospitalization = hospitalization,
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
@@ -640,4 +673,22 @@ class UnknownTestResult(ValueError):
     Raised by :function: `present` if it finds a test result
     that is not among a set of mapped values
     """
+<<<<<<< HEAD
     pass
+=======
+    pass
+
+class UnknownImmunizationStatus(ValueError):
+    """
+    Raised by :function: `create_immunization` if it finds a status
+    that is not among a set of mapped values
+    """
+    pass
+
+class UnknownVaccine(ValueError):
+    """
+    Raised by :function: `create_immunization` if it finds a vaccine
+    name that is not among a set of mapped values
+    """
+    pass
+>>>>>>> 03f8037 (s)
