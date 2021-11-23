@@ -15,7 +15,7 @@ from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_geocoded_address
 from seattleflu.id3c.cli.command import age_ceiling
-from . import standardize_whitespace, first_record_instance
+from . import standardize_whitespace, first_record_instance, race
 from .fhir import *
 from .redcap_map import *
 
@@ -452,6 +452,11 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
 
     if record["age"]:
         items["age"] = [{ 'valueInteger': age_ceiling(int(record["age"]))}]
+
+    if record["race"]:
+        items["race"] = []
+        for code in race(record["race"]):
+            items["race"].append({ 'valueCoding': create_coding(f"{SFS}/race", code)})
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():
