@@ -15,7 +15,7 @@ from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_geocoded_address
 from seattleflu.id3c.cli.command import age_ceiling
-from . import standardize_whitespace, first_record_instance, race
+from . import standardize_whitespace, first_record_instance, race, ethnicity
 from .fhir import *
 from .redcap_map import *
 
@@ -457,6 +457,9 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
         items["race"] = []
         for code in race(record["race"]):
             items["race"].append({ 'valueCoding': create_coding(f"{SFS}/race", code)})
+
+    if record["ethnicity"]:
+        items["ethnicity"] = [{ 'valueCoding': ethnicity(record["ethnicity"]) }]
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():

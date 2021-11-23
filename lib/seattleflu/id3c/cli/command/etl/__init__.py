@@ -7,7 +7,7 @@ from typing import Any, Optional, List
 from textwrap import dedent
 from functools import wraps
 from id3c.cli.redcap import Record as REDCapRecord, is_complete
-
+from .fhir import create_coding
 
 LOG = logging.getLogger(__name__)
 
@@ -137,6 +137,51 @@ def race(races: Optional[Any]) -> list:
     return list(map(standardize_race, races))
 
 
+def ethnicity(ethnicity: str) -> Optional[dict]:
+    """
+    Returns a standardized ethnicity based on FHIR values:
+    (https://www.hl7.org/fhir/v3/Ethnicity/cs.html)
+
+    >>> ethnicity("HISPANIC OR LATINO")
+    {'system': 'http://hl7.org/fhir/v3/Ethnicity', 'code': '2135-2', 'display': 'hispanic or latino'}
+
+    >>> ethnicity("NOT HISPANIC OR LATINO")
+    {'system': 'http://hl7.org/fhir/v3/Ethnicity', 'code': '2186-5', 'display': 'not hispanic or latino'}
+
+    >>> ethnicity("NULL") == None
+    True
+
+    A :class:`UnknownEthnicityError` is raised when an unknown value is encountered:
+
+    >>> ethnicity("FOOBARBAZ")
+    Traceback (most recent call last):
+        ...
+    seattleflu.id3c.cli.command.etl.UnknownEthnicityError: Unknown ethnicity value «foobarbaz»
+    """
+
+    if not ethnicity:
+        return None
+    else:
+        ethnicity = standardize_whitespace(ethnicity.lower())
+
+    hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2135-2", "hispanic or latino")
+    not_hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2186-5", "not hispanic or latino")
+
+    mapper = {
+        "hispanic or latino":               hispanic_or_latino,
+        "not hispanic or latino":           not_hispanic_or_latino,
+        "white/caucasian":                  not_hispanic_or_latino,
+        "unavailable or unknown":           None,
+        "null":                             None,
+        "declined to answer":               None,
+    }
+
+    if ethnicity not in mapper:
+        raise UnknownEthnicityError(f"Unknown ethnicity value «{ethnicity}»")
+
+    return mapper[ethnicity]
+
+
 def standardize_whitespace(string: str) -> str:
     """
     Removes leading, trailing, and repeat whitespace from a given *string*.
@@ -208,6 +253,13 @@ class UnknownRaceError(ValueError):
     """
     Raised by :function:`race` if its provided *race_name* is not among the set
     of expected values.
+    """
+    pass
+
+class UnknownEthnicityError(ValueError):
+    """
+    Raised by :function: `ethnicity` if it finds an ethnicity
+    that is not among a set of mapped values
     """
     pass
 
