@@ -108,6 +108,7 @@ def race(races: Optional[Any]) -> list:
 
         "white": "white",
         "white or caucasian": "white",
+        "caucasian": "white",
 
         "other": "other",
         "other race": "other",
@@ -120,6 +121,9 @@ def race(races: Optional[Any]) -> list:
         "did not wish to indicate": None,
         "unknown": None,
         "dont_say": None,
+        "declined to answer": None,
+        "patient not present": None,
+        "unavailable or unknown": None,
     }
 
     assert set(race_map.keys()) == set(map(str.lower, race_map.keys()))
