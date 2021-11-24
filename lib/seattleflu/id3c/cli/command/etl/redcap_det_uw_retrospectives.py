@@ -110,14 +110,17 @@ def create_conditions(record:dict, patient_reference: dict, encounter_reference:
     icd10_columns = ['icd10_primary', 'icd10_secondary']
 
     for col in icd10_columns:
-        # Some records contain multiple comma-separated icd10 codes in the same field
-        icd10_code_list = [code.strip().upper() for code in record[col].split(',')]
-        onset_datetime = None
+        # Some records contain multiple comma-separated icd10 codes in the same field.
+        # It has been confirmed with the source of the data that those are instances of multiple
+        # coding (https://www.hl7.org/fhir/icd.html#multiple-coding) which should remain together.
+        # Removing the comma here to conform with the FHIR standard.
+        # - drr  12/14/21
+        icd10_code = standardize_whitespace(record.get(col, '').replace(',',' '))
 
-        for icd10_code in filter(None, icd10_code_list):
+        if icd10_code:
             condition_resource = create_condition_resource(icd10_code,
                                     patient_reference,
-                                    onset_datetime,
+                                    None,
                                     create_codeable_concept("http://hl7.org/fhir/sid/icd-10", icd10_code),
                                     encounter_reference)
 
@@ -392,7 +395,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     if standardized_disposition not in mapper:
         raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
             f"«{standardized_disposition}» for barcode «{redcap_record['barcode']}».")
-
+    
     return mapper[standardized_disposition]
 
 
@@ -458,6 +461,114 @@ def create_encounter_status(redcap_record: dict) -> str:
         raise Exception(f"Unknown encounter status «{standardized_status}».")
 
     return mapper[standardized_status]
+
+
+def create_immunization(record: dict, patient_reference: dict) -> Optional[list]:
+    """ Returns a FHIR Immunization resource entry """
+    immunization_entries = []
+
+    immunization_columns = [
+        {
+            "status": "covid_status_1",
+            "date": "covid_date_1",
+            "name": "covid_vaccine"
+        },
+        {
+            "status": "covid_status_2",
+            "date": "covid_date_2",
+            "name": "covid_vaccine"
+        },
+        {
+            "status": "flu_status",
+            "date": "flu_date",
+            "name": None
+        }
+    ]
+
+    vaccine_mapper = {
+        "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "218",
+            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
+        },
+        "covid-19, unspecified": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "213",
+            "display": "COVID-19 vaccine, UNSPECIFIED",
+        },
+        "covid-19 janssen vector-nr rs-ad26": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "212",
+            "display": "COVID-19 vaccine, vector-nr, rS-Ad26, PF, 0.5 mL",
+        },
+        "covid-19 astrazeneca vector-nr rs-chadox1": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "210",
+            "display": "COVID-19 vaccine, vector-nr, rS-ChAdOx1, PF, 0.5 mL"
+        },
+        "covid-19 pfizer mrna lnp-s (comirnaty)": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 pfizer mrna lnp-s": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 moderna mrna lnp-s": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "207",
+            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
+        },
+        "flu unspecified": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "88",
+            "display": "influenza, unspecified formulation",
+        },
+        "": None
+    }
+
+    for column_map in immunization_columns:
+        # Validate vaccination status
+        immunization_status = standardize_whitespace(record[column_map["status"]]).lower()
+        if immunization_status not in ["y", "n", ""]:
+            raise UnknownImmunizationStatus (f"Unknown immunization status «{immunization_status}».")
+
+        # Standardize vaccine name 
+        if column_map["status"] == "flu_status" and column_map["name"] == None:
+            vaccine_name = "flu unspecified"
+        else:
+            vaccine_name = standardize_whitespace(record[column_map["name"]]).lower()
+        
+        # Validate vaccine name and determine CVX code
+        vaccine_code = None
+        if vaccine_name in vaccine_mapper:
+            vaccine_code = vaccine_mapper[vaccine_name]
+        else:
+            raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».")
+
+        # Standardize date format
+        immunization_date = record[column_map["date"]]
+        
+        if immunization_status == "y" and vaccine_code:
+            immunization_identifier_hash = generate_hash(f"{record['mrn']}{vaccine_code['code']}{immunization_date}".lower())
+            immunization_identifier = create_identifier(f"{SFS}/immunization", immunization_identifier_hash)
+        
+            immunization_resource = create_immunization_resource(
+                patient_reference = patient_reference,
+                immunization_identifier = [immunization_identifier],
+                immunization_date = immunization_date,
+                immunization_status = "completed",
+                vaccine_code = vaccine_code,
+            )
+
+            immunization_entries.append(create_resource_entry(
+                resource = immunization_resource,
+                full_url = generate_full_url_uuid()
+            ))
+
+    return immunization_entries
 
 
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
@@ -597,7 +708,7 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     }
 
     if standardized_result not in test_result_map:
-        raise UnknownTestResult(f"Unknown test result value «{standardized_result}».")
+        raise UnknownTestResult(f"Unknown test result value «{standardized_result}» for «{redcap_record['barcode']}».")
 
     return test_result_map[standardized_result]
 
@@ -673,9 +784,6 @@ class UnknownTestResult(ValueError):
     Raised by :function: `present` if it finds a test result
     that is not among a set of mapped values
     """
-<<<<<<< HEAD
-    pass
-=======
     pass
 
 class UnknownImmunizationStatus(ValueError):
@@ -691,4 +799,3 @@ class UnknownVaccine(ValueError):
     name that is not among a set of mapped values
     """
     pass
->>>>>>> 03f8037 (s)
