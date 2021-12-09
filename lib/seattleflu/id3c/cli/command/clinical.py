@@ -182,8 +182,13 @@ def drop_missing_rows(df: pd.DataFrame, column: str) -> pd.DataFrame:
 @click.argument("sch_filename", metavar = "<SCH Clinical Data filename>")
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
+@click.option("--manifest-format",
+    metavar="<manifest format>",
+    default="year3",
+    type=click.Choice(['year1','year2','year3']),
+    help="The format of input manifest file; default is \"year3\"")
 
-def parse_sch(sch_filename, output):
+def parse_sch(sch_filename, manifest_format, output):
     """
     Process clinical data from SCH.
 
@@ -211,8 +216,23 @@ def parse_sch(sch_filename, output):
         "sex": "AssignedSex",
         "ethnicity": "HispanicLatino",
         "race": "Race",
-        "vaccine_given": "FluShot",
     }
+
+    # Accounting for differences in format for year 3
+    if manifest_format in ['year1', 'year2']:
+        column_map["vaccine_given"] = "FluShot"
+    elif manifest_format == 'year3':
+        column_map.update({
+            "flu_vx_12mo": "FluShot",
+            "flu_date": "FluShotDate",
+            "covid_screen": "CovidScreen",
+            "covid_vx_d1": "CovidShot1",
+            "cov_d1_date": "CovidShot1Date",
+            "covid_vx_d2": "CovidShot2",
+            "cov_d2_date": "CovidShot2Date",
+            "covid_vx_manu": "CovidShotManufacturer",
+        })
+
     clinical_records = clinical_records.rename(columns=column_map)
 
     barcode_quality_control(clinical_records, output)
@@ -254,6 +274,12 @@ def parse_sch(sch_filename, output):
 
     # Convert dtypes
     clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
+
+    # Reformat vaccination dates
+    if manifest_format == 'year3':
+        clinical_records["FluShotDate"] = pd.to_datetime(clinical_records["FluShotDate"]).dt.strftime('%Y-%m-%d')
+        clinical_records["CovidShot1Date"] = pd.to_datetime(clinical_records["CovidShot1Date"]).dt.strftime('%Y-%m-%d')
+        clinical_records["CovidShot2Date"] = pd.to_datetime(clinical_records["CovidShot2Date"]).dt.strftime('%Y-%m-%d')
 
     # Insert static value columns
     clinical_records["site"] = "SCH"
