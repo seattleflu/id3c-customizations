@@ -94,4 +94,18 @@ insert into warehouse.site(identifier, details)
         set details = EXCLUDED.details
 ;
 
+delete from warehouse.site where identifier in 
+    ('YouthCare', 'Apple', 'AvalonFederalWayCareCenter', 
+    'BoeingField', 'BurienNursingAndRehab', 'ClementPlace', 'ClinicalAdultFamilyHomes', 'ClinicalWorkplace',
+    'ColumbiaLutheranHome', 'CompassBlaineCenter', 'CompassFirstPresbyterian', 'CompassJanAndPetersPlace',
+    'CompassOttosPlace3rdFloor', 'CompassOttosPlace4thAnd5thFloor', 'CristaRehabAndSkilledNursingCare',
+    'ExhibitionHall', 'FryeApartments', 'KlineGallandHome', 'Household', 'IssaquahNursingAndRehab',
+    'JudsonPark', 'JunctionPoint', 'Lazarus', 'LifeCareCenter', 'Marys_PlaceBurien', 'Marys_PlaceNorthSeattle',
+    'Marys_PlaceNorthshore', 'MarysPlaceRegrade', 'MarysPlaceWhiteCenter', 'Marys_PlaceYesler', 'MissionHealthcare',
+    'Oaks', 'ParkWestCareCenter', 'ProvidenceMountStVincent', 'RedLionHotel', 'ROOTS', 'ROSEY', 'QueenAnneHealthcare',
+    'SeattleMedicalPostAcuteCare', 'ShorelineHealthAndRehab', 'SnohomishSchoolDistrict', 'Spruce', 'StaffordHealthcare'); 
+
+update warehouse.site set details = details - 'swab_site' where identifier in 
+    ('ChildcareSwabNSend','StMartins', 'UWClub', 'Ode', 'UWSouthLakeUnion', 'UWReopeningDropbox');
+
 commit;
