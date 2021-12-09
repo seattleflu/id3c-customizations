@@ -198,7 +198,7 @@ def encounter_details(document: dict) -> dict:
     Describe encounter details in a simple data structure designed to be used
     from SQL.
     """
-    return {
+    details = {
             "age": age_to_delete(document.get("age")), # XXX TODO: Remove age from details
 
             # XXX TODO: Remove locations from details
@@ -215,6 +215,12 @@ def encounter_details(document: dict) -> dict:
                 "MedicalInsurance": insurance(document.get("MedicalInsurance"))
             },
         }
+
+    if "ICD10" in document:
+        details["responses"]["ICD10"] = document.get("ICD10")
+
+    return details
+
 
 def hispanic_latino(ethnic_group: Optional[Any]) -> list:
     """

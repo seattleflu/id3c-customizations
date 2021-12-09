@@ -197,6 +197,7 @@ def parse_sch(sch_filename, output):
     clinical_records = trim_whitespace(clinical_records)
     clinical_records = add_provenance(clinical_records, sch_filename)
     clinical_records = add_insurance(clinical_records)
+    clinical_records = add_icd10(clinical_records)
 
     # Standardize column names
     column_map = {
@@ -211,6 +212,7 @@ def parse_sch(sch_filename, output):
         "MedicalInsurance": "MedicalInsurance",
         "census_tract": "census_tract",
         "_provenance": "_provenance",
+        "ICD10": "ICD10",
     }
     clinical_records = clinical_records.rename(columns=column_map)
 
@@ -221,7 +223,8 @@ def parse_sch(sch_filename, output):
 
     # Drop unnecessary columns
     columns_to_keep = list(column_map.values()) + [  # Test result columns
-        'adeno', 'chlamydia', 'corona229e', 'corona_hku1', 'corona_nl63', 'corona_oc43',
+        'adeno',
+        'chlamydia', 'corona229e', 'corona_hku1', 'corona_nl63', 'corona_oc43',
         'flu_a_h3', 'flu_a_h1_2009', 'flu_b', 'flu_a', 'flu_a_h1', 'hmpv', 'mycoplasma',
         'paraflu_1_4', 'pertussis', 'rhino_ent', 'rsv'
     ]
@@ -237,6 +240,20 @@ def parse_sch(sch_filename, output):
     clinical_records = remove_pii(clinical_records)
 
     dump_ndjson(clinical_records)
+
+def add_icd10(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds a new column for ICD-10 codes to a given *df*. Returns the new
+    DataFrame.
+    """
+    def icd10(series: pd.Series) -> pd.Series:
+        """ Returns an array of unique ICD-10 codes from a given *series*. """
+        icd10_columns = [col for col in df.columns if col.startswith('diag_cd')]
+        icd10_codes = [ series[i] for i in icd10_columns if not pd.isna(series[i])]
+        return list(set(icd10_codes))
+
+    df['ICD10'] = df.apply(icd10, axis='columns')
+    return df
 
 
 def add_insurance(df: pd.DataFrame) -> pd.DataFrame:
