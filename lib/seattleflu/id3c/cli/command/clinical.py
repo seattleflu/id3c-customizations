@@ -208,15 +208,10 @@ def parse_sch(sch_filename, output):
         "pat_id2": "individual",
         "study_id": "barcode",
         "drawndate": "encountered",
-        "age": "age",
         "sex": "AssignedSex",
         "ethnicity": "HispanicLatino",
         "race": "Race",
         "vaccine_given": "FluShot",
-        "MedicalInsurance": "MedicalInsurance",
-        "census_tract": "census_tract",
-        "_provenance": "_provenance",
-        "ICD10": "ICD10",
     }
     clinical_records = clinical_records.rename(columns=column_map)
 
@@ -226,12 +221,35 @@ def parse_sch(sch_filename, output):
     clinical_records = drop_missing_rows(clinical_records, 'encountered')
 
     # Drop unnecessary columns
-    columns_to_keep = list(column_map.values()) + [  # Test result columns
+    columns_to_keep = list(column_map.values()) + [
+        "age",
+        "MedicalInsurance",
+        "census_tract",
+        "_provenance",
+
+        # Test result columns
         'adeno',
-        'chlamydia', 'corona229e', 'corona_hku1', 'corona_nl63', 'corona_oc43',
-        'flu_a_h3', 'flu_a_h1_2009', 'flu_b', 'flu_a', 'flu_a_h1', 'hmpv', 'mycoplasma',
-        'paraflu_1_4', 'pertussis', 'rhino_ent', 'rsv'
+        'chlamydia',
+        'corona229e',
+        'corona_hku1',
+        'corona_nl63',
+        'corona_oc43',
+        'flu_a_h3',
+        'flu_a_h1_2009',
+        'flu_b',
+        'flu_a',
+        'flu_a_h1',
+        'hmpv',
+        'mycoplasma',
+        'paraflu_1_4',
+        'pertussis',
+        'rhino_ent',
+        'rsv',
+
+        # ICD-10 codes
+        'ICD10',
     ]
+
     clinical_records = clinical_records[columns_to_keep]
 
     # Convert dtypes
