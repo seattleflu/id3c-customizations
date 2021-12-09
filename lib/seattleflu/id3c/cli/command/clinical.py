@@ -192,6 +192,10 @@ def parse_sch(sch_filename, output):
     """
     clinical_records = load_file_as_dataframe(sch_filename) \
                         .replace({"": None, "NA": None})
+
+    # drop records with no patient identifier
+    clinical_records.dropna(subset=['pat_id2'],inplace=True)
+
     clinical_records['age'] = clinical_records['age'].astype('float')
 
     clinical_records = trim_whitespace(clinical_records)
