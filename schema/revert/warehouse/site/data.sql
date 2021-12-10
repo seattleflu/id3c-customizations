@@ -106,6 +106,6 @@ delete from warehouse.site where identifier in
     'SeattleMedicalPostAcuteCare', 'ShorelineHealthAndRehab', 'SnohomishSchoolDistrict', 'Spruce', 'StaffordHealthcare'); 
 
 update warehouse.site set details = details - 'swab_site' where identifier in 
-    ('ChildcareSwabNSend','StMartins', 'UWClub', 'Ode', 'UWSouthLakeUnion', 'UWReopeningDropbox');
+    ('ChildcareSwabNSend','StMartins', 'UWClub', 'UWOdegaardLibrary', 'UWSouthLakeUnion', 'UWReopeningDropbox');
 
 commit;
