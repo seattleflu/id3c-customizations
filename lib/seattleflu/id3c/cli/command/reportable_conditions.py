@@ -16,12 +16,8 @@ be defined as environment variables outside of this command.
 Environment variables required:
     * SLACK_WEBHOOK_REPORTING_HCOV19: incoming webhook URL for sending Slack
         messages to the Seattle Flu Study #ncov-reporting channel
-    * SLACK_WEBHOOK_REPORTING_HCOV19_CHILDCARE: incoming webook URL for sending
-        Slack messages to the Seattle Flu Study #ncov-reporting-childcare channel
     * SLACK_WEBHOOK_REPORTING_HCOV19_APPLE: incoming webook URL for sending
         Slack messages to the Seattle Flu Study #ncov-reporting-apple channel
-    * SLACK_WEBHOOK_REPORTING_HCOV19_SCHOOLS: incoming webook URL for sending
-        Slack messages to the Seattle Flu Study #ncov-reporting-schools channel
     * SLACK_WEBHOOK_REPORTING_HCOV19_AFH: incoming webook URL for sending
         Slack messages to the Seattle Flu Study #ncov-reporting-afh channel
     * SLACK_WEBHOOK_REPORTING_HCOV19_WORKPLACE: incoming webook URL for sending
@@ -80,24 +76,9 @@ def notify(*, action: str):
 
     projects = [
         {
-            "collection_sets": {"collections-childcare"},
-            "slack_channel_name": "ncov-reporting-childcare",
-            "slack_webhook": webhook("HCOV19_CHILDCARE"),
-        },
-
-        {
             "collection_sets": {"collections-apple-respiratory"},
             "slack_channel_name": "ncov-reporting-apple",
             "slack_webhook": webhook("HCOV19_APPLE"),
-        },
-
-        {
-            "collection_sets": {"collections-school-testing-home",
-              "collections-school-testing-observed",
-              "collections-radxup-yakima-schools-home",
-              "collections-radxup-yakima-schools-observed"},
-            "slack_channel_name": "ncov-reporting-schools",
-            "slack_webhook": webhook("HCOV19_SCHOOLS"),
         },
 
         {
