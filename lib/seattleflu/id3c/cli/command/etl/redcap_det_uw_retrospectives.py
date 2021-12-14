@@ -25,7 +25,7 @@ SFS = "https://seattleflu.org"
 REDCAP_URL = "https://redcap.iths.org/"
 PROJECT_ID = 19915
 
-REVISION = 3
+REVISION = 4
 
 @redcap_det.command_for_project(
     "uw-retrospectives",
