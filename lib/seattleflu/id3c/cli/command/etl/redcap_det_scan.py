@@ -868,6 +868,9 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'travel_countries_phs',
         'travel_states_phs',
         'prior_test',
+        'hh_under_5',
+        'hh_5_to_12',
+        'vaccine',                  # Flu vaccine
     ]
 
     integer_questions = [
@@ -918,6 +921,21 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'covid_doses',
         'vac_name_1',
         'vac_name_2',
+        'contact_symptomatic',
+        'contact_vax',
+        'contact_symp_negative',
+        'vaccine_doses_child',
+        'vaccine_doses',
+        'novax_hh',
+        'vac_name_3',
+        'no_covid_vax_hh',
+        'gender_identity',
+        'education',
+        'why_participating',
+        'who_completing_survey',
+        'overall_risk_oct2021',
+        'vaccine_month',
+        'vaccine_year',
     ]
 
     date_questions = [
@@ -927,6 +945,7 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'prior_test_positive_date',
         'vac_date',
         'vac_date_2',
+        'vac_date_3',
     ]
 
     question_categories = {
@@ -956,6 +975,9 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'no_mask',
         'high_risk_feb2021',
         'overall_risk_jan2021',
+        'why_participating',
+        'who_completing_survey',
+        'overall_risk_oct2021',
     ]
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(record, field)
