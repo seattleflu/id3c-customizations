@@ -397,4 +397,6 @@ shipping/views [shipping/views@2021-10-22] 2021-11-15T17:10:36Z Kristen Schwabe-
 
 warehouse/site/data [warehouse/site/data@2021-11-16] 2021-12-06T22:21:56Z Melissa Truong <truong97@uw.edu> # Add swab sites to warehouse.site
 @2021-12-14 2021-12-14T22:45:12Z Melissa Truong <truong97@uw.edu> # Schema as of 14 December 2021
+
 shipping/views [shipping/views@2021-12-14] 2021-12-15T20:55:26Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Update HCT priority queue shipping view with surveillance testing
+@2021-12-16 2021-12-16T18:37:28Z Kristen Schwabe-Fry <2600836+kschwabefry@users.noreply.github.com> # Schema as of 16 December 2021
