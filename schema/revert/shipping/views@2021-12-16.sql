@@ -3366,7 +3366,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_positive_hcov19_collection_date,
             latest_prior_test_positive_date,
             prior_test_positive_date_base::date as prior_test_positive_date_base,
-            on_campus_freq,
             alerts_off
         from warehouse.encounter
         join warehouse.individual using (individual_id)
@@ -3475,34 +3474,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
     ),
 
-        -- Select enrollments for surveillance testing
-    surveillance as (
-        select
-            redcap_url,
-            redcap_project_id,
-            redcap_record_id,
-            redcap_event_name,
-            redcap_repeat_instance,
-            encountered,
-            individual,
-            latest_invite_date,
-            latest_collection_date,
-            5 as priority,
-            'surveillance' as priority_reason,
-
-            latest_positive_hcov19_collection_date,
-            latest_prior_test_positive_date,
-            prior_test_positive_date_base,
-            alerts_off
-        from uw_enrollments
-        -- Filter to participants who come to campus
-        where (on_campus_freq != 'not_on_campus')
-        -- Filter to participants whose last invite was over 3 days before today
-        and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
-        -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
-    ),
-
     /**
     Select encounters for surge testing purposes.
     Handled separately from daily attestation encounters because we want to
@@ -3564,25 +3535,17 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     encountered, individual, latest_invite_date, latest_collection_date, priority,
     priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
     prior_test_positive_date_base, alerts_off
-    from surveillance
-
-    union all
-
-    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
-    encountered, individual, latest_invite_date, latest_collection_date, priority,
-    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
-    prior_test_positive_date_base, alerts_off
     from surge_testing
     ) as a
     where
-    -- Filter for participants who have not tested positive with us in the past 14 days
-    (latest_positive_hcov19_collection_date is null or latest_positive_hcov19_collection_date < current_date - interval '14 days')
+    -- Filter for participants who have not tested positive with us in the past 90 days
+    (latest_positive_hcov19_collection_date is null or latest_positive_hcov19_collection_date < current_date - interval '90 days')
 
-    -- Filter for participants who have not tested positive somewhere else (reported on daily attestation) in the past 14 days
-    and (latest_prior_test_positive_date is null or latest_prior_test_positive_date < current_date - interval '14 days')
+    -- Filter for participants who have not tested positive somewhere else (reported on daily attestation) in the past 90 days
+    and (latest_prior_test_positive_date is null or latest_prior_test_positive_date < current_date - interval '90 days')
 
-    -- Filter for participants who have not tested positive somewhere else (reported on enrollment) in the past 14 days
-    and (prior_test_positive_date_base is null or prior_test_positive_date_base < current_date - interval '14 days')
+    -- Filter for participants who have not tested positive somewhere else (reported on enrollment) in the past 90 days
+    and (prior_test_positive_date_base is null or prior_test_positive_date_base < current_date - interval '90 days')
 
     -- Filter for participants who will receive alerts from REDCap
     -- Because those with this set to 'off' won't receive alerts, these invitations to test would be wasted because the

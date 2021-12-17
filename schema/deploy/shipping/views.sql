@@ -327,6 +327,41 @@ create or replace view shipping.fhir_encounter_details_v2 as
           where link_id = 'vaccine'
         ),
 
+        vaccine_month as (
+          select encounter_id,
+                 string_response[1] as vaccine_month
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine_month'
+        ),
+
+        vaccine_year as (
+          select encounter_id,
+                 string_response[1] as vaccine_year
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine_year'
+        ),
+
+        vaccine_doses_child as (
+          select encounter_id,
+                 string_response[1] as vaccine_doses_child
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine_doses_child'
+        ),
+
+        vaccine_doses as (
+          select encounter_id,
+                 string_response[1] as vaccine_doses
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vaccine_doses'
+        ),
+
+        novax_hh as (
+          select encounter_id,
+                 string_response[1] as novax_hh
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'novax_hh'
+        ),
+
         race as (
           select encounter_id,
                  case
@@ -701,6 +736,97 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  date_response[1] as vac_date_2
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'vac_date_2'
+        ),
+
+        why_participating as (
+          select encounter_id,
+               string_response as why_participating
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'why_participating' 
+        ),
+
+        who_completing_survey as (
+          select encounter_id,
+                 string_response as who_completing_survey
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'who_completing_survey'
+        ),
+
+        contact_symptomatic as (
+          select encounter_id,
+                 string_response[1] as contact_symptomatic
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'contact_symptomatic'
+        ),
+
+        contact_vax as (
+          select encounter_id,
+                 string_response[1] as contact_vax
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'contact_vax'
+        ),
+
+        contact_symp_negative as (
+          select encounter_id,
+                 string_response[1] as contact_symp_negative
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'contact_symp_negative'
+        ),
+
+        vac_name_3 as (
+          select encounter_id,
+                 string_response[1] as vac_name_3
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vac_name_3'
+        ),
+
+        vac_date_3 as (
+          select encounter_id,
+                 date_response[1] as vac_date_3
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'vac_date_3'
+        ),
+
+        no_covid_vax_hh as (
+          select encounter_id,
+                 string_response[1] as no_covid_vax_hh
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'no_covid_vax_hh'
+        ),
+
+        gender_identity as (
+          select encounter_id,
+                 string_response[1] as gender_identity
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'gender_identity'
+        ),
+
+        education as (
+          select encounter_id,
+                 string_response[1] as education
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'education'
+        ),
+
+        hh_under_5 as (
+          select encounter_id,
+                 boolean_response as hh_under_5
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hh_under_5'
+        ),
+
+        hh_5_to_12 as (
+          select encounter_id,
+                 boolean_response as hh_5_to_12
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'hh_5_to_12'
+        ),
+
+        overall_risk_oct2021 as (
+          select encounter_id,
+                 string_response as overall_risk_oct2021
+            from shipping.fhir_questionnaire_responses_v1
+          where link_id = 'overall_risk_oct2021'
         )
 
     select
@@ -713,6 +839,8 @@ create or replace view shipping.fhir_encounter_details_v2 as
         symptom_onset_2,
         vaccine,
         vaccine_date,
+        vaccine_month,
+        vaccine_year,
         race,
         insurance,
         hispanic_or_latino,
@@ -765,7 +893,23 @@ create or replace view shipping.fhir_encounter_details_v2 as
         vac_name_1,
         vac_date,
         vac_name_2,
-        vac_date_2
+        vac_date_2,
+        why_participating,
+        who_completing_survey,
+        contact_symptomatic,
+        contact_vax,
+        contact_symp_negative,
+        vaccine_doses_child,
+        vaccine_doses,
+        novax_hh,
+        vac_name_3,
+        vac_date_3,
+        no_covid_vax_hh,
+        gender_identity,
+        education,
+        hh_under_5,
+        hh_5_to_12,
+        overall_risk_oct2021
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -773,6 +917,10 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join symptoms using (encounter_id)
       left join symptoms_2 using (encounter_id)
       left join vaccine using (encounter_id)
+      left join vaccine_month using (encounter_id)
+      left join vaccine_year using (encounter_id)
+      left join vaccine_doses_child using (encounter_id)
+      left join vaccine_doses using (encounter_id)
       left join race using (encounter_id)
       left join insurance using (encounter_id)
       left join ethnicity using (encounter_id)
@@ -826,7 +974,21 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join vac_date using (encounter_id)
       left join vac_name_2 using (encounter_id)
       left join vac_date_2 using (encounter_id)
-  ;
+      left join why_participating using (encounter_id)
+      left join who_completing_survey using (encounter_id)
+      left join contact_symptomatic using (encounter_id)
+      left join contact_vax using (encounter_id)
+      left join contact_symp_negative using (encounter_id)
+      left join novax_hh using (encounter_id)
+      left join vac_name_3 using (encounter_id)
+      left join vac_date_3 using (encounter_id)
+      left join no_covid_vax_hh using (encounter_id)
+      left join gender_identity using (encounter_id)
+      left join education using (encounter_id)
+      left join hh_under_5 using (encounter_id)
+      left join hh_5_to_12 using (encounter_id)
+      left join overall_risk_oct2021 using (encounter_id);
+
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
 
@@ -1565,20 +1727,44 @@ create materialized view shipping.scan_encounters_v1 as
               when vac_name_1 in (values('pfizer'), ('moderna')) and vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14 then 'fully_vaccinated'
               when vac_name_1 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date::timestamp) >= 1 then 'partially_vaccinated'
               when date_part('day', encountered::timestamp - vac_date::timestamp) = 0 then 'not_vaccinated'
+              when (vac_name_3 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_3::timestamp) >= 14)
+                or (vac_name_1 = 'johnson' and vac_name_2 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14) then 'boosted'
               else 'unknown'
             end
           else 'unknown'
         end as vaccination_status,
         case
-          when vac_name_1 is not null and (vac_name_2 is null or vac_name_1 = vac_name_2) then vac_name_1
-          when vac_name_1 is not null and (vac_name_1 != vac_name_2) then 'multiple'
+          when vac_name_1 is not null and (COALESCE(vac_name_2, vac_name_3) is null or (vac_name_1 = vac_name_2 and vac_name_1 = vac_name_3)) then vac_name_1
+          when vac_name_1 is not null and (vac_name_1 != vac_name_2 or vac_name_1 != vac_name_3) then 'multiple'
           else null
         end as vaccine_manufacturer,
         case
-          when vac_name_1 = 'johnson' and date_part('day', encountered::timestamp - vac_date::timestamp) >= 14 then to_char(vac_date::date + interval '14 day', 'YYYY-MM-DD')
-          when vac_name_1 in (values('pfizer'), ('moderna')) and vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14 then to_char(vac_date_2::date + interval '14 day', 'YYYY-MM-DD')
-          else null
-        end as fully_vaccinated_date,
+          when covid_doses = '1' then '1_dose'
+          when covid_doses = '2' then '2_doses'
+          when covid_doses = '3' then '3_doses'
+          when covid_vax = 'no' then '0_doses'
+          else 'unknown'
+        end as number_of_covid_doses,
+        coalesce(vac_date_3, vac_date_2, vac_date) as date_last_covid_dose,
+        why_participating,
+        who_completing_survey,
+        contact_symptomatic,
+        contact_vax,
+        contact_symp_negative,
+        novax_hh,
+        vac_name_3,
+        vac_date_3,
+        no_covid_vax_hh,
+        gender_identity,
+        education,
+        hh_under_5,
+        hh_5_to_12,
+        overall_risk_oct2021,
+        vaccine as flu_vaccine,
+        vaccine_month as flu_vaccine_month,
+        vaccine_year as flu_vaccine_year,
+        vaccine_doses as flu_vaccine_doses,
+        vaccine_doses_child as flu_vaccine_doses_child,
 
         sample.sample_id,
         sample.identifier as sample,
