@@ -26,6 +26,9 @@ from id3c.cli.command.etl import (
     SampleNotFoundError,
     UnknownEthnicGroupError,
     UnknownFluShotResponseError,
+    UnknownCovidScreenError,
+    UnknownCovidShotResponseError,
+    UnknownCovidShotManufacturerError,
     UnknownSiteError,
 )
 from . import race
@@ -198,7 +201,7 @@ def encounter_details(document: dict) -> dict:
     Describe encounter details in a simple data structure designed to be used
     from SQL.
     """
-    return {
+    details = {
             "age": age_to_delete(document.get("age")), # XXX TODO: Remove age from details
 
             # XXX TODO: Remove locations from details
@@ -215,6 +218,27 @@ def encounter_details(document: dict) -> dict:
                 "MedicalInsurance": insurance(document.get("MedicalInsurance"))
             },
         }
+
+    if "ICD10" in document:
+        details["responses"]["ICD10"] = document.get("ICD10")
+
+    if "CovidScreen" in document:
+        details["responses"]["CovidScreen"] = covid_screen(document.get("CovidScreen"))
+
+    for k in ["CovidShot1", "CovidShot2"]:
+        if k in document:
+            details["responses"][k] = covid_shot(document[k])
+    
+    if "CovidShotManufacturer" in document:
+        details["responses"]["CovidShotManufacturer"] = covid_shot_maunufacturer(document.get("CovidShotManufacturer"))
+
+    # include vaccine date fields if present and not empty
+    for k in ["FluShotDate", "CovidShot1Date", "CovidShot2Date"]:
+        if document.get(k):
+            details["responses"][k] = [document[k]]
+
+    return details
+
 
 def hispanic_latino(ethnic_group: Optional[Any]) -> list:
     """
@@ -279,6 +303,115 @@ def flu_shot(flu_shot_response: Optional[Any]) -> list:
             f"Unknown flu shot response «{flu_shot_response}»")
 
     return [flu_shot_map[flu_shot_response]]
+
+
+def covid_shot(covid_shot_response: Optional[Any]) -> list:
+    """
+    Given a *covid_shot_response*, returns yes/no value for CovidShot key(s).
+
+    >>> covid_shot(0.0)
+    ['no']
+
+    >>> covid_shot('TRUE')
+    ['yes']
+
+    >>> covid_shot('maybe')
+    Traceback (most recent call last):
+        ...
+    id3c.cli.command.etl.UnknownCovidShotResponseError: Unknown COVID shot response «maybe»
+
+    """
+    if covid_shot_response is None:
+        LOG.debug("No COVID shot response found.")
+        return [None]
+
+    if isinstance(covid_shot_response, str):
+        covid_shot_response = covid_shot_response.lower()
+
+    covid_shot_map = {
+        0.0 : "no",
+        1.0 : "yes",
+        "false": "no",
+        "true": "yes",
+    }
+
+    if covid_shot_response not in covid_shot_map:
+        raise UnknownCovidShotResponseError(
+            f"Unknown COVID shot response «{covid_shot_response}»")
+
+    return [covid_shot_map[covid_shot_response]]
+
+
+def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> list:
+    """
+    Given a *covid_shot_manufacturer_name*, returns validated and standarized value.
+
+    >>> covid_shot_maunufacturer('PFIZER')
+    ['pfizer']
+
+    >>> covid_shot_maunufacturer('Moderna')
+    ['moderna']
+
+    >>> covid_shot_maunufacturer('SomeCompany')
+    Traceback (most recent call last):
+        ...
+    id3c.cli.command.etl.UnknownCovidShotManufacturerError: Unknown COVID shot manufacturer «somecompany»
+
+    """
+    if covid_shot_manufacturer_name is None:
+        LOG.debug("No COVID shot manufacturer name found.")
+        return [None]
+
+    if isinstance(covid_shot_manufacturer_name, str):
+        covid_shot_manufacturer_name = covid_shot_manufacturer_name.lower().strip()
+
+    valid_covid_manufacturers = [
+        "pfizer",
+        "moderna",
+    ]
+
+    if covid_shot_manufacturer_name not in valid_covid_manufacturers:
+        raise UnknownCovidShotManufacturerError(
+            f"Unknown COVID shot manufacturer «{covid_shot_manufacturer_name}»")
+
+    return [covid_shot_manufacturer_name]
+
+
+def covid_screen(is_covid_screen: Optional[Any]) -> list:
+    """
+    Given a *is_covid_screen*, returns yes/no value for CovidScreen key.
+
+    >>> covid_screen('FALSE')
+    ['no']
+
+    >>> covid_screen('TRUE')
+    ['yes']
+
+    >>> covid_screen('maybe')
+    Traceback (most recent call last):
+        ...
+    id3c.cli.command.etl.UnknownCovidScreenError: Unknown COVID screen «maybe»
+
+    """
+    if is_covid_screen is None:
+        LOG.debug("No COVID screen value found.")
+        return [None]
+
+    if isinstance(is_covid_screen, str):
+        is_covid_screen = is_covid_screen.lower()
+
+    covid_screen_map = {
+        "false": "no",
+        "true": "yes",
+        "unknown": None,
+    }
+
+    if is_covid_screen not in covid_screen_map:
+        raise UnknownCovidScreenError(
+            f"Unknown COVID screen «{is_covid_screen}»")
+
+    return [covid_screen_map[is_covid_screen]]
+
 
 def insurance(insurance_response: Optional[Any]) -> list:
     """

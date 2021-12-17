@@ -104,12 +104,12 @@ def parse_uw(uw_filename, output):
     clinical_records["age"] = clinical_records["age"].astype(pd.Int64Dtype())
 
     # Subset df to drop missing barcodes
-    clinical_records = drop_missing_rows(clinical_records, 'barcode')
+    drop_missing_rows(clinical_records, 'barcode')
 
     # Drop columns we're not tracking
     clinical_records = clinical_records[column_map.values()]
 
-    clinical_records = remove_pii(clinical_records)
+    remove_pii(clinical_records)
 
 
     dump_ndjson(clinical_records)
@@ -152,8 +152,6 @@ def remove_pii(df: pd.DataFrame) -> pd.DataFrame:
     df["individual"] = df["individual"].apply(generate_hash)
     df["identifier"] = df["identifier"].apply(generate_hash)
 
-    return df
-
 
 def generate_hash(identifier: str):
     """
@@ -173,17 +171,22 @@ def generate_hash(identifier: str):
 
 def drop_missing_rows(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """
-    Returns a filtered version of the given *df* where rows with ``null`` values
-    for the given *column* have been removed.
+    Filters the given *df* by removing rows with ``null`` values
+    for the given *column*.
     """
-    return df.loc[df[column].notnull()]
+    df = df.loc[df[column].notnull()]
 
 @clinical.command("parse-sch")
 @click.argument("sch_filename", metavar = "<SCH Clinical Data filename>")
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
+@click.option("--manifest-format",
+    metavar="<manifest format>",
+    default="year3",
+    type=click.Choice(['year1','year2','year3']),
+    help="The format of input manifest file; default is \"year3\"")
 
-def parse_sch(sch_filename, output):
+def parse_sch(sch_filename, manifest_format, output):
     """
     Process clinical data from SCH.
 
@@ -192,57 +195,114 @@ def parse_sch(sch_filename, output):
     """
     clinical_records = load_file_as_dataframe(sch_filename) \
                         .replace({"": None, "NA": None})
+
+    # drop records with no patient identifier
+    clinical_records.dropna(subset=['pat_id2'],inplace=True)
+
     clinical_records['age'] = clinical_records['age'].astype('float')
 
     clinical_records = trim_whitespace(clinical_records)
     clinical_records = add_provenance(clinical_records, sch_filename)
-    clinical_records = add_insurance(clinical_records)
+    add_insurance(clinical_records)
+    add_icd10(clinical_records)
 
     # Standardize column names
     column_map = {
         "pat_id2": "individual",
         "study_id": "barcode",
         "drawndate": "encountered",
-        "age": "age",
         "sex": "AssignedSex",
         "ethnicity": "HispanicLatino",
         "race": "Race",
-        "vaccine_given": "FluShot",
-        "MedicalInsurance": "MedicalInsurance",
-        "census_tract": "census_tract",
-        "_provenance": "_provenance",
     }
+
+    # Accounting for differences in format for year 3
+    if manifest_format in ['year1', 'year2']:
+        column_map["vaccine_given"] = "FluShot"
+    elif manifest_format == 'year3':
+        column_map.update({
+            "flu_vx_12mo": "FluShot",
+            "flu_date": "FluShotDate",
+            "covid_screen": "CovidScreen",
+            "covid_vx_d1": "CovidShot1",
+            "cov_d1_date": "CovidShot1Date",
+            "covid_vx_d2": "CovidShot2",
+            "cov_d2_date": "CovidShot2Date",
+            "covid_vx_manu": "CovidShotManufacturer",
+        })
+
     clinical_records = clinical_records.rename(columns=column_map)
 
     barcode_quality_control(clinical_records, output)
 
     # Subset df to drop missing encountered date
-    clinical_records = drop_missing_rows(clinical_records, 'encountered')
+    drop_missing_rows(clinical_records, 'encountered')
 
     # Drop unnecessary columns
-    columns_to_keep = list(column_map.values()) + [  # Test result columns
-        'adeno', 'chlamydia', 'corona229e', 'corona_hku1', 'corona_nl63', 'corona_oc43',
-        'flu_a_h3', 'flu_a_h1_2009', 'flu_b', 'flu_a', 'flu_a_h1', 'hmpv', 'mycoplasma',
-        'paraflu_1_4', 'pertussis', 'rhino_ent', 'rsv'
+    columns_to_keep = list(column_map.values()) + [
+        "age",
+        "MedicalInsurance",
+        "census_tract",
+        "_provenance",
+
+        # Test result columns
+        'adeno',
+        'chlamydia',
+        'corona229e',
+        'corona_hku1',
+        'corona_nl63',
+        'corona_oc43',
+        'flu_a_h3',
+        'flu_a_h1_2009',
+        'flu_b',
+        'flu_a',
+        'flu_a_h1',
+        'hmpv',
+        'mycoplasma',
+        'paraflu_1_4',
+        'pertussis',
+        'rhino_ent',
+        'rsv',
+
+        # ICD-10 codes
+        'ICD10',
     ]
+
     clinical_records = clinical_records[columns_to_keep]
 
     # Convert dtypes
     clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
 
+    # Reformat vaccination dates
+    if manifest_format == 'year3':
+        clinical_records["FluShotDate"] = pd.to_datetime(clinical_records["FluShotDate"]).dt.strftime('%Y-%m-%d')
+        clinical_records["CovidShot1Date"] = pd.to_datetime(clinical_records["CovidShot1Date"]).dt.strftime('%Y-%m-%d')
+        clinical_records["CovidShot2Date"] = pd.to_datetime(clinical_records["CovidShot2Date"]).dt.strftime('%Y-%m-%d')
+
     # Insert static value columns
     clinical_records["site"] = "SCH"
 
-    clinical_records = create_encounter_identifier(clinical_records)
-    clinical_records = remove_pii(clinical_records)
+    create_encounter_identifier(clinical_records)
+    remove_pii(clinical_records)
 
     dump_ndjson(clinical_records)
 
-
-def add_insurance(df: pd.DataFrame) -> pd.DataFrame:
+def add_icd10(df: pd.DataFrame) -> None:
     """
-    Adds a new column for insurance type to a given *df*. Returns the new
-    DataFrame.
+    Adds a new column for ICD-10 codes to a given *df*.
+    """
+    def icd10(series: pd.Series) -> pd.Series:
+        """ Returns an array of unique ICD-10 codes from a given *series*. """
+        icd10_columns = [col for col in df.columns if col.startswith('diag_cd')]
+        icd10_codes = [ series[i] for i in icd10_columns if not pd.isna(series[i])]
+        return list(set(icd10_codes))
+
+    df['ICD10'] = df.apply(icd10, axis='columns')
+
+
+def add_insurance(df: pd.DataFrame) -> None:
+    """
+    Adds a new column for insurance type to a given *df*. 
     """
     def insurance(series: pd.Series) -> pd.Series:
         """ Returns an array of unique insurance types from a given *series*. """
@@ -251,17 +311,15 @@ def add_insurance(df: pd.DataFrame) -> pd.DataFrame:
         return list(set(insurances))
 
     df['MedicalInsurance'] = df.apply(insurance, axis='columns')
-    return df
 
-def create_encounter_identifier(df: pd.DataFrame) -> pd.DataFrame:
-    """ Creates an encounter identifier column on a given *df*. Return the
-    modified DataFrame.
+
+def create_encounter_identifier(df: pd.DataFrame) -> None:
+    """ 
+    Creates an encounter identifier column on a given *df*. 
     """
     df["identifier"] = (
         df["individual"] + df["encountered"].astype('string')
         ).str.lower()
-
-    return df
 
 
 @clinical.command("parse-kp")
@@ -328,8 +386,8 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
     # Insert static value columns
     clinical_records["site"] = "KP"
 
-    clinical_records = create_encounter_identifier(clinical_records)
-    clinical_records = remove_pii(clinical_records)
+    create_encounter_identifier(clinical_records)
+    remove_pii(clinical_records)
 
     # Placeholder columns for future data.
     # See https://seattle-flu-study.slack.com/archives/CCAA9RBFS/p1568156642033700?thread_ts=1568145908.029300&cid=CCAA9RBFS
