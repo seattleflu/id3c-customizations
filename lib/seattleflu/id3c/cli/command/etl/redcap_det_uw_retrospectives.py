@@ -689,37 +689,33 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     # Removal of non-alphanumeric characters is to account for inconsistencies in the data received
     standardized_result = standardize_whitespace(re.sub(r'[^a-z0-9 ]+','',result.lower())) if result else None
 
-    if not standardized_result or standardized_result.startswith('reorder requested'):
+    if not standardized_result:
         return None
 
-    test_result_map = {
+    test_result_prefix_map = {
         'negative'                              : False,
         'none detected'                         : False,
-        'not detected qualifier value'          : False,
+        'not detected'                          : False,
         'detected'                              : True,
-        'detected qualifier value'              : True,
         'positive'                              : True,
-        'cancel order changed'                  : None,
-        'cancel see detail'                     : None,
-        'canceled by practitioner'              : None,
+        'cancel'                                : None,
+        'disregard'                             : None,
         'duplicate request'                     : None,
         'inconclusive'                          : None, # XXX: Ingest this someday as present = null?
         'indeterminate'                         : None, # XXX: Ingest this someday as present = null?
         'pending'                               : None,
         'test not applicable'                   : None,
-        'wrong test ordered by practitioner'    : None,
-        'followup testing required sample recollection requested': None,
-        'disregard results wrong chart'         : None,
-        'wrong test selected by uw laboratory'  : None,
-        'data entry correction see updated information' : None,
-        'data entry correction for lab automation processing do not reorder in cpoe' : None,
-        'followup testing required refer to other sarscov2 qualitative pcr result on specimen with similar collection date and time' : None,
+        'wrong test'                            : None,
+        'followup testing required'             : None,
+        'data entry correction'                 : None,
+        'reorder requested'                     : None,
     }
 
-    if standardized_result not in test_result_map:
-        raise UnknownTestResult(f"Unknown test result value «{standardized_result}» for «{redcap_record['barcode']}».")
-
-    return test_result_map[standardized_result]
+    for prefix in test_result_prefix_map:
+        if standardized_result.startswith(prefix):
+            return test_result_prefix_map[prefix]
+    
+    raise UnknownTestResult(f"Unknown test result value «{standardized_result}» for «{redcap_record['barcode']}».")
 
 
 def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
