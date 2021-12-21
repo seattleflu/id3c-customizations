@@ -917,25 +917,25 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'no_mask',
         'high_risk_feb2021',
         'overall_risk_jan2021',
-        'covid_vax',
-        'covid_doses',
-        'vac_name_1',
-        'vac_name_2',
+        'covid_vax',                # COVID-19 vaccine
+        'covid_doses',              # COVID-19 vaccine
+        'vac_name_1',               # COVID-19 vaccine
+        'vac_name_2',               # COVID-19 vaccine
         'contact_symptomatic',
-        'contact_vax',
+        'contact_vax',              # COVID-19 vaccine
         'contact_symp_negative',
-        'vaccine_doses_child',
-        'vaccine_doses',
-        'novax_hh',
-        'vac_name_3',
-        'no_covid_vax_hh',
+        'vaccine_doses_child',      # Flu vaccine
+        'vaccine_doses',            # Flu vaccine
+        'novax_hh',                 # Flu vaccine  
+        'vac_name_3',               # COVID-19 vaccine
+        'no_covid_vax_hh',          # COVID-19 vaccine
         'gender_identity',
         'education',
         'why_participating',
         'who_completing_survey',
         'overall_risk_oct2021',
-        'vaccine_month',
-        'vaccine_year',
+        'vaccine_month',            # Flu vaccine
+        'vaccine_year',             # Flu vaccine
     ]
 
     date_questions = [
@@ -943,9 +943,9 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'hospital_arrive',
         'hospital_leave',
         'prior_test_positive_date',
-        'vac_date',
-        'vac_date_2',
-        'vac_date_3',
+        'vac_date',                 # COVID-19 vaccine
+        'vac_date_2',               # COVID-19 vaccine
+        'vac_date_3',               # COVID-19 vaccine
     ]
 
     question_categories = {
