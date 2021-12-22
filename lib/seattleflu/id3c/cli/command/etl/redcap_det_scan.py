@@ -54,7 +54,7 @@ PROJECTS = [
 
 ]
 
-REVISION = 19
+REVISION = 20
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -868,6 +868,9 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'travel_countries_phs',
         'travel_states_phs',
         'prior_test',
+        'hh_under_5',
+        'hh_5_to_12',
+        'vaccine',                  # Flu vaccine
     ]
 
     integer_questions = [
@@ -914,10 +917,25 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'no_mask',
         'high_risk_feb2021',
         'overall_risk_jan2021',
-        'covid_vax',
-        'covid_doses',
-        'vac_name_1',
-        'vac_name_2',
+        'covid_vax',                # COVID-19 vaccine
+        'covid_doses',              # COVID-19 vaccine
+        'vac_name_1',               # COVID-19 vaccine
+        'vac_name_2',               # COVID-19 vaccine
+        'contact_symptomatic',
+        'contact_vax',              # COVID-19 vaccine
+        'contact_symp_negative',
+        'vaccine_doses_child',      # Flu vaccine
+        'vaccine_doses',            # Flu vaccine
+        'novax_hh',                 # Flu vaccine  
+        'vac_name_3',               # COVID-19 vaccine
+        'no_covid_vax_hh',          # COVID-19 vaccine
+        'gender_identity',
+        'education',
+        'why_participating',
+        'who_completing_survey',
+        'overall_risk_oct2021',
+        'vaccine_month',            # Flu vaccine
+        'vaccine_year',             # Flu vaccine
     ]
 
     date_questions = [
@@ -925,8 +943,9 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'hospital_arrive',
         'hospital_leave',
         'prior_test_positive_date',
-        'vac_date',
-        'vac_date_2',
+        'vac_date',                 # COVID-19 vaccine
+        'vac_date_2',               # COVID-19 vaccine
+        'vac_date_3',               # COVID-19 vaccine
     ]
 
     question_categories = {
@@ -956,6 +975,9 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'no_mask',
         'high_risk_feb2021',
         'overall_risk_jan2021',
+        'why_participating',
+        'who_completing_survey',
+        'overall_risk_oct2021',
     ]
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(record, field)
