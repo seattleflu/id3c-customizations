@@ -68,86 +68,74 @@ drop view if exists shipping.sample_with_best_available_encounter_data_v1;
 /******************** VIEWS FOR INTERNAL USE ********************/
 create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 
-    with site_details as (
-      select site_1.site_id,
-        site_1.identifier as site,
-        site_1.details ->> 'type'::text as site_type,
-        site_1.details ->> 'category'::text as site_category,
-        coalesce(site_1.details ->> 'swab_site'::text, site_1.details ->> 'sample_origin'::text) as manifest_regex
-      from warehouse.site site_1
+    with specimen_manifest_data as (
+        select
+            sample_id,
+            date_or_null(details->>'date') as collection_date,
+            trim(both ' ' from details->>'swab_site') as swab_site,
+            trim(both ' ' from details->>'sample_origin') as sample_origin
+        from
+            warehouse.sample
     ),
+
+    site_details as (
+      select
+          site_id,
+          site.identifier as site,
+          site.details->>'type' as site_type,
+          site.details->>'category' as site_category,
+          coalesce(site.details->>'swab_site', site.details->>'sample_origin') as manifest_regex
+      from warehouse.site
+    ),
+
     samples_with_manifest_data as (
-      select sample_1.sample_id,
-        sample_1.identifier as sample,
-        encounter.site_id,
-        date_or_null(sample_1.details ->> 'date'::text) as collection_date,
-        coalesce(encounter.encountered::date, date_or_null(sample_1.details ->> 'date'::text)) as best_available_encounter_date,
+      select
+        sample_id,
+        site_id,
+        coalesce(encountered::date, collection_date) as best_available_encounter_date,
+
         coalesce(
-            case
-                when btrim(sample_1.details ->> 'sample_origin'::text, ' '::text) = 'es'::text then 'environmental'::text
-                else btrim(sample_1.details ->> 'swab_site'::text, ' '::text)
-            end, btrim(sample_1.details ->> 'sample_origin'::text, ' '::text)) as site_manifest_details,
-        encounter.site_id is not null as has_encounter_data
-      from warehouse.sample sample_1
+          case
+              -- Environmental samples must be processed first, because they're
+              -- often taken at existing human swab sites
+              when manifest.sample_origin = 'es'
+                then 'environmental'
+              else manifest.swab_site
+          end,
+
+          manifest.sample_origin
+        ) as site_manifest_details,
+
+        site_id is not null as has_encounter_data
+
+        from warehouse.sample
         left join warehouse.encounter using (encounter_id)
-    ),
-    samples_with_site_match as (
-      select samples_with_manifest_data.sample_id,
-        samples_with_manifest_data.sample,
-        samples_with_manifest_data.has_encounter_data,
-        samples_with_manifest_data.best_available_encounter_date,
-        samples_with_manifest_data.site_manifest_details,
-        case
-            when samples_with_manifest_data.best_available_encounter_date < '2019-10-01'::date then 'Y1'::text
-            when samples_with_manifest_data.best_available_encounter_date < '2020-11-01'::date then 'Y2'::text
-            when samples_with_manifest_data.best_available_encounter_date < '2021-11-01'::date then 'Y3'::text
-            when samples_with_manifest_data.best_available_encounter_date < '2022-11-01'::date then 'Y4'::text
-            else null::text
-        end as season,
-        site.site_id as best_available_site_id,
-        site.identifier as best_available_site,
-        site.details ->> 'type'::text as best_available_site_type,
-        site.details ->> 'category'::text as best_available_site_category
-      from samples_with_manifest_data
-        left join warehouse.site on samples_with_manifest_data.site_id = site.site_id
-    ),
-    samples_with_site_match_like as (
-      select sample_id,
-        sample,
-        has_encounter_data,
-        best_available_encounter_date,
-        site_manifest_details,
-        season,
-        coalesce(best_available_site_id, site_details.site_id) as best_available_site_id,
-        coalesce(best_available_site, site_details.site) as best_available_site,
-        coalesce(best_available_site_type, site_details.site_type) as best_available_site_type,
-        coalesce(best_available_site_category, site_details.site_category) as best_available_site_category
-      from samples_with_site_match
-        left join site_details on samples_with_site_match.site_manifest_details ~~ similar_escape(site_details.manifest_regex, null::text)
-          and best_available_site_id is null),
-    samples_with_site_match_like_regex as (
-      select sample_id,
-        sample,
-        has_encounter_data,
-        best_available_encounter_date,
-        season,
-        coalesce(best_available_site_id, site_details.site_id) as best_available_site_id,
-        coalesce(best_available_site, site_details.site) as best_available_site,
-        coalesce(best_available_site_type, site_details.site_type) as best_available_site_type,
-        coalesce(best_available_site_category, site_details.site_category) as best_available_site_category
-      from samples_with_site_match_like
-        left join site_details on samples_with_site_match_like.site_manifest_details ~ similar_escape(site_details.manifest_regex, null::text)
-          and best_available_site_id is null)
-    select sample_id,
-      sample,
-      has_encounter_data,
-      best_available_encounter_date,
-      season,
-      best_available_site_id,
-      best_available_site,
-      best_available_site_type,
-      best_available_site_category
-    from samples_with_site_match_like_regex;
+        left join specimen_manifest_data as manifest using (sample_id)
+    )
+
+  select
+    sample_id,
+    sample.identifier as sample,
+    has_encounter_data,
+    best_available_encounter_date,
+
+    case
+      when best_available_encounter_date < '2019-10-01'::date then 'Y1'
+      when best_available_encounter_date < '2020-11-01'::date then 'Y2'
+      when best_available_encounter_date < '2021-11-01'::date then 'Y3'
+      else null
+    end as season,
+
+    coalesce(site.site_id, site_details.site_id) as best_available_site_id,
+    coalesce(site.identifier, site_details.site) as best_available_site,
+    coalesce(site.details->>'type', site_type) as best_available_site_type,
+    coalesce(site.details->>'category', site_category) as best_available_site_category
+
+  from warehouse.sample
+  left join samples_with_manifest_data using (sample_id)
+  left join site_details on (site_manifest_details similar to manifest_regex)
+  left join warehouse.site on (samples_with_manifest_data.site_id = site.site_id)
+  ;
 
 comment on view shipping.sample_with_best_available_encounter_data_v1 is
     'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
@@ -337,41 +325,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  date_response[1] as vaccine_date
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'vaccine'
-        ),
-
-        vaccine_month as (
-          select encounter_id,
-                 string_response[1] as vaccine_month
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vaccine_month'
-        ),
-
-        vaccine_year as (
-          select encounter_id,
-                 string_response[1] as vaccine_year
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vaccine_year'
-        ),
-
-        vaccine_doses_child as (
-          select encounter_id,
-                 string_response[1] as vaccine_doses_child
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vaccine_doses_child'
-        ),
-
-        vaccine_doses as (
-          select encounter_id,
-                 string_response[1] as vaccine_doses
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vaccine_doses'
-        ),
-
-        novax_hh as (
-          select encounter_id,
-                 string_response[1] as novax_hh
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'novax_hh'
         ),
 
         race as (
@@ -748,97 +701,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
                  date_response[1] as vac_date_2
             from shipping.fhir_questionnaire_responses_v1
           where link_id = 'vac_date_2'
-        ),
-
-        why_participating as (
-          select encounter_id,
-               string_response as why_participating
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'why_participating' 
-        ),
-
-        who_completing_survey as (
-          select encounter_id,
-                 string_response as who_completing_survey
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'who_completing_survey'
-        ),
-
-        contact_symptomatic as (
-          select encounter_id,
-                 string_response[1] as contact_symptomatic
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'contact_symptomatic'
-        ),
-
-        contact_vax as (
-          select encounter_id,
-                 string_response[1] as contact_vax
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'contact_vax'
-        ),
-
-        contact_symp_negative as (
-          select encounter_id,
-                 string_response[1] as contact_symp_negative
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'contact_symp_negative'
-        ),
-
-        vac_name_3 as (
-          select encounter_id,
-                 string_response[1] as vac_name_3
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vac_name_3'
-        ),
-
-        vac_date_3 as (
-          select encounter_id,
-                 date_response[1] as vac_date_3
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'vac_date_3'
-        ),
-
-        no_covid_vax_hh as (
-          select encounter_id,
-                 string_response[1] as no_covid_vax_hh
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'no_covid_vax_hh'
-        ),
-
-        gender_identity as (
-          select encounter_id,
-                 string_response[1] as gender_identity
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'gender_identity'
-        ),
-
-        education as (
-          select encounter_id,
-                 string_response[1] as education
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'education'
-        ),
-
-        hh_under_5 as (
-          select encounter_id,
-                 boolean_response as hh_under_5
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'hh_under_5'
-        ),
-
-        hh_5_to_12 as (
-          select encounter_id,
-                 boolean_response as hh_5_to_12
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'hh_5_to_12'
-        ),
-
-        overall_risk_oct2021 as (
-          select encounter_id,
-                 string_response as overall_risk_oct2021
-            from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'overall_risk_oct2021'
         )
 
     select
@@ -851,8 +713,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
         symptom_onset_2,
         vaccine,
         vaccine_date,
-        vaccine_month,
-        vaccine_year,
         race,
         insurance,
         hispanic_or_latino,
@@ -905,23 +765,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
         vac_name_1,
         vac_date,
         vac_name_2,
-        vac_date_2,
-        why_participating,
-        who_completing_survey,
-        contact_symptomatic,
-        contact_vax,
-        contact_symp_negative,
-        vaccine_doses_child,
-        vaccine_doses,
-        novax_hh,
-        vac_name_3,
-        vac_date_3,
-        no_covid_vax_hh,
-        gender_identity,
-        education,
-        hh_under_5,
-        hh_5_to_12,
-        overall_risk_oct2021
+        vac_date_2
 
       from warehouse.encounter
       left join scan_study_arm using (encounter_id)
@@ -929,10 +773,6 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join symptoms using (encounter_id)
       left join symptoms_2 using (encounter_id)
       left join vaccine using (encounter_id)
-      left join vaccine_month using (encounter_id)
-      left join vaccine_year using (encounter_id)
-      left join vaccine_doses_child using (encounter_id)
-      left join vaccine_doses using (encounter_id)
       left join race using (encounter_id)
       left join insurance using (encounter_id)
       left join ethnicity using (encounter_id)
@@ -986,21 +826,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
       left join vac_date using (encounter_id)
       left join vac_name_2 using (encounter_id)
       left join vac_date_2 using (encounter_id)
-      left join why_participating using (encounter_id)
-      left join who_completing_survey using (encounter_id)
-      left join contact_symptomatic using (encounter_id)
-      left join contact_vax using (encounter_id)
-      left join contact_symp_negative using (encounter_id)
-      left join novax_hh using (encounter_id)
-      left join vac_name_3 using (encounter_id)
-      left join vac_date_3 using (encounter_id)
-      left join no_covid_vax_hh using (encounter_id)
-      left join gender_identity using (encounter_id)
-      left join education using (encounter_id)
-      left join hh_under_5 using (encounter_id)
-      left join hh_5_to_12 using (encounter_id)
-      left join overall_risk_oct2021 using (encounter_id);
-
+  ;
 comment on view shipping.fhir_encounter_details_v2 is
   'A v2 view of encounter details that are in FHIR format that includes all SCAN questionnaire answers';
 
@@ -1739,44 +1565,20 @@ create materialized view shipping.scan_encounters_v1 as
               when vac_name_1 in (values('pfizer'), ('moderna')) and vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14 then 'fully_vaccinated'
               when vac_name_1 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date::timestamp) >= 1 then 'partially_vaccinated'
               when date_part('day', encountered::timestamp - vac_date::timestamp) = 0 then 'not_vaccinated'
-              when (vac_name_3 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_3::timestamp) >= 14)
-                or (vac_name_1 = 'johnson' and vac_name_2 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14) then 'boosted'
               else 'unknown'
             end
           else 'unknown'
         end as vaccination_status,
         case
-          when vac_name_1 is not null and (COALESCE(vac_name_2, vac_name_3) is null or (vac_name_1 = vac_name_2 and vac_name_1 = vac_name_3)) then vac_name_1
-          when vac_name_1 is not null and (vac_name_1 != vac_name_2 or vac_name_1 != vac_name_3) then 'multiple'
+          when vac_name_1 is not null and (vac_name_2 is null or vac_name_1 = vac_name_2) then vac_name_1
+          when vac_name_1 is not null and (vac_name_1 != vac_name_2) then 'multiple'
           else null
         end as vaccine_manufacturer,
         case
-          when covid_doses = '1' then '1_dose'
-          when covid_doses = '2' then '2_doses'
-          when covid_doses = '3' then '3_doses'
-          when covid_vax = 'no' then '0_doses'
-          else 'unknown'
-        end as number_of_covid_doses,
-        coalesce(vac_date_3, vac_date_2, vac_date) as date_last_covid_dose,
-        why_participating,
-        who_completing_survey,
-        contact_symptomatic,
-        contact_vax,
-        contact_symp_negative,
-        novax_hh,
-        vac_name_3,
-        vac_date_3,
-        no_covid_vax_hh,
-        gender_identity,
-        education,
-        hh_under_5,
-        hh_5_to_12,
-        overall_risk_oct2021,
-        vaccine as flu_vaccine,
-        vaccine_month as flu_vaccine_month,
-        vaccine_year as flu_vaccine_year,
-        vaccine_doses as flu_vaccine_doses,
-        vaccine_doses_child as flu_vaccine_doses_child,
+          when vac_name_1 = 'johnson' and date_part('day', encountered::timestamp - vac_date::timestamp) >= 14 then to_char(vac_date::date + interval '14 day', 'YYYY-MM-DD')
+          when vac_name_1 in (values('pfizer'), ('moderna')) and vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14 then to_char(vac_date_2::date + interval '14 day', 'YYYY-MM-DD')
+          else null
+        end as fully_vaccinated_date,
 
         sample.sample_id,
         sample.identifier as sample,
