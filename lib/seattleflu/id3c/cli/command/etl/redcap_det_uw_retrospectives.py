@@ -609,7 +609,7 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
             items["race"].append({ 'valueCoding': create_coding(f"{SFS}/race", code)})
 
     if record["ethnicity"]:
-        items["ethnicity"] = [{ 'valueCoding': ethnicity(record["ethnicity"]) }]
+        items["ethnicity"] = [{ 'valueBoolean': ethnicity(record["ethnicity"]) }]
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():

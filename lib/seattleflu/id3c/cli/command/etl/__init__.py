@@ -137,17 +137,17 @@ def race(races: Optional[Any]) -> list:
     return list(map(standardize_race, races))
 
 
-def ethnicity(ethnicity: str) -> Optional[dict]:
+def ethnicity(ethnicity: str) -> Optional[bool]:
     """
     Returns a standardized ethnicity based on FHIR values:
     (https://www.hl7.org/fhir/v3/Ethnicity/cs.html)
 
     >>> ethnicity("HISPANIC OR LATINO")
-    {'system': 'http://hl7.org/fhir/v3/Ethnicity', 'code': '2135-2', 'display': 'hispanic or latino'}
+    True
 
     >>> ethnicity("NOT HISPANIC OR LATINO")
-    {'system': 'http://hl7.org/fhir/v3/Ethnicity', 'code': '2186-5', 'display': 'not hispanic or latino'}
-
+    False
+    
     >>> ethnicity("NULL") == None
     True
 
@@ -164,13 +164,20 @@ def ethnicity(ethnicity: str) -> Optional[dict]:
     else:
         ethnicity = standardize_whitespace(ethnicity.lower())
 
-    hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2135-2", "hispanic or latino")
-    not_hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2186-5", "not hispanic or latino")
+    # Leaving this code here to be implemented later. My original approach was to use FHIR 
+    # coding for ethnicity, which would be preffered, but for consistency with other ETLs
+    # I switched to ingesting ethnicity as a boolean. To transition to FHIR codes across all projects will
+    # require updating multiple ETLs, shipping views, and re-ingesting data. A card has been added
+    # to tackle this at a later date.
+    # -drr 2021-12-30
+
+    #hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2135-2", "hispanic or latino")
+    #not_hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2186-5", "not hispanic or latino")
 
     mapper = {
-        "hispanic or latino":               hispanic_or_latino,
-        "not hispanic or latino":           not_hispanic_or_latino,
-        "white/caucasian":                  not_hispanic_or_latino,
+        "hispanic or latino":               True,           # hispanic_or_latino,
+        "not hispanic or latino":           False,          # not_hispanic_or_latino,
+        "white/caucasian":                  False,          # not_hispanic_or_latino,
         "unavailable or unknown":           None,
         "null":                             None,
         "declined to answer":               None,
