@@ -123,7 +123,7 @@ create or replace view shipping.sample_with_best_available_encounter_data_v1 as
         coalesce(best_available_site_type, site_details.site_type) as best_available_site_type,
         coalesce(best_available_site_category, site_details.site_category) as best_available_site_category
       from samples_with_site_match
-        left join site_details on samples_with_site_match.site_manifest_details ~~ similar_escape(site_details.manifest_regex, null::text)
+        left join site_details on lower(samples_with_site_match.site_manifest_details) ~~ site_details.manifest_regex
           and best_available_site_id is null),
     samples_with_site_match_like_regex as (
       select sample_id,
@@ -136,7 +136,7 @@ create or replace view shipping.sample_with_best_available_encounter_data_v1 as
         coalesce(best_available_site_type, site_details.site_type) as best_available_site_type,
         coalesce(best_available_site_category, site_details.site_category) as best_available_site_category
       from samples_with_site_match_like
-        left join site_details on samples_with_site_match_like.site_manifest_details ~ similar_escape(site_details.manifest_regex, null::text)
+        left join site_details on lower(samples_with_site_match_like.site_manifest_details) ~ similar_escape(site_details.manifest_regex, null::text)
           and best_available_site_id is null)
     select sample_id,
       sample,

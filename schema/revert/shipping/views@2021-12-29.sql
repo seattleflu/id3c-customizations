@@ -68,86 +68,74 @@ drop view if exists shipping.sample_with_best_available_encounter_data_v1;
 /******************** VIEWS FOR INTERNAL USE ********************/
 create or replace view shipping.sample_with_best_available_encounter_data_v1 as
 
-    with site_details as (
-      select site_1.site_id,
-        site_1.identifier as site,
-        site_1.details ->> 'type'::text as site_type,
-        site_1.details ->> 'category'::text as site_category,
-        coalesce(site_1.details ->> 'swab_site'::text, site_1.details ->> 'sample_origin'::text) as manifest_regex
-      from warehouse.site site_1
+    with specimen_manifest_data as (
+        select
+            sample_id,
+            date_or_null(details->>'date') as collection_date,
+            trim(both ' ' from details->>'swab_site') as swab_site,
+            trim(both ' ' from details->>'sample_origin') as sample_origin
+        from
+            warehouse.sample
     ),
+
+    site_details as (
+      select
+          site_id,
+          site.identifier as site,
+          site.details->>'type' as site_type,
+          site.details->>'category' as site_category,
+          coalesce(site.details->>'swab_site', site.details->>'sample_origin') as manifest_regex
+      from warehouse.site
+    ),
+
     samples_with_manifest_data as (
-      select sample_1.sample_id,
-        sample_1.identifier as sample,
-        encounter.site_id,
-        date_or_null(sample_1.details ->> 'date'::text) as collection_date,
-        coalesce(encounter.encountered::date, date_or_null(sample_1.details ->> 'date'::text)) as best_available_encounter_date,
+      select
+        sample_id,
+        site_id,
+        coalesce(encountered::date, collection_date) as best_available_encounter_date,
+
         coalesce(
-            case
-                when btrim(sample_1.details ->> 'sample_origin'::text, ' '::text) = 'es'::text then 'environmental'::text
-                else btrim(sample_1.details ->> 'swab_site'::text, ' '::text)
-            end, btrim(sample_1.details ->> 'sample_origin'::text, ' '::text)) as site_manifest_details,
-        encounter.site_id is not null as has_encounter_data
-      from warehouse.sample sample_1
+          case
+              -- Environmental samples must be processed first, because they're
+              -- often taken at existing human swab sites
+              when manifest.sample_origin = 'es'
+                then 'environmental'
+              else manifest.swab_site
+          end,
+
+          manifest.sample_origin
+        ) as site_manifest_details,
+
+        site_id is not null as has_encounter_data
+
+        from warehouse.sample
         left join warehouse.encounter using (encounter_id)
-    ),
-    samples_with_site_match as (
-      select samples_with_manifest_data.sample_id,
-        samples_with_manifest_data.sample,
-        samples_with_manifest_data.has_encounter_data,
-        samples_with_manifest_data.best_available_encounter_date,
-        samples_with_manifest_data.site_manifest_details,
-        case
-            when samples_with_manifest_data.best_available_encounter_date < '2019-10-01'::date then 'Y1'::text
-            when samples_with_manifest_data.best_available_encounter_date < '2020-11-01'::date then 'Y2'::text
-            when samples_with_manifest_data.best_available_encounter_date < '2021-11-01'::date then 'Y3'::text
-            when samples_with_manifest_data.best_available_encounter_date < '2022-11-01'::date then 'Y4'::text
-            else null::text
-        end as season,
-        site.site_id as best_available_site_id,
-        site.identifier as best_available_site,
-        site.details ->> 'type'::text as best_available_site_type,
-        site.details ->> 'category'::text as best_available_site_category
-      from samples_with_manifest_data
-        left join warehouse.site on samples_with_manifest_data.site_id = site.site_id
-    ),
-    samples_with_site_match_like as (
-      select sample_id,
-        sample,
-        has_encounter_data,
-        best_available_encounter_date,
-        site_manifest_details,
-        season,
-        coalesce(best_available_site_id, site_details.site_id) as best_available_site_id,
-        coalesce(best_available_site, site_details.site) as best_available_site,
-        coalesce(best_available_site_type, site_details.site_type) as best_available_site_type,
-        coalesce(best_available_site_category, site_details.site_category) as best_available_site_category
-      from samples_with_site_match
-        left join site_details on samples_with_site_match.site_manifest_details ~~ similar_escape(site_details.manifest_regex, null::text)
-          and best_available_site_id is null),
-    samples_with_site_match_like_regex as (
-      select sample_id,
-        sample,
-        has_encounter_data,
-        best_available_encounter_date,
-        season,
-        coalesce(best_available_site_id, site_details.site_id) as best_available_site_id,
-        coalesce(best_available_site, site_details.site) as best_available_site,
-        coalesce(best_available_site_type, site_details.site_type) as best_available_site_type,
-        coalesce(best_available_site_category, site_details.site_category) as best_available_site_category
-      from samples_with_site_match_like
-        left join site_details on samples_with_site_match_like.site_manifest_details ~ similar_escape(site_details.manifest_regex, null::text)
-          and best_available_site_id is null)
-    select sample_id,
-      sample,
-      has_encounter_data,
-      best_available_encounter_date,
-      season,
-      best_available_site_id,
-      best_available_site,
-      best_available_site_type,
-      best_available_site_category
-    from samples_with_site_match_like_regex;
+        left join specimen_manifest_data as manifest using (sample_id)
+    )
+
+  select
+    sample_id,
+    sample.identifier as sample,
+    has_encounter_data,
+    best_available_encounter_date,
+
+    case
+      when best_available_encounter_date < '2019-10-01'::date then 'Y1'
+      when best_available_encounter_date < '2020-11-01'::date then 'Y2'
+      when best_available_encounter_date < '2021-11-01'::date then 'Y3'
+      else null
+    end as season,
+
+    coalesce(site.site_id, site_details.site_id) as best_available_site_id,
+    coalesce(site.identifier, site_details.site) as best_available_site,
+    coalesce(site.details->>'type', site_type) as best_available_site_type,
+    coalesce(site.details->>'category', site_category) as best_available_site_category
+
+  from warehouse.sample
+  left join samples_with_manifest_data using (sample_id)
+  left join site_details on (site_manifest_details similar to manifest_regex)
+  left join warehouse.site on (samples_with_manifest_data.site_id = site.site_id)
+  ;
 
 comment on view shipping.sample_with_best_available_encounter_data_v1 is
     'Version 1 of view of warehoused samples and their best available encounter date and site details important for metrics calculations';
