@@ -406,3 +406,4 @@ shipping/views [shipping/views@2021-12-16] 2021-12-17T20:23:44Z Melissa Truong <
 
 shipping/views [shipping/views@2021-12-20] 2021-12-29T18:36:39Z Dave Reinhart <davidrr@uw.edu> # Updating sample_with_best_available_encounter_data_v1 view to improve performance.
 @2021-12-29 2021-12-29T19:08:42Z Dave Reinhart <davidrr@uw.edu> # Schema as of 29 December 2021
+shipping/views [shipping/views@2021-12-29] 2021-12-30T17:17:54Z Dave Reinhart <davidrr@uw.edu> # Remove similar_escape from like comparison in shipping view
