@@ -399,9 +399,17 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     }
 
     if standardized_disposition not in mapper:
-        raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
-            f"«{standardized_disposition}» for barcode «{redcap_record['barcode']}».")
+        # Commenting out this exception until the Codebook is defined in REDCap to limit values
+        # for discharge disposition. For now we will map unknown values to `None` but this can
+        # be reverted to raise `UnknownHospitalDischargeDisposition` once tbe REDCap Codebook
+        # has been updated and all possible values have been added to the map above.
+        # -drr 1/3/22
+
+        #raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
+        #    f"«{standardized_disposition}» for barcode «{redcap_record['barcode']}».")
     
+        return None
+        
     return mapper[standardized_disposition]
 
 
