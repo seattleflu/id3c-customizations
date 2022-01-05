@@ -2,6 +2,7 @@
 Process DETs for the greater Seattle Coronavirus Assessment Network (SCAN) REDCap projects.
 """
 import re
+import os
 import click
 import json
 import logging
@@ -258,7 +259,7 @@ def site_map(record_location: str) -> str:
     return location_site_map[record_location]
 
 
-def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
+def locations(db: DatabaseSession, cache: TTLCache, record: REDCapRecord) -> list:
     """ Creates a list of Location resource entries from a REDCap record. """
     lodging_options = [
         'shelter',
@@ -286,6 +287,8 @@ def locations(db: DatabaseSession, cache: TTLCache, record: dict) -> list:
 
     lat, lng, canonicalized_address = get_geocoded_address(address, cache)
     if not canonicalized_address:
+        if os.environ.get('GEOCODING_ENV') == 'production':
+            record.update_record({"valid_address": "no", "redcap_event_name": record["redcap_event_name"]})
         return []  # TODO
 
     tract_location = residence_census_tract(db, (lat, lng), housing_type)
