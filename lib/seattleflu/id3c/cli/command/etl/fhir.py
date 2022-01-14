@@ -191,10 +191,13 @@ def create_location_resource(location_type: List[dict],
         "mode": "instance",
         "type": location_type,
         "identifier": location_identifier,
+        "partOf": {},
     }
 
     if location_partOf:
         location_resource["partOf"] = location_partOf
+    else:
+        del location_resource["partOf"]
 
     return location_resource
 
