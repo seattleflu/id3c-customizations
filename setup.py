@@ -67,7 +67,7 @@ setup(
 
     extras_require = {
         "dev": [
-            "mypy == 0.910",
+            "mypy",
             "pytest",
             "sqlparse",
             "types-requests",
