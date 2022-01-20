@@ -500,40 +500,20 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
     ]
 
     vaccine_mapper = {
+        "covid-19 moderna mrna lnp-s": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "207",
+            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
+        },
         "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "218",
             "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
         },
-        "covid-19, unspecified": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "213",
-            "display": "COVID-19 vaccine, UNSPECIFIED",
-        },
-        "covid-19 janssen vector-nr rs-ad26": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "212",
-            "display": "COVID-19 vaccine, vector-nr, rS-Ad26, PF, 0.5 mL",
-        },
-        "covid-19 astrazeneca vector-nr rs-chadox1": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "210",
-            "display": "COVID-19 vaccine, vector-nr, rS-ChAdOx1, PF, 0.5 mL"
-        },
-        "covid-19 pfizer mrna lnp-s (comirnaty)": {
+        "covid-19 pfizer mrna purple cap": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "208",
             "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 pfizer mrna lnp-s": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 moderna mrna lnp-s": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "207",
-            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
         },
         "covid-19 pfizer mrna tris-sucrose 5-11 years old": {
             "system": "http://hl7.org/fhir/sid/cvx",
@@ -545,15 +525,35 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "208",
             "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
         },
+        "covid-19 pfizer mrna lnp-s (comirnaty)": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 pfizer mrna lnp-s": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 astrazeneca vector-nr rs-chadox1": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "210",
+            "display": "COVID-19 vaccine, vector-nr, rS-ChAdOx1, PF, 0.5 mL"
+        },
         "covid-19 novavax subunit rs-nanoparticle": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "211",
             "display": "COVID-19 vaccine, Subunit, rS-nanoparticle+Matrix-M1 Adjuvant, PF, 0.5 mL",
         },
-        "covid-19 pfizer mrna purple cap": {
+        "covid-19 janssen vector-nr rs-ad26": {
             "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+            "code": "212",
+            "display": "COVID-19 vaccine, vector-nr, rS-Ad26, PF, 0.5 mL",
+        },
+        "covid-19, unspecified": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "213",
+            "display": "COVID-19 vaccine, UNSPECIFIED",
         },
         "flu unspecified": {
             "system": "http://hl7.org/fhir/sid/cvx",
