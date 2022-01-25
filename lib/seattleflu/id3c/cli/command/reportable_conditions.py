@@ -88,7 +88,7 @@ def notify(*, action: str):
         },
 
         {
-            "collection_sets": {"collections-workplace-outbreak"},
+            "collection_sets": {"collections-workplace-outbreak", "collections-workplace-outbreak-tiny-swabs"},
             "slack_channel_name": "ncov-reporting-workplace",
             "slack_webhook": webhook("HCOV19_WORKPLACE"),
         }
