@@ -115,7 +115,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
     # If the participant's age < 18 ensure we have parental consent.
     if (enrollment['core_age_years'] == "" or int(enrollment['core_age_years']) < 18) and \
-            (is_complete('parental_consent_form', enrollment) == False or enrollment['signature_parent'] == ''):
+            (not(is_complete('parental_consent_form', enrollment)) or enrollment['signature_parent'] == ''):
         LOG.debug("The participant is < 18 years old and we do not have parental consent. Skipping record.")
         return None
 
@@ -300,9 +300,9 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     logging.disable(logging.WARNING)
                     specimen_identifier = find_identifier(db, specimen_barcode)
                     logging.disable(logging.NOTSET)
-                    
+
                     break
-            
+
             if specimen_identifier:
                 specimen_entry, specimen_reference = create_specimen(
                     prioritized_barcodes = prioritized_barcodes,

@@ -106,7 +106,7 @@ def redcap_det_scan(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_r
     # include it in the top list of REQUIRED_INSTRUMENTS since the new
     # SCAN In-Person Enrollment project does not have this instrument.
     #   -Jover, 17 July 2020
-    if is_complete('enrollment_questionnaire', redcap_record) == False:
+    if not is_complete('enrollment_questionnaire', redcap_record):
         LOG.debug("Skipping enrollment with incomplete `enrollment_questionnaire` instrument")
         return None
 
@@ -929,7 +929,7 @@ def create_initial_questionnaire_response(record: dict, patient_reference: dict,
         'contact_symp_negative',
         'vaccine_doses_child',      # Flu vaccine
         'vaccine_doses',            # Flu vaccine
-        'novax_hh',                 # Flu vaccine  
+        'novax_hh',                 # Flu vaccine
         'vac_name_3',               # COVID-19 vaccine
         'no_covid_vax_hh',          # COVID-19 vaccine
         'gender_identity',
