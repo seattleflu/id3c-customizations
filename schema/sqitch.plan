@@ -406,7 +406,12 @@ shipping/views [shipping/views@2021-12-16] 2021-12-17T20:23:44Z Melissa Truong <
 
 shipping/views [shipping/views@2021-12-20] 2021-12-29T18:36:39Z Dave Reinhart <davidrr@uw.edu> # Updating sample_with_best_available_encounter_data_v1 view to improve performance.
 @2021-12-29 2021-12-29T19:08:42Z Dave Reinhart <davidrr@uw.edu> # Schema as of 29 December 2021
+
 shipping/views [shipping/views@2021-12-29] 2021-12-30T17:17:54Z Dave Reinhart <davidrr@uw.edu> # Remove similar_escape from like comparison in shipping view
 @2021-12-30 2021-12-30T17:43:09Z Dave Reinhart <davidrr@uw.edu> # Schema as of 30 December 2021
+
 shipping/views [shipping/views@2021-12-30] 2022-01-06T23:42:18Z ben <ben@gs-itss-mbp.lan> # Drop unused fields from shipping views for UW Reopening.
 @2022-01-07 2022-01-07T20:51:56Z ben <ben@gs-itss-mbp.lan> # Schema as of 01 January 2022
+
+shipping/views [shipping/views@2022-01-07] 2022-01-25T21:52:13Z Melissa Truong <truong97@uw.edu> # Update shipping/views to add tiny Workplace identifier set
+@2022-01-25 2022-01-25T21:56:00Z Melissa Truong <truong97@uw.edu> # Schema as of 25 January 2022

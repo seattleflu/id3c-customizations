@@ -754,7 +754,7 @@ create or replace view shipping.fhir_encounter_details_v2 as
           select encounter_id,
                string_response as why_participating
             from shipping.fhir_questionnaire_responses_v1
-          where link_id = 'why_participating'
+          where link_id = 'why_participating' 
         ),
 
         who_completing_survey as (
@@ -2374,7 +2374,7 @@ create or replace view shipping.genome_submission_metadata_v1 as
         -- Separate by study arm for easier reporting of VoCs to study leads
         case
           when identifier_set.name in ('collections-scan', 'collections-scan-kiosks') then 'SCAN'
-          when identifier_set.name in ('collections-adult-family-home-outbreak', 'collections-workplace-outbreak', 'collections-workplace-outbreak-tiny-swabs') then 'AFH/Workplace'
+          when identifier_set.name in ('collections-adult-family-home-outbreak', 'collections-workplace-outbreak') then 'AFH/Workplace'
           when identifier_set.name in ('collections-childcare') then 'Childcare'
           when identifier_set.name in ('collections-apple-respiratory', 'collections-apple-respiratory-serial') then 'Apple'
           when identifier_set.name in ('collections-household-general', 'collections-household-intervention',
@@ -2640,8 +2640,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-school-testing-home',
                                    'collections-school-testing-observed',
                                    'collections-radxup-yakima-schools-home',
-                                   'collections-radxup-yakima-schools-observed',
-                                   'collections-workplace-outbreak-tiny-swabs'
+                                   'collections-radxup-yakima-schools-observed'
                                    )
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
@@ -2754,13 +2753,11 @@ create or replace view shipping.return_results_v3 as
           when 'collections-school-testing-observed' then true
           when 'collections-radxup-yakima-schools-home' then false
           when 'collections-radxup-yakima-schools-observed' then true
-          when 'collections-workplace-outbreak-tiny-swabs' then true
           else null
         end as staff_observed,
         case when identifier_set.name in (
           'collections-adult-family-home-outbreak',
-          'collections-workplace-outbreak',
-          'collections-workplace-outbreak-tiny-swabs'
+          'collections-workplace-outbreak'
         ) then 'clinical' else 'IRB'
         end as pre_analytical_specimen_collection
 
@@ -2784,8 +2781,7 @@ create or replace view shipping.return_results_v3 as
           'collections-school-testing-home',
           'collections-school-testing-observed',
           'collections-radxup-yakima-schools-home',
-          'collections-radxup-yakima-schools-observed',
-          'collections-workplace-outbreak-tiny-swabs'
+          'collections-radxup-yakima-schools-observed'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
@@ -3169,6 +3165,11 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
 
   --integer questions:
   ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'weight') as weight
+  ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'height_total') as height_total
+  ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'tier') as tier
+
+  --numeric questions:
+  ,(select numeric_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'bmi') as bmi
 
   --date questions:
   ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'today_consent') as today_consent
@@ -3185,6 +3186,7 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_medicine_yesno') as uw_medicine_yesno
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'inperson_classes') as inperson_classes
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_job') as uw_job
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_greek_member') as uw_greek_member
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'live_other_uw') as live_other_uw
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_apt_yesno') as uw_apt_yesno
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_pregnant') as core_pregnant
@@ -3198,6 +3200,8 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'swab_and_send_calc') as swab_and_send_calc
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'kiosk_calc') as kiosk_calc
   ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'covid_test_week_base') as covid_test_week_base
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_housing_resident') as uw_housing_resident
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'on_campus_2x_week') as on_campus_2x_week
 
   --string questions
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'text_or_email') as text_or_email
@@ -3233,6 +3237,7 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'on_campus_freq') as on_campus_freq
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_method') as vaccine_method
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_where') as vaccine_where
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_housing_group') as uw_housing_group
   ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'added_surveillance_groups') as added_surveillance_groups
 
   --string question arrays
@@ -3321,6 +3326,10 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , sample.details @> '{"note": "never-tested"}' as never_tested
 
   , enroll_details.weight
+  , enroll_details.height_total
+  , enroll_details.tier
+
+  , enroll_details.bmi
 
   , enroll_details.today_consent
   , enroll_details.enrollment_date_time
@@ -3335,6 +3344,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , enroll_details.uw_medicine_yesno
   , enroll_details.inperson_classes
   , enroll_details.uw_job
+  , enroll_details.uw_greek_member
   , enroll_details.live_other_uw
   , enroll_details.uw_apt_yesno
   , enroll_details.core_pregnant
@@ -3348,6 +3358,8 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , enroll_details.swab_and_send_calc
   , enroll_details.kiosk_calc
   , enroll_details.covid_test_week_base
+  , enroll_details.uw_housing_resident
+  , enroll_details.on_campus_2x_week
 
   , enroll_details.text_or_email
   , enroll_details.text_or_email_attestation
@@ -3382,6 +3394,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , enroll_details.on_campus_freq
   , enroll_details.vaccine_method
   , enroll_details.vaccine_where
+  , enroll_details.uw_housing_group
   , enroll_details.added_surveillance_groups
 
   , enroll_details.countries_visited_base
@@ -3450,10 +3463,15 @@ create or replace view shipping.uw_reopening_ehs_reporting_v1 as
     when encounters.wfh_base = 'wfh_onsite' then 'I have worked or studied both from home AND on-site'
     when encounters.wfh_base = 'dont_say' then 'Prefer not to say' else
     'Unknown' end as able_to_work_or_study_from_home_description
+  , encounters.uw_greek_member as is_uw_greek_member
   , encounters.core_housing_type as housing_type
   , encounters.core_house_members as number_house_members
   , encounters.live_other_uw as lives_with_uw_students_or_employees
   , encounters.uw_apt_yesno as lives_in_uw_apartment
+  , encounters.tier as study_tier
+  , encounters.uw_housing_resident
+  , encounters.on_campus_2x_week
+  , encounters.uw_housing_group
   , encounters.alerts_off
 
   from shipping.uw_reopening_encounters_v1 encounters
