@@ -38,9 +38,10 @@ setup(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Bio-Informatics",
 
-        # Python ≥ 3.6 only
+        # Python ≥ 3.6 only; we've also tested with 3.9
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.9",
     ],
 
     # Register extended ID3C CLI commands and API routes

@@ -10,4 +10,4 @@ seattleflu-id3c-customizations = {editable = true, extras = ["dev"], path = "."}
 id3c = {editable = true,path = "./../id3c"}
 
 [requires]
-python_version = "3.6"
+python_version = "3.9"
