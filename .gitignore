@@ -5,3 +5,9 @@
 # pyproject.toml is auto-generated when using pipenv>=2020.11.15, added here
 # to avoid having it deployed until production is updated to that version
 pyproject.toml
+
+# ignore data files that may have erroneously remained in this directory
+*.csv
+*.ndjson
+*.xls
+*.xlsx
