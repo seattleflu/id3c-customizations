@@ -1,6 +1,7 @@
 /lib/seattleflu_id3c_customizations.egg-info/
 /.mypy_cache/
 /.vscode
+/build/
 
 # pyproject.toml is auto-generated when using pipenv>=2020.11.15, added here
 # to avoid having it deployed until production is updated to that version
