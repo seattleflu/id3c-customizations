@@ -69,13 +69,13 @@ setup(
     extras_require = {
         "dev": [
             "mypy",
-            "pytest",
+            "pytest >=6.2.5,!=7.0.0",
             "sqlparse",
             "types-requests",
             "types-python-dateutil",
         ],
         "locations": [
-            "pandas >=1.0.1,<2",
+            "pandas ~=1.1.5",
             "snakemake",
         ],
     },
