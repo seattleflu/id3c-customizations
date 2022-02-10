@@ -2374,7 +2374,7 @@ create or replace view shipping.genome_submission_metadata_v1 as
         -- Separate by study arm for easier reporting of VoCs to study leads
         case
           when identifier_set.name in ('collections-scan', 'collections-scan-kiosks') then 'SCAN'
-          when identifier_set.name in ('collections-adult-family-home-outbreak', 'collections-workplace-outbreak', 'collections-workplace-outbreak-tiny-swabs') then 'AFH/Workplace'
+          when identifier_set.name in ('collections-adult-family-home-outbreak', 'collections-workplace-outbreak') then 'AFH/Workplace'
           when identifier_set.name in ('collections-childcare') then 'Childcare'
           when identifier_set.name in ('collections-apple-respiratory', 'collections-apple-respiratory-serial') then 'Apple'
           when identifier_set.name in ('collections-household-general', 'collections-household-intervention',
@@ -2640,8 +2640,7 @@ create or replace view shipping.reportable_condition_v1 as
                                    'collections-school-testing-home',
                                    'collections-school-testing-observed',
                                    'collections-radxup-yakima-schools-home',
-                                   'collections-radxup-yakima-schools-observed',
-                                   'collections-workplace-outbreak-tiny-swabs'
+                                   'collections-radxup-yakima-schools-observed'
                                    )
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
@@ -2754,13 +2753,11 @@ create or replace view shipping.return_results_v3 as
           when 'collections-school-testing-observed' then true
           when 'collections-radxup-yakima-schools-home' then false
           when 'collections-radxup-yakima-schools-observed' then true
-          when 'collections-workplace-outbreak-tiny-swabs' then true
           else null
         end as staff_observed,
         case when identifier_set.name in (
           'collections-adult-family-home-outbreak',
-          'collections-workplace-outbreak',
-          'collections-workplace-outbreak-tiny-swabs'
+          'collections-workplace-outbreak'
         ) then 'clinical' else 'IRB'
         end as pre_analytical_specimen_collection
 
@@ -2784,8 +2781,7 @@ create or replace view shipping.return_results_v3 as
           'collections-school-testing-home',
           'collections-school-testing-observed',
           'collections-radxup-yakima-schools-home',
-          'collections-radxup-yakima-schools-observed',
-          'collections-workplace-outbreak-tiny-swabs'
+          'collections-radxup-yakima-schools-observed'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
