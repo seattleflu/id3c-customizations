@@ -214,6 +214,8 @@ def parse_sch(sch_filename, manifest_format, output):
         "sex": "AssignedSex",
         "ethnicity": "HispanicLatino",
         "race": "Race",
+        "admit_during_this_encounter": "AdmitDuringThisEncounter",
+        "admit_to_icu": "AdmitToICU"
     }
 
     # Accounting for differences in format for year 3
