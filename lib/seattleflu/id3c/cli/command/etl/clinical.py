@@ -30,6 +30,9 @@ from id3c.cli.command.etl import (
     UnknownCovidShotResponseError,
     UnknownCovidShotManufacturerError,
     UnknownSiteError,
+    UnknownAdmitEncounterResponseError,
+    UnknownAdmitICUResponseError,
+
 )
 from . import race
 
@@ -215,7 +218,9 @@ def encounter_details(document: dict) -> dict:
                 "FluShot": flu_shot(document.get("FluShot")),
                 "AssignedSex": [sex(document.get("AssignedSex"))],
                 "HispanicLatino": hispanic_latino(document.get("HispanicLatino")),
-                "MedicalInsurance": insurance(document.get("MedicalInsurance"))
+                "MedicalInsurance": insurance(document.get("MedicalInsurance")),
+                "AdmitDuringThisEncounter": admit_encounter(document.get("AdmitDuringThisEncounter")),
+                "AdmitToICU": admit_icu(document.get("AdmitToICU")),
             },
         }
 
@@ -228,7 +233,7 @@ def encounter_details(document: dict) -> dict:
     for k in ["CovidShot1", "CovidShot2"]:
         if k in document:
             details["responses"][k] = covid_shot(document[k])
-    
+
     if "CovidShotManufacturer" in document:
         details["responses"]["CovidShotManufacturer"] = covid_shot_maunufacturer(document.get("CovidShotManufacturer"))
 
@@ -304,6 +309,78 @@ def flu_shot(flu_shot_response: Optional[Any]) -> list:
 
     return [flu_shot_map[flu_shot_response]]
 
+def admit_encounter(admit_encounter_response: Optional[Any]) -> list:
+    """
+    Given a *admit_encounter_response*, returns yes/no value for AdmitDuringThisEncounter key.
+
+    >>> admit_encounter(0.0)
+    ['no']
+
+    >>> admit_encounter('TRUE')
+    ['yes']
+
+    >>> admit_encounter('maybe')
+    Traceback (most recent call last):
+        ...
+    id3c.cli.command.etl.UnknownAdmitEncounterResponseError: Unknown admit during encounter response «maybe»
+
+    """
+    if admit_encounter_response is None:
+        LOG.debug("No admit during this encounter response found.")
+        return [None]
+
+    if isinstance(admit_encounter_response, str):
+        admit_encounter_response = admit_encounter_response.lower()
+
+    admit_encounter_map = {
+        0.0 : "no",
+        1.0 : "yes",
+        "false": "no",
+        "true": "yes",
+    }
+
+    if admit_encounter_response not in admit_encounter_map:
+        raise UnknownAdmitEncounterResponseError(
+            f"Unknown admit during encounter response «{admit_encounter_response}»")
+
+    return [admit_encounter_map[admit_encounter_response]]
+
+
+def admit_icu(admit_icu_response: Optional[Any]) -> list:
+    """
+    Given a *admit_icu_response*, returns yes/no value for AdmitToICU key.
+
+    >>> admit_icu(0.0)
+    ['no']
+
+    >>> admit_icu('TRUE')
+    ['yes']
+
+    >>> admit_icu('maybe')
+    Traceback (most recent call last):
+        ...
+    id3c.cli.command.etl.UnknownAdmitICUResponseError: Unknown admit to ICU response «maybe»
+
+    """
+    if admit_icu_response is None:
+        LOG.debug("No admit to icu response found.")
+        return [None]
+
+    if isinstance(admit_icu_response, str):
+        admit_icu_response = admit_icu_response.lower()
+
+    admit_icu_map = {
+        0.0 : "no",
+        1.0 : "yes",
+        "false": "no",
+        "true": "yes",
+    }
+
+    if admit_icu_response not in admit_icu_map:
+        raise UnknownAdmitICUResponseError(
+            f"Unknown admit to ICU response «{admit_icu_response}»")
+
+    return [admit_icu_map[admit_icu_response]]
 
 def covid_shot(covid_shot_response: Optional[Any]) -> list:
     """
@@ -448,6 +525,8 @@ def insurance(insurance_response: Optional[Any]) -> list:
         "tricare": "government",
         "care": "government",
         "caid": "government",
+        "financial aid": "other",
+        "self-pay": "other",
         "other": "other",
         "self": "other",
         "tce": "other",
