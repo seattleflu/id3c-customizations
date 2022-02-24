@@ -103,7 +103,14 @@ def offer_uw_testing(*, at: str, log_offers: bool, db: DatabaseSession, action: 
         f"is now {quota.remaining:,} = {quota.max:,} - {quota.used:,} (remaining = max - used)")
 
     # Offer testing to the top entries in our priority queue.
+    #
+    # Disabling parallel queries here, which were occasionally getting stuck with
+    # wait event `IPC: Message Queue Send`. Setting work_mem higher to use memory instead
+    # of disk for sorting and hash tables
+
     next_in_queue = db.fetch_all("""
+        set local max_parallel_workers_per_gather = 0;
+        set local work_mem = '64MB';
         select
             redcap_url,
             redcap_project_id,
