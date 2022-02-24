@@ -1,0 +1,16 @@
+# Ignore everything
+*
+
+# except these files
+!/.gitignore
+!/2010_Census_Tract_Hierarchy.csv
+!/2010_Census_Tract_to_2010_PUMA.txt
+!/SeattleCensusBlocksandNeighborhoodCorrelationFile.xlsx
+!/states.txt
+
+# and these directories
+!/cra/
+!/neighborhood_district/
+!/puma/
+!/seattle-neighborhood-svg/
+!/tract/

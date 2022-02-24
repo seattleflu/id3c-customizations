@@ -3,8 +3,10 @@
 
 # except these files
 !/.gitignore
-!/README.md
-!/Snakefile
+!/sqitch.plan
 
 # and these directories
-!/data/
+!/deploy/
+!/revert/
+!/templates/
+!/verify/

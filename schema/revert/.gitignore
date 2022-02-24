@@ -3,3 +3,7 @@
 
 # except these files
 !/.gitignore
+!*.sql
+
+# even if in subdirectories
+!/**/

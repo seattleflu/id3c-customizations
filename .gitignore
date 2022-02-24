@@ -1,14 +1,27 @@
-/lib/seattleflu_id3c_customizations.egg-info/
-/.mypy_cache/
-/.vscode
-/build/
+# Ignore everything
+*
 
-# pyproject.toml is auto-generated when using pipenv>=2020.11.15, added here
-# to avoid having it deployed until production is updated to that version
-pyproject.toml
+# except these files
+!/.gitignore
+!/LICENSE
+!/README.md
+!/Pipfile
+!/Pipfile.lock
+!/mypy.ini
+!/pytest.ini
+!/setup.py
+!/sqitch.conf
 
-# ignore data files that may have erroneously remained in this directory
-*.csv
-*.ndjson
-*.xls
-*.xlsx
+# and these directories
+!/clinical/
+!/dev/
+!/docs/
+!/lib/
+!/locations/
+!/schema/
+!/tests/
+
+# and these nested files
+!/.github/
+!/.github/workflows/
+!/.github/workflows/ci.yaml

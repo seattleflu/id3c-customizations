@@ -3,8 +3,7 @@
 
 # except these files
 !/.gitignore
-!/README.md
-!/Snakefile
 
 # and these directories
-!/data/
+!/seattleflu/
+!/seattleflu/id3c/

@@ -1,2 +1,5 @@
-/tl_2016_*
-/cb_2016_*
+# Ignore everything
+*
+
+# except these files
+!/.gitignore

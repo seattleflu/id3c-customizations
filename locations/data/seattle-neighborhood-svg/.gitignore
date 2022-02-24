@@ -3,3 +3,5 @@
 
 # except these files
 !/.gitignore
+!/create-svgs
+!/export-id3c-svg-paths

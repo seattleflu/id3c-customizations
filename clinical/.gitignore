@@ -1,0 +1,12 @@
+# Ignore everything
+*
+
+# except these files
+!/.gitignore
+
+# and these nested files
+!/uw/
+!/uw/README.md
+!/uw/Snakefile
+!/uw/workflow-schema.yaml
+!/uw/id3c-geocode.yaml
