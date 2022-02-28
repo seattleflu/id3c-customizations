@@ -109,7 +109,6 @@ def offer_uw_testing(*, at: str, log_offers: bool, db: DatabaseSession, action: 
     # of disk for sorting and hash tables
 
     next_in_queue = db.fetch_all("""
-        set local max_parallel_workers_per_gather = 0;
         set local work_mem = '64MB';
         select
             redcap_url,
