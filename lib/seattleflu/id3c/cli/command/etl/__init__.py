@@ -7,7 +7,7 @@ from typing import Any, Optional, List
 from textwrap import dedent
 from functools import wraps
 from id3c.cli.redcap import Record as REDCapRecord, is_complete
-
+from .fhir import create_coding
 
 LOG = logging.getLogger(__name__)
 
@@ -108,6 +108,7 @@ def race(races: Optional[Any]) -> list:
 
         "white": "white",
         "white or caucasian": "white",
+        "caucasian": "white",
 
         "other": "other",
         "other race": "other",
@@ -120,6 +121,9 @@ def race(races: Optional[Any]) -> list:
         "did not wish to indicate": None,
         "unknown": None,
         "dont_say": None,
+        "declined to answer": None,
+        "patient not present": None,
+        "unavailable or unknown": None,
     }
 
     assert set(race_map.keys()) == set(map(str.lower, race_map.keys()))
@@ -131,6 +135,56 @@ def race(races: Optional[Any]) -> list:
             raise UnknownRaceError(f"Unknown race name «{race}»") from None
 
     return list(map(standardize_race, races))
+
+
+def ethnicity(ethnicity: str) -> Optional[bool]:
+    """
+    Returns a standardized boolean value for the given *ethnicity*
+
+    >>> ethnicity("HISPANIC OR LATINO")
+    True
+
+    >>> ethnicity("NOT HISPANIC OR LATINO")
+    False
+    
+    >>> ethnicity("NULL") == None
+    True
+
+    A :class:`UnknownEthnicityError` is raised when an unknown value is encountered:
+
+    >>> ethnicity("FOOBARBAZ")
+    Traceback (most recent call last):
+        ...
+    seattleflu.id3c.cli.command.etl.UnknownEthnicityError: Unknown ethnicity value «foobarbaz»
+    """
+
+    if not ethnicity:
+        return None
+    else:
+        ethnicity = standardize_whitespace(ethnicity.lower())
+
+    # Leaving this code here to be implemented later. My original approach was to use FHIR 
+    # coding for ethnicity, which would be preffered, but for consistency with other ETLs
+    # I switched to ingesting ethnicity as a boolean. To transition to FHIR codes across all projects will
+    # require updating multiple ETLs, shipping views, and re-ingesting data. A card has been added
+    # to tackle this at a later date.
+    # -drr 2021-12-30
+
+    #hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2135-2", "hispanic or latino")
+    #not_hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2186-5", "not hispanic or latino")
+
+    mapper = {
+        "hispanic or latino":               True,           # hispanic_or_latino,
+        "not hispanic or latino":           False,          # not_hispanic_or_latino,
+        "unavailable or unknown":           None,
+        "null":                             None,
+        "declined to answer":               None,
+    }
+
+    if ethnicity not in mapper:
+        raise UnknownEthnicityError(f"Unknown ethnicity value «{ethnicity}»")
+
+    return mapper[ethnicity]
 
 
 def standardize_whitespace(string: str) -> str:
@@ -204,6 +258,13 @@ class UnknownRaceError(ValueError):
     """
     Raised by :function:`race` if its provided *race_name* is not among the set
     of expected values.
+    """
+    pass
+
+class UnknownEthnicityError(ValueError):
+    """
+    Raised by :function: `ethnicity` if it finds an ethnicity
+    that is not among a set of mapped values
     """
     pass
 

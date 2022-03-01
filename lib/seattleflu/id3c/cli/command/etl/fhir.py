@@ -136,6 +136,7 @@ def create_condition_resource(condition_id: str,
                               patient_reference: dict,
                               onset_datetime: str,
                               condition_code: dict,
+                              encounter_reference = None,
                               severity = None) -> dict:
     """
     Create condition resource following the FHIR format
@@ -147,6 +148,9 @@ def create_condition_resource(condition_id: str,
         "subject": patient_reference,
         "code": condition_code,
     }
+
+    if encounter_reference:
+        condition_resource["encounter"] = encounter_reference
 
     if severity:
         condition_resource["severity"] = severity
@@ -344,7 +348,28 @@ def create_specimen_observation(specimen_reference: dict,
         "specimen": specimen_reference
     }
 
+def create_immunization_resource(patient_reference: dict,
+                                 immunization_identifier: List[dict],
+                                 immunization_date: str,
+                                 immunization_status: str,
+                                 vaccine_code: dict) -> dict:
+    """
+    Create an immunization resource following the FHIR format
+    (https://www.hl7.org/fhir/immunization.html)
+    """
+    
+    return({
+        "resourceType": "Immunization",
+        "identifier": immunization_identifier,
+        "status": immunization_status,
+        "patient": patient_reference,
+        "occurrenceDateTime": immunization_date,
+        "vaccineCode": {
+            "coding": [vaccine_code]
+        }
+    })
 
+    
 def create_questionnaire_response_resource(patient_reference: dict,
                                            encounter_reference: dict,
                                            items: List[dict]) -> dict:

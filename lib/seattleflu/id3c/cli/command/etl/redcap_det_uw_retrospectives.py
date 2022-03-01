@@ -15,7 +15,7 @@ from id3c.cli.command.etl import redcap_det
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_geocoded_address
 from seattleflu.id3c.cli.command import age_ceiling
-from . import standardize_whitespace, first_record_instance
+from . import standardize_whitespace, first_record_instance, race, ethnicity
 from .fhir import *
 from .redcap_map import *
 
@@ -25,7 +25,7 @@ SFS = "https://seattleflu.org"
 REDCAP_URL = "https://redcap.iths.org/"
 PROJECT_ID = 19915
 
-REVISION = 3
+REVISION = 4
 
 @redcap_det.command_for_project(
     "uw-retrospectives",
@@ -73,6 +73,9 @@ def redcap_det_uw_retrospectives(*,
         create_clinical_result_observation_resource
     )
 
+    immunization_entries = create_immunization(redcap_record, patient_reference)
+    condition_entries = create_conditions(redcap_record, patient_reference, encounter_reference)
+
     resource_entries = [
         patient_entry,
         specimen_entry,
@@ -81,11 +84,13 @@ def redcap_det_uw_retrospectives(*,
         specimen_observation_entry
     ]
 
-    if location_entries:
-        resource_entries.extend(location_entries)
-
+    for entries in [location_entries, immunization_entries, condition_entries]:
+        if entries:
+            resource_entries.extend(entries)
+    
     if diagnostic_report_resource_entry:
         resource_entries.append(diagnostic_report_resource_entry)
+
 
     return create_bundle_resource(
         bundle_id = str(uuid4()),
@@ -94,6 +99,37 @@ def redcap_det_uw_retrospectives(*,
         entries = list(filter(None, resource_entries))
     )
 
+
+def create_conditions(record:dict, patient_reference: dict, encounter_reference: dict) -> list:
+    """
+    Create condition resource following the FHIR format
+    (http://www.hl7.org/implement/standards/fhir/condition.html)
+    """
+    condition_entries = []
+
+    icd10_columns = ['icd10_primary', 'icd10_secondary']
+
+    for col in icd10_columns:
+        # Some records contain multiple comma-separated icd10 codes in the same field.
+        # It has been confirmed with the source of the data that those are instances of multiple
+        # coding (https://www.hl7.org/fhir/icd.html#multiple-coding) which should remain together.
+        # Removing the comma here to conform with the FHIR standard.
+        # - drr  12/14/21
+        icd10_code = standardize_whitespace(record.get(col, '').replace(',',' '))
+
+        if icd10_code:
+            condition_resource = create_condition_resource(icd10_code,
+                                    patient_reference,
+                                    None,
+                                    create_codeable_concept("http://hl7.org/fhir/sid/icd-10", icd10_code),
+                                    encounter_reference)
+
+            condition_entries.append(create_resource_entry(
+                resource = condition_resource,
+                full_url = generate_full_url_uuid()
+            ))
+
+    return condition_entries
 
 def create_patient(record: dict) -> Optional[tuple]:
     """ Returns a FHIR Patient resource entry and reference. """
@@ -210,7 +246,7 @@ def create_encounter(db: DatabaseSession,
         encounter_status = encounter_status,
         patient_reference = patient_reference,
         location_references = encounter_location_references,
-        hospitalization = hospitalization
+        hospitalization = hospitalization,
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
@@ -331,14 +367,19 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'disch/trans/planned readm to court/law enforcement'    : 'oth',
         'oth inst: other institution - not defined elsewhere'   : 'oth',
         'other institution - not defined elsewhere'             : 'oth',
+        'ed dismiss - no show'                                  : 'oth',
+        'ed dismiss - lwbs'                                     : 'oth',
+        'disch/trans/planned readm to other institution-not defined elsewhere' : 'oth',
         'transfer to hospital'                                  : 'other-hcf',
         'transfer to : transfer to hospital'                    : 'other-hcf',
         'icf: icf- intermediate care facility'                  : 'other-hcf',
         'icf- intermediate care facility'                       : 'other-hcf',
+        'disch/trans/planned readm to icf-intermediate care facility' : 'other-hcf',
         'ca ctr/chld : designated cancer center or childrens hospital': 'other-hcf',
         'designated cancer center or children\'s hospital'      : 'other-hcf',
         'disch/trans fed hospital'                              : 'other-hcf',
         'dischrg/tr: disch/trans fed hospital'                  : 'other-hcf',
+        'disch/trans/planned readm to a federal hospital'       : 'other-hcf',
         'disch/trans/planned readm to designated cancer ctr or children\'s hospital': 'other-hcf',
         'disch/trans/planned readm to hospital'                 : 'other-hcf',
         #'Disch/Trans/Planned IP Readm between Service Area 20 NW/UWMC Campus': 'other-hcf',
@@ -350,6 +391,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         'disch/trans/planned readm to a distinct rehab unit/hospital' : 'rehab',
         'dis/trans: disch/trans to a distinct rehab unit/hospital': 'rehab',
         'disch/trans/planned readm to snf-skilled nursing facility': 'snf',
+        'disch/trans to a nursing fac-medicaid cert'            : 'snf',
         'snf-skilled nursing facility'                          : 'snf',
         'snf: snf-skilled nursing facility'                     : 'snf',
         'still a patient'                                       : None,
@@ -357,9 +399,17 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     }
 
     if standardized_disposition not in mapper:
-        raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
-            f"«{standardized_disposition}» for barcode «{redcap_record['barcode']}».")
+        # Commenting out this exception until the Codebook is defined in REDCap to limit values
+        # for discharge disposition. For now we will map unknown values to `None` but this can
+        # be reverted to raise `UnknownHospitalDischargeDisposition` once tbe REDCap Codebook
+        # has been updated and all possible values have been added to the map above.
+        # -drr 1/3/22
 
+        #raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
+        #    f"«{standardized_disposition}» for barcode «{redcap_record['barcode']}».")
+    
+        return None
+        
     return mapper[standardized_disposition]
 
 
@@ -427,6 +477,134 @@ def create_encounter_status(redcap_record: dict) -> str:
     return mapper[standardized_status]
 
 
+def create_immunization(record: dict, patient_reference: dict) -> Optional[list]:
+    """ Returns a FHIR Immunization resource entry """
+    immunization_entries = []
+
+    immunization_columns = [
+        {
+            "status": "covid_status_1",
+            "date": "covid_date_1",
+            "name": "covid_vaccine"
+        },
+        {
+            "status": "covid_status_2",
+            "date": "covid_date_2",
+            "name": "covid_vaccine"
+        },
+        {
+            "status": "flu_status",
+            "date": "flu_date",
+            "name": None
+        }
+    ]
+
+    vaccine_mapper = {
+        "covid-19 moderna mrna lnp-s": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "207",
+            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
+        },
+        "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "218",
+            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
+        },
+        "covid-19 pfizer mrna purple cap": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 pfizer mrna tris-sucrose 5-11 years old": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "218",
+            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
+        },
+        "covid-19 pfizer mrna tris-sucrose gray cap": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 pfizer mrna lnp-s (comirnaty)": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 pfizer mrna lnp-s": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 astrazeneca vector-nr rs-chadox1": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "210",
+            "display": "COVID-19 vaccine, vector-nr, rS-ChAdOx1, PF, 0.5 mL"
+        },
+        "covid-19 novavax subunit rs-nanoparticle": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "211",
+            "display": "COVID-19 vaccine, Subunit, rS-nanoparticle+Matrix-M1 Adjuvant, PF, 0.5 mL",
+        },
+        "covid-19 janssen vector-nr rs-ad26": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "212",
+            "display": "COVID-19 vaccine, vector-nr, rS-Ad26, PF, 0.5 mL",
+        },
+        "covid-19, unspecified": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "213",
+            "display": "COVID-19 vaccine, UNSPECIFIED",
+        },
+        "flu unspecified": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "88",
+            "display": "influenza, unspecified formulation",
+        },
+        "": None
+    }
+
+    for column_map in immunization_columns:
+        # Validate vaccination status
+        immunization_status = standardize_whitespace(record[column_map["status"]]).lower()
+        if immunization_status not in ["y", "n", ""]:
+            raise UnknownImmunizationStatus (f"Unknown immunization status «{immunization_status}».")
+
+        # Standardize vaccine name 
+        if column_map["status"] == "flu_status" and column_map["name"] == None:
+            vaccine_name = "flu unspecified"
+        else:
+            vaccine_name = standardize_whitespace(record[column_map["name"]]).lower()
+        
+        # Validate vaccine name and determine CVX code
+        vaccine_code = None
+        if vaccine_name in vaccine_mapper:
+            vaccine_code = vaccine_mapper[vaccine_name]
+        else:
+            raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».")
+
+        # Standardize date format
+        immunization_date = record[column_map["date"]]
+        
+        if immunization_status == "y" and vaccine_code:
+            immunization_identifier_hash = generate_hash(f"{record['mrn']}{vaccine_code['code']}{immunization_date}".lower())
+            immunization_identifier = create_identifier(f"{SFS}/immunization", immunization_identifier_hash)
+        
+            immunization_resource = create_immunization_resource(
+                patient_reference = patient_reference,
+                immunization_identifier = [immunization_identifier],
+                immunization_date = immunization_date,
+                immunization_status = "completed",
+                vaccine_code = vaccine_code,
+            )
+
+            immunization_entries.append(create_resource_entry(
+                resource = immunization_resource,
+                full_url = generate_full_url_uuid()
+            ))
+
+    return immunization_entries
+
+
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Questionnaire Response resource entry """
     response_items = determine_questionnaire_items(record)
@@ -452,6 +630,14 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
 
     if record["age"]:
         items["age"] = [{ 'valueInteger': age_ceiling(int(record["age"]))}]
+
+    if record["race"]:
+        items["race"] = []
+        for code in race(record["race"]):
+            items["race"].append({ 'valueCoding': create_coding(f"{SFS}/race", code)})
+
+    if record["ethnicity"]:
+        items["ethnicity"] = [{ 'valueBoolean': ethnicity(record["ethnicity"]) }]
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():
@@ -531,34 +717,33 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     # Removal of non-alphanumeric characters is to account for inconsistencies in the data received
     standardized_result = standardize_whitespace(re.sub(r'[^a-z0-9 ]+','',result.lower())) if result else None
 
-    if not standardized_result or standardized_result.startswith('reorder requested'):
+    if not standardized_result:
         return None
 
-    test_result_map = {
+    test_result_prefix_map = {
         'negative'                              : False,
         'none detected'                         : False,
-        'not detected qualifier value'          : False,
+        'not detected'                          : False,
         'detected'                              : True,
-        'detected qualifier value'              : True,
         'positive'                              : True,
-        'cancel order changed'                  : None,
-        'cancel see detail'                     : None,
-        'canceled by practitioner'              : None,
+        'cancel'                                : None,
+        'disregard'                             : None,
         'duplicate request'                     : None,
         'inconclusive'                          : None, # XXX: Ingest this someday as present = null?
         'indeterminate'                         : None, # XXX: Ingest this someday as present = null?
         'pending'                               : None,
         'test not applicable'                   : None,
-        'wrong test ordered by practitioner'    : None,
-        'followup testing required sample recollection requested': None,
-        'disregard results wrong chart'         : None,
-        'wrong test selected by uw laboratory'  : None
+        'wrong test'                            : None,
+        'followup testing required'             : None,
+        'data entry correction'                 : None,
+        'reorder requested'                     : None,
     }
 
-    if standardized_result not in test_result_map:
-        raise UnknownTestResult(f"Unknown test result value «{standardized_result}».")
-
-    return test_result_map[standardized_result]
+    for prefix in test_result_prefix_map:
+        if standardized_result.startswith(prefix):
+            return test_result_prefix_map[prefix]
+    
+    raise UnknownTestResult(f"Unknown test result value «{standardized_result}» for «{redcap_record['barcode']}».")
 
 
 def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
@@ -631,5 +816,19 @@ class UnknownTestResult(ValueError):
     """
     Raised by :function: `present` if it finds a test result
     that is not among a set of mapped values
+    """
+    pass
+
+class UnknownImmunizationStatus(ValueError):
+    """
+    Raised by :function: `create_immunization` if it finds a status
+    that is not among a set of mapped values
+    """
+    pass
+
+class UnknownVaccine(ValueError):
+    """
+    Raised by :function: `create_immunization` if it finds a vaccine
+    name that is not among a set of mapped values
     """
     pass
