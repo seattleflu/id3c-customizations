@@ -1,1 +1,5 @@
-/seattle_neighborhood_district.geojson
+# Ignore everything
+*
+
+# except these files
+!/.gitignore
