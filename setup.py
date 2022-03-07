@@ -75,7 +75,7 @@ setup(
             "types-python-dateutil",
         ],
         "locations": [
-            "pandas ~=1.1.5",
+            "pandas",
             "snakemake",
         ],
     },
