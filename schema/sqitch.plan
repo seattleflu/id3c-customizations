@@ -418,3 +418,6 @@ shipping/views [shipping/views@2022-01-07] 2022-01-25T21:52:13Z Melissa Truong <
 
 shipping/views [shipping/views@2022-01-25] 2022-02-09T18:54:06Z Melissa Truong <truong97@uw.edu> # Update reportable_conditions_v1 to use values
 @2022-02-09 2022-02-09T21:47:24Z Melissa Truong <truong97@uw.edu> # Schema as of 09 February 2022
+
+shipping/views [shipping/views@2022-02-09] 2022-03-03T23:26:20Z Ben Capodanno <capodb@uw.edu> # Remove sample identifier barcode dependency from reportable conditions view
+@2022-03-03 2022-03-04T01:28:58Z Ben Capodanno <capodb@uw.edu> # Schema as of 03 March 2022

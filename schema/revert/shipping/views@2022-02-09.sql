@@ -2607,9 +2607,9 @@ create or replace view shipping.reportable_condition_v1 as
     join warehouse.target using (target_id)
     join warehouse.organism using (organism_id)
     join warehouse.sample using (sample_id)
+    join warehouse.identifier sample_id on (sample.identifier = cast(sample_id.uuid as text))
     join warehouse.identifier collection_id on (sample.collection_identifier = cast(collection_id.uuid as text))
     join warehouse.identifier_set collection_id_set on (collection_id.identifier_set_id = collection_id_set.identifier_set_id)
-    left join warehouse.identifier sample_id on (sample.identifier = cast(sample_id.uuid as text))
     left join warehouse.encounter using (encounter_id)
     left join warehouse.site using (site_id)
 
@@ -2618,30 +2618,30 @@ create or replace view shipping.reportable_condition_v1 as
      -- Only report on SCAN samples and SFS prospective samples
     -- We don't have to worry about SFS consent date because the
     -- clinical team checks this before they contact the participant.
-    and collection_id_set.name in (values ('collections-scan'),
-                                   ('collections-scan-kiosks'),
-                                   ('collections-household-observation'),
-                                   ('collections-household-intervention'),
-                                   ('collections-swab&send'),
-                                   ('collections-kiosks'),
-                                   ('collections-self-test'),
-                                   ('collections-swab&send-asymptomatic'),
-                                   ('collections-kiosks-asymptomatic'),
-                                   ('collections-environmental'),
-                                   ('collections-uw-home'),
-                                   ('collections-uw-observed'),
-                                   ('collections-uw-tiny-swabs-home'),
-                                   ('collections-uw-tiny-swabs-observed'),
-                                   ('collections-household-general'),
-                                   ('collections-childcare'),
-                                   ('collections-adult-family-home-outbreak'),
-                                   ('collections-workplace-outbreak'),
-                                   ('collections-apple-respiratory'),
-                                   ('collections-school-testing-home'),
-                                   ('collections-school-testing-observed'),
-                                   ('collections-radxup-yakima-schools-home'),
-                                   ('collections-radxup-yakima-schools-observed'),
-                                   ('collections-workplace-outbreak-tiny-swabs')
+    and collection_id_set.name in ('collections-scan',
+                                   'collections-scan-kiosks',
+                                   'collections-household-observation',
+                                   'collections-household-intervention',
+                                   'collections-swab&send',
+                                   'collections-kiosks',
+                                   'collections-self-test',
+                                   'collections-swab&send-asymptomatic',
+                                   'collections-kiosks-asymptomatic',
+                                   'collections-environmental',
+                                   'collections-uw-home',
+                                   'collections-uw-observed',
+                                   'collections-uw-tiny-swabs-home',
+                                   'collections-uw-tiny-swabs-observed',
+                                   'collections-household-general',
+                                   'collections-childcare',
+                                   'collections-adult-family-home-outbreak',
+                                   'collections-workplace-outbreak',
+                                   'collections-apple-respiratory',
+                                   'collections-school-testing-home',
+                                   'collections-school-testing-observed',
+                                   'collections-radxup-yakima-schools-home',
+                                   'collections-radxup-yakima-schools-observed',
+                                   'collections-workplace-outbreak-tiny-swabs'
                                    )
     and coalesce(encountered::date, date_or_null(sample.details ->> 'date')) >= '2020-01-01'
     and presence_absence.details @> '{"assay_type": "Clia"}'
