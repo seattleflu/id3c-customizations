@@ -3547,6 +3547,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_prior_test_positive_date,
             prior_test_positive_date_base::date as prior_test_positive_date_base,
             on_campus_freq,
+            added_surveillance_groups,
             alerts_off
         from warehouse.encounter
         join warehouse.individual using (individual_id)
@@ -3624,6 +3625,36 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and screen_positive
     ),
 
+    -- Select added_surveillance_groups if they are in the group for today
+    added_surveillance_groups as (
+        select
+            redcap_url,
+            redcap_project_id,
+            redcap_record_id,
+            redcap_event_name,
+            redcap_repeat_instance,
+            encountered,
+            individual,
+            latest_invite_date,
+            latest_collection_date,
+            2 as priority,
+            'surveillance' as priority_reason,
+
+            latest_positive_hcov19_collection_date,
+            latest_prior_test_positive_date,
+            prior_test_positive_date_base,
+            alerts_off
+        from uw_enrollments
+        -- Filter to added_surveillance_groups for today.
+        -- To_Char(current_date, 'day') returns a string padded to 9 characters, so trim it.
+        -- Example: where 'tuesday' = 'tuesday'
+        where added_surveillance_groups = trim(To_Char(current_date, 'day'))
+        -- Filter for participants who haven't ever been invited or haven't been invited in 3 days
+        and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
+        -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
+        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
+	  ),
+
     -- Select enrollments for baseline testing
     baseline as (
         select
@@ -3655,7 +3686,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
     ),
 
-        -- Select enrollments for surveillance testing
+    -- Select enrollments for surveillance testing
     surveillance as (
         select
             redcap_url,
@@ -3753,6 +3784,14 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
     prior_test_positive_date_base, alerts_off
     from surge_testing
+
+    union all
+
+    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
+    encountered, individual, latest_invite_date, latest_collection_date, priority,
+    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
+    prior_test_positive_date_base, alerts_off
+    from added_surveillance_groups
     ) as a
     where
     -- Filter for participants who have not tested positive with us in the past 14 days

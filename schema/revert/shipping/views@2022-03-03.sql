@@ -2607,9 +2607,9 @@ create or replace view shipping.reportable_condition_v1 as
     join warehouse.target using (target_id)
     join warehouse.organism using (organism_id)
     join warehouse.sample using (sample_id)
+    join warehouse.identifier sample_id on (sample.identifier = cast(sample_id.uuid as text))
     join warehouse.identifier collection_id on (sample.collection_identifier = cast(collection_id.uuid as text))
     join warehouse.identifier_set collection_id_set on (collection_id.identifier_set_id = collection_id_set.identifier_set_id)
-    left join warehouse.identifier sample_id on (sample.identifier = cast(sample_id.uuid as text))
     left join warehouse.encounter using (encounter_id)
     left join warehouse.site using (site_id)
 
