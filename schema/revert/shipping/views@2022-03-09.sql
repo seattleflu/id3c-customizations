@@ -3164,99 +3164,91 @@ grant select
 
 -- Not linebreaking this wide text in order to make reading and reviewing easier.
 create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v1 as
+(
+  select encounter.encounter_id
 
-    select
-        encounter_id,
+  --integer questions:
+  ,(select integer_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'weight') as weight
 
-        --integer questions
-        max (integer_response[1]) filter ( where link_id = 'weight' ) as weight,
+  --date questions:
+  ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'today_consent') as today_consent
+  ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'enrollment_date_time') as enrollment_date_time
+  ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'hospital_arrive_base') as hospital_arrive_base
+  ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'hospital_leave_base') as hospital_leave_base
+  ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prior_test_positive_date_base') as prior_test_positive_date_base
 
-        --date questions
-        max (date_response[1]) filter ( where link_id = 'today_consent' ) as today_consent,
-        max (date_response[1]) filter ( where link_id = 'enrollment_date_time' ) as enrollment_date_time,
-        max (date_response[1]) filter ( where link_id = 'hospital_arrive_base' ) as hospital_arrive_base,
-        max (date_response[1]) filter ( where link_id = 'hospital_leave_base' ) as hospital_leave_base,
-        max (date_response[1]) filter ( where link_id = 'prior_test_positive_date_base' ) as prior_test_positive_date_base,
+  --boolean questions:
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'study_area') as study_area
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'attend_uw') as attend_uw
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'english_speaking') as english_speaking
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'athlete') as athlete
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_medicine_yesno') as uw_medicine_yesno
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'inperson_classes') as inperson_classes
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_job') as uw_job
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'live_other_uw') as live_other_uw
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'uw_apt_yesno') as uw_apt_yesno
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_pregnant') as core_pregnant
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_latinx') as core_latinx
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'mobility') as mobility
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_hx') as vaccine_hx
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'hall_health') as hall_health
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prior_test_base') as prior_test_base
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'travel_countries_phs_base') as travel_countries_phs_base
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'travel_states_phs_base') as travel_states_phs_base
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'swab_and_send_calc') as swab_and_send_calc
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'kiosk_calc') as kiosk_calc
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'covid_test_week_base') as covid_test_week_base
 
-        --boolean questions
-        bool_or (boolean_response) filter ( where link_id = 'study_area' ) as study_area,
-        bool_or (boolean_response) filter ( where link_id = 'attend_uw' ) as attend_uw,
-        bool_or (boolean_response) filter ( where link_id = 'english_speaking' ) as english_speaking,
-        bool_or (boolean_response) filter ( where link_id = 'athlete' ) as athlete,
-        bool_or (boolean_response) filter ( where link_id = 'uw_medicine_yesno' ) as uw_medicine_yesno,
-        bool_or (boolean_response) filter ( where link_id = 'inperson_classes' ) as inperson_classes,
-        bool_or (boolean_response) filter ( where link_id = 'uw_job' ) as uw_job,
-        bool_or (boolean_response) filter ( where link_id = 'live_other_uw' ) as live_other_uw,
-        bool_or (boolean_response) filter ( where link_id = 'uw_apt_yesno' ) as uw_apt_yesno,
-        bool_or (boolean_response) filter ( where link_id = 'core_pregnant' ) as core_pregnant,
-        bool_or (boolean_response) filter ( where link_id = 'core_latinx' ) as core_latinx,
-        bool_or (boolean_response) filter ( where link_id = 'mobility' ) as mobility,
-        bool_or (boolean_response) filter ( where link_id = 'vaccine_hx' ) as vaccine_hx,
-        bool_or (boolean_response) filter ( where link_id = 'hall_health' ) as hall_health,
-        bool_or (boolean_response) filter ( where link_id = 'prior_test_base' ) as prior_test_base,
-        bool_or (boolean_response) filter ( where link_id = 'travel_countries_phs_base' ) as travel_countries_phs_base,
-        bool_or (boolean_response) filter ( where link_id = 'travel_states_phs_base' ) as travel_states_phs_base,
-        bool_or (boolean_response) filter ( where link_id = 'swab_and_send_calc' ) as swab_and_send_calc,
-        bool_or (boolean_response) filter ( where link_id = 'kiosk_calc' ) as kiosk_calc,
-        bool_or (boolean_response) filter ( where link_id = 'covid_test_week_base' ) as covid_test_week_base,
+  --string questions
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'text_or_email') as text_or_email
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'text_or_email_attestation') as text_or_email_attestation
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'campus_location') as campus_location
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'affiliation') as affiliation
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'student_level') as student_level
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'sea_employee_type') as sea_employee_type
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_house_members') as core_house_members
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_education') as core_education
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_income') as core_income
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'wfh_base') as wfh_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_housing_type') as core_housing_type
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_health_risk') as core_health_risk
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_tobacco_use') as core_tobacco_use
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'sought_care_base') as sought_care_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'hospital_where_base') as hospital_where_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'hospital_ed_base') as hospital_ed_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prior_test_positive_base') as prior_test_positive_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prior_test_type_base') as prior_test_type_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'prior_test_result_base') as prior_test_result_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'contact_base') as contact_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'wash_hands_base') as wash_hands_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'clean_surfaces_base') as clean_surfaces_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'hide_cough_base') as hide_cough_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'mask_base') as mask_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'distance_base') as distance_base
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'novax_reason') as novax_reason
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'covid_vaccine') as covid_vaccine
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'covid_novax_reason') as covid_novax_reason
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'alerts_off') as alerts_off
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'pronouns') as pronouns
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'on_campus_freq') as on_campus_freq
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_method') as vaccine_method
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine_where') as vaccine_where
+  ,(select string_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'added_surveillance_groups') as added_surveillance_groups
 
-        --string questions
-        max (string_response[1]) filter ( where link_id = 'text_or_email' ) as text_or_email,
-        max (string_response[1]) filter ( where link_id = 'text_or_email_attestation' ) as text_or_email_attestation,
-        max (string_response[1]) filter ( where link_id = 'campus_location' ) as campus_location,
-        max (string_response[1]) filter ( where link_id = 'affiliation' ) as affiliation,
-        max (string_response[1]) filter ( where link_id = 'student_level' ) as student_level,
-        max (string_response[1]) filter ( where link_id = 'sea_employee_type' ) as sea_employee_type,
-        max (string_response[1]) filter ( where link_id = 'core_house_members' ) as core_house_members,
-        max (string_response[1]) filter ( where link_id = 'core_education' ) as core_education,
-        max (string_response[1]) filter ( where link_id = 'core_income' ) as core_income,
-        max (string_response[1]) filter ( where link_id = 'wfh_base' ) as wfh_base,
-        max (string_response[1]) filter ( where link_id = 'core_housing_type' ) as core_housing_type,
-        max (string_response[1]) filter ( where link_id = 'core_health_risk' ) as core_health_risk,
-        max (string_response[1]) filter ( where link_id = 'core_tobacco_use' ) as core_tobacco_use,
-        max (string_response[1]) filter ( where link_id = 'sought_care_base' ) as sought_care_base,
-        max (string_response[1]) filter ( where link_id = 'hospital_where_base' ) as hospital_where_base,
-        max (string_response[1]) filter ( where link_id = 'hospital_ed_base' ) as hospital_ed_base,
-        max (string_response[1]) filter ( where link_id = 'prior_test_positive_base' ) as prior_test_positive_base,
-        max (string_response[1]) filter ( where link_id = 'prior_test_type_base' ) as prior_test_type_base,
-        max (string_response[1]) filter ( where link_id = 'prior_test_result_base' ) as prior_test_result_base,
-        max (string_response[1]) filter ( where link_id = 'contact_base' ) as contact_base,
-        max (string_response[1]) filter ( where link_id = 'wash_hands_base' ) as wash_hands_base,
-        max (string_response[1]) filter ( where link_id = 'clean_surfaces_base' ) as clean_surfaces_base,
-        max (string_response[1]) filter ( where link_id = 'hide_cough_base' ) as hide_cough_base,
-        max (string_response[1]) filter ( where link_id = 'mask_base' ) as mask_base,
-        max (string_response[1]) filter ( where link_id = 'distance_base' ) as distance_base,
-        max (string_response[1]) filter ( where link_id = 'novax_reason' ) as novax_reason,
-        max (string_response[1]) filter ( where link_id = 'covid_vaccine' ) as covid_vaccine,
-        max (string_response[1]) filter ( where link_id = 'covid_novax_reason' ) as covid_novax_reason,
-        max (string_response[1]) filter ( where link_id = 'alerts_off' ) as alerts_off,
-        max (string_response[1]) filter ( where link_id = 'pronouns' ) as pronouns,
-        max (string_response[1]) filter ( where link_id = 'on_campus_freq' ) as on_campus_freq,
-        max (string_response[1]) filter ( where link_id = 'vaccine_method' ) as vaccine_method,
-        max (string_response[1]) filter ( where link_id = 'vaccine_where' ) as vaccine_where,
-        max (string_response[1]) filter ( where link_id = 'added_surveillance_groups' ) as added_surveillance_groups,
+  --string question arrays
+  ,(select string_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'countries_visited_base') as countries_visited_base
+  ,(select string_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'states_visited_base') as states_visited_base
 
-        --string question arrays
-        max (string_response) filter ( where link_id = 'countries_visited_base' ) as countries_visited_base,
-        max (string_response) filter ( where link_id = 'states_visited_base' ) as states_visited_base,
+  --coded questions
+  ,(select case when array_length(code_response, 1) is null then string_response else code_response end from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'core_race') as core_race
 
-        --coded questions
-        case
-          when max(array_length(code_response, 1)) filter ( where link_id = 'core_race' ) is null
-            then max (string_response) filter ( where link_id = 'core_race' )
-          else
-            max (code_response) filter ( where link_id = 'core_race' )
-        end as core_race,
+  --the current year's flu vaccine
+  ,(select boolean_response from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine') as received_this_season_flu_vaccine
+  ,(select date_response[1] from shipping.fhir_questionnaire_responses_v1 where encounter_id = encounter.encounter_id and link_id = 'vaccine') as received_this_season_flu_vaccine_date
 
-        --the current year's flu vaccine
-        bool_or (boolean_response) filter ( where link_id = 'vaccine' ) as received_this_season_flu_vaccine,
-        max (date_response[1]) filter ( where link_id = 'vaccine' ) as received_this_season_flu_vaccine_date
-
-    from
-      shipping.fhir_questionnaire_responses_v1 responses
-    join warehouse.encounter using (encounter_id)
-    where identifier ~~ 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'::text
-    group by encounter_id
+  from warehouse.encounter encounter
+  where encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
+)
 ;
 
 comment on view shipping.uw_reopening_enrollment_fhir_encounter_details_v1 is
@@ -3404,12 +3396,12 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   join enrollments enroll on encounter.individual_id = enroll.enrollment_individual_id
   join warehouse.site site on encounter.site_id = site.site_id
   join warehouse.individual individual on individual.individual_id = encounter.individual_id
-  join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 enroll_details on enroll_details.encounter_id = enroll.enrollment_encounter_id
   left join warehouse.primary_encounter_location enc_loc on enc_loc.encounter_id = encounter.encounter_id
   left join warehouse.location loc on enc_loc.location_id = loc.location_id
   left join shipping.age_bin_fine_v2 age_fine on age_fine.range @> encounter.age
   left join shipping.age_bin_coarse_v2 age_coarse on age_coarse.range @> encounter.age
   left join shipping.age_bin_decade_v1 age_decade on age_decade.range @> encounter.age
+  left join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 enroll_details on enroll_details.encounter_id = enroll.enrollment_encounter_id
   left join warehouse.sample sample on sample.encounter_id = encounter.encounter_id
   -- Filter out follow up encounters
   where not encounter.details @> '{"reason": [{"system": "http://snomed.info/sct", "code": "390906007"}]}'
@@ -3555,7 +3547,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
             latest_prior_test_positive_date,
             prior_test_positive_date_base::date as prior_test_positive_date_base,
             on_campus_freq,
-            added_surveillance_groups,
             alerts_off
         from warehouse.encounter
         join warehouse.individual using (individual_id)
@@ -3633,36 +3624,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and screen_positive
     ),
 
-    -- Select added_surveillance_groups if they are in the group for today
-    added_surveillance_groups as (
-        select
-            redcap_url,
-            redcap_project_id,
-            redcap_record_id,
-            redcap_event_name,
-            redcap_repeat_instance,
-            encountered,
-            individual,
-            latest_invite_date,
-            latest_collection_date,
-            2 as priority,
-            'surveillance' as priority_reason,
-
-            latest_positive_hcov19_collection_date,
-            latest_prior_test_positive_date,
-            prior_test_positive_date_base,
-            alerts_off
-        from uw_enrollments
-        -- Filter to added_surveillance_groups for today.
-        -- To_Char(current_date, 'day') returns a string padded to 9 characters, so trim it.
-        -- Example: where 'tuesday' = 'tuesday'
-        where added_surveillance_groups = trim(To_Char(current_date, 'day'))
-        -- Filter for participants who haven't ever been invited or haven't been invited in 3 days
-        and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
-        -- Filter to participants who have never had a sample collected or whose last sample collection was over 3 days before today
-        and (latest_collection_date is null or latest_collection_date < current_date - interval '3 days')
-	  ),
-
     -- Select enrollments for baseline testing
     baseline as (
         select
@@ -3694,7 +3655,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         and (latest_invite_date is null or latest_invite_date < current_date - interval '3 days')
     ),
 
-    -- Select enrollments for surveillance testing
+        -- Select enrollments for surveillance testing
     surveillance as (
         select
             redcap_url,
@@ -3792,14 +3753,6 @@ create or replace view shipping.__uw_priority_queue_v1 as (
     priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
     prior_test_positive_date_base, alerts_off
     from surge_testing
-
-    union all
-
-    select redcap_url, redcap_project_id, redcap_record_id, redcap_event_name, redcap_repeat_instance,
-    encountered, individual, latest_invite_date, latest_collection_date, priority,
-    priority_reason, latest_positive_hcov19_collection_date, latest_prior_test_positive_date,
-    prior_test_positive_date_base, alerts_off
-    from added_surveillance_groups
     ) as a
     where
     -- Filter for participants who have not tested positive with us in the past 14 days
