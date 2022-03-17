@@ -424,5 +424,9 @@ shipping/views [shipping/views@2022-02-09] 2022-03-03T23:26:20Z Ben Capodanno <c
 
 shipping/views [shipping/views@2022-03-03] 2022-03-08T23:34:53Z Ben Capodanno <capodb@uw.edu> # Re-Add `added_surveillance_groups` CTE in UW Priority Queue
 @2022-03-09 2022-03-09T20:58:13Z Ben Capodanno <capodb@uw.edu> # Schema as of 09 March 2022
+
 shipping/views [shipping/views@2022-03-09] 2022-03-10T22:32:54Z Dave Reinhart <davidrr@uw.edu> # Modify shipping view uw_reopening_encounters_v1 to use inner join
 @2022-03-11 2022-03-11T16:52:50Z Dave Reinhart <davidrr@uw.edu> # Schema as of 11 March 2022
+
+shipping/views [shipping/views@2022-03-11] 2022-03-15T21:17:16Z Melissa Truong <truong97@uw.edu> # Modify shipping view scan_encounters_v1's vaccination_status calculated field
+@2022-03-15 2022-03-15T22:58:04Z Melissa Truong <truong97@uw.edu> # Schema as of 15 March 2022
