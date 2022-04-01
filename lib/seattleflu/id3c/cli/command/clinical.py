@@ -304,7 +304,7 @@ def add_icd10(df: pd.DataFrame) -> None:
 
 def add_insurance(df: pd.DataFrame) -> None:
     """
-    Adds a new column for insurance type to a given *df*. 
+    Adds a new column for insurance type to a given *df*.
     """
     def insurance(series: pd.Series) -> pd.Series:
         """ Returns an array of unique insurance types from a given *series*. """
@@ -316,8 +316,8 @@ def add_insurance(df: pd.DataFrame) -> None:
 
 
 def create_encounter_identifier(df: pd.DataFrame) -> None:
-    """ 
-    Creates an encounter identifier column on a given *df*. 
+    """
+    Creates an encounter identifier column on a given *df*.
     """
     df["identifier"] = (
         df["individual"] + df["encountered"].astype('string')
@@ -374,7 +374,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
 
     if manifest_format=="year1":
         del column_map["censustract"]
-    
+
     clinical_records = clinical_records.rename(columns=column_map)
 
     barcode_quality_control(clinical_records, output)
@@ -423,7 +423,7 @@ def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple, manifest_f
         manifest_data = manifest_data.append(manifest)
 
     manifest_data.dropna(subset = ['kp_id'], inplace = True)
-    
+
     regex = re.compile(r"^KP-([0-9]{6,})-[0-9]$", re.IGNORECASE)
     manifest_data.kp_id = manifest_data.kp_id.apply(lambda x: regex.sub('WA\\1', x))
 
@@ -431,6 +431,28 @@ def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple, manifest_f
     manifest_data = trim_whitespace(manifest_data)
 
     return df.merge(manifest_data[['barcode', 'enrollid']], how='left')
+
+
+@clinical.command("parse-phskc")
+@click.argument("phskc_filename", metavar = "<PHSKC Clinical Data filename>")
+@click.argument("phskc_specimen_manifest_filename",
+    metavar = "<phskc Specimen Manifest filename(s)>",
+    nargs   = -1)
+def parse_phskc(phskc_filename, phskc_specimen_manifest_filename):
+    """
+    Process clinical data from PHSKC.
+
+    Given a <PHSKC Clinical Data filename> of an Excel document, selects specific
+    columns of interest and reformats the queried data into a stream of JSON
+    documents suitable for the "upload" sibling command.
+
+    All clinical records parsed are output to stdout as newline-delimited JSON
+    records.  You will likely want to redirect stdout to a file.
+    """
+    # TODO: Implement parse_phskc
+    # clinical_records = pd.read_excel(phskc_filename)
+    # dump_ndjson(clinical_records)
+    dump_ndjson(pd.DataFrame([{'example':'phskc'}]))
 
 
 def convert_numeric_columns_to_binary(df: pd.DataFrame) -> pd.DataFrame:
