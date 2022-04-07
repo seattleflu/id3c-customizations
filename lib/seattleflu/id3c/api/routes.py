@@ -1,20 +1,30 @@
 import logging
-from flask import jsonify, request, abort, Response, Blueprint
+from flask import jsonify, request, abort, Response, Blueprint, send_file
 from flask_cors import cross_origin
-from id3c.api.routes import api_v1, blueprints
+from id3c.api.routes import api_v1, blueprints, api_unversioned
 from id3c.api.exceptions import BadRequest
 from id3c.api.utils.routes import authenticated_datastore_session_required
+from pathlib import Path
 from . import datastore
 import os
 import re
 
 LOG = logging.getLogger(__name__)
 
+base_dir     = Path(__file__).parent.resolve()
+
 api_v2 = Blueprint('api_v2', 'api_v2', url_prefix='/v2')
 blueprints.append(api_v2)
 
 api_v3 = Blueprint('api_v3', 'api_v3', url_prefix='/v3')
 blueprints.append(api_v3)
+
+@api_unversioned.route("/documentation/customizations", methods = ['GET'])
+def get_documentation():
+    """
+    Show an index page with documentation for id3c-customizations endpoints.
+    """
+    return send_file(base_dir / "static/documentation.html", "text/html; charset=UTF-8")
 
 @api_v1.route("/shipping/return-results/<barcode>", methods = ['GET'])
 @cross_origin(origins=[

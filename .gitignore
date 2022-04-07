@@ -4,6 +4,7 @@
 # except these files
 !/.gitignore
 !/LICENSE
+!/MANIFEST.in
 !/README.md
 !/Pipfile
 !/Pipfile.lock

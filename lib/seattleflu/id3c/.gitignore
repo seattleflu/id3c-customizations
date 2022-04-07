@@ -6,6 +6,7 @@
 
 # and these files...
 !*.py
+!*.html
 
 # ...even if in subdirectories
 !/**/
