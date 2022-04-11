@@ -5,11 +5,20 @@ import click
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Dict
 from id3c.cli.command import with_database_session
 from id3c.db import find_identifier
 from id3c.db.session import DatabaseSession
 from id3c.db.datatypes import Json
+from id3c.cli.command.etl.redcap_det import insert_fhir_bundle
+from .redcap_det_uw_retrospectives import (
+    create_specimen,
+    find_sample_origin_by_barcode,
+    UnknownSampleOrigin,
+    create_encounter_class,
+    create_encounter_status,
+)
+
 from id3c.cli.command.etl import (
     etl,
 
@@ -34,7 +43,9 @@ from id3c.cli.command.etl import (
     UnknownAdmitICUResponseError,
 
 )
-from . import race
+from . import race, ethnicity
+from .fhir import *
+from .redcap_map import map_sex
 
 
 LOG = logging.getLogger(__name__)
@@ -104,45 +115,258 @@ def etl_clinical(*, db: DatabaseSession):
                 details    = {"type": "retrospective"})
 
 
-            # Most of the time we expect to see new individuals and new
-            # encounters, so an insert-first approach makes more sense.
-            # Encounters we see more than once are presumed to be
-            # corrections.
-            individual = upsert_individual(db,
-                identifier  = record.document["individual"],
-                sex         = sex(record.document["AssignedSex"]))
+            # PHSKC will be handled differently that other clinical records, converted
+            # to FHIR format and inserted into receiving.fhir table to be processed
+            # by the FHIR ETL. When time allows, SCH and KP should follow suit.
+            if site.identifier == 'RetrospectivePHSKC':
+                fhir_bundle = generate_fhir_bundle(db, record.document)
+                insert_fhir_bundle(db, fhir_bundle)
 
-            encounter = upsert_encounter(db,
-                identifier      = record.document["identifier"],
-                encountered     = record.document["encountered"],
-                individual_id   = individual.id,
-                site_id         = site.id,
-                age             = age(record.document),
-                details         = encounter_details(record.document))
+            else:
+                # Most of the time we expect to see new individuals and new
+                # encounters, so an insert-first approach makes more sense.
+                # Encounters we see more than once are presumed to be
+                # corrections.
+                individual = upsert_individual(db,
+                    identifier  = record.document["individual"],
+                    sex         = sex(record.document["AssignedSex"]))
 
-            sample = update_sample(db,
-                sample = sample,
-                encounter_id = encounter.id)
+                encounter = upsert_encounter(db,
+                    identifier      = record.document["identifier"],
+                    encountered     = record.document["encountered"],
+                    individual_id   = individual.id,
+                    site_id         = site.id,
+                    age             = age(record.document),
+                    details         = encounter_details(record.document))
 
-            # Link encounter to a Census tract, if we have it
-            tract_identifier = record.document.get("census_tract")
+                sample = update_sample(db,
+                    sample = sample,
+                    encounter_id = encounter.id)
 
-            if tract_identifier:
-                # Special-case float-like identifiers in earlier date
-                tract_identifier = re.sub(r'\.0$', '', str(tract_identifier))
+                # Link encounter to a Census tract, if we have it
+                tract_identifier = record.document.get("census_tract")
 
-                tract = find_location(db, "tract", tract_identifier)
-                assert tract, f"Tract «{tract_identifier}» is unknown"
+                if tract_identifier:
+                    # Special-case float-like identifiers in earlier date
+                    tract_identifier = re.sub(r'\.0$', '', str(tract_identifier))
 
-                upsert_encounter_location(db,
-                    encounter_id = encounter.id,
-                    relation = "residence",
-                    location_id = tract.id)
+                    tract = find_location(db, "tract", tract_identifier)
+                    assert tract, f"Tract «{tract_identifier}» is unknown"
+
+                    upsert_encounter_location(db,
+                        encounter_id = encounter.id,
+                        relation = "residence",
+                        location_id = tract.id)
 
             mark_processed(db, record.id, {"status": "processed"})
 
             LOG.info(f"Finished processing clinical record {record.id}")
 
+
+def create_patient(record: dict) -> Optional[tuple]:
+    """ Returns a FHIR Patient resource entry and reference. """
+    if not record["sex"] or not record["individual"]:
+        return None, None
+
+    gender = map_sex(record["sex"])
+
+    patient_identifier = create_identifier(f"{SFS}/individual", record["individual"])
+    patient_resource = create_patient_resource([patient_identifier], gender)
+
+    return create_entry_and_reference(patient_resource, "Patient")
+
+
+def create_encounter_location_references(db: DatabaseSession, record: dict, resident_locations: list = None) -> Optional[list]:
+    """ Returns FHIR Encounter location references """
+    sample_origin = find_sample_origin_by_barcode(db, record["barcode"])
+
+    if not sample_origin:
+        return None
+
+    origin_site_map = {
+        "phskc_retro":  "RetrospectivePHSKC",
+
+        # for future use
+        "sch_retro":    "RetrospectiveSCH",
+        "kp":           "KaiserPermanente",
+    }
+
+    if sample_origin not in origin_site_map:
+        raise UnknownSampleOrigin(f"Unknown sample_origin «{sample_origin}»")
+
+    encounter_site = origin_site_map[sample_origin]
+    site_identifier = create_identifier(f"{SFS}/site", encounter_site)
+    site_reference = create_reference(
+        reference_type = "Location",
+        identifier = site_identifier
+    )
+
+    location_references = resident_locations or []
+    location_references.append(site_reference)
+
+    return list(map(lambda ref: {"location": ref}, location_references))
+
+
+def create_encounter(db: DatabaseSession,
+                     record: dict,
+                     patient_reference: dict,
+                     location_references: list) -> Optional[tuple]:
+    """ Returns a FHIR Encounter resource entry and reference """
+    encounter_location_references = create_encounter_location_references(db, record, location_references)
+
+    if not encounter_location_references:
+        return None, None
+
+    encounter_date = record["encountered"]
+    if not encounter_date:
+        return None, None
+
+    encounter_id = record["identifier"]
+    encounter_identifier = create_identifier(f"{SFS}/encounter", encounter_id)
+
+    encounter_class = create_encounter_class(record)
+    encounter_status = create_encounter_status(record)
+
+    record_source = f"{record['_provenance']['filename']},row:{record['_provenance']['row']}"
+
+    encounter_resource = create_encounter_resource(
+        encounter_source = record_source,
+        encounter_identifier = [encounter_identifier],
+        encounter_class = encounter_class,
+        encounter_date = encounter_date,
+        encounter_status = encounter_status,
+        patient_reference = patient_reference,
+        location_references = encounter_location_references,
+    )
+
+    return create_entry_and_reference(encounter_resource, "Encounter")
+
+
+def create_resident_locations(record: dict) -> Optional[tuple]:
+    """
+    Returns FHIR Location resource entry and reference for resident address
+    and Location resource entry for Census tract.
+    """
+    if not record["address_hash"]:
+        LOG.debug("No address found in REDCap record")
+        return None, None
+
+    location_type_system = 'http://terminology.hl7.org/CodeSystem/v3-RoleCode'
+    location_type = create_codeable_concept(location_type_system, 'PTRES')
+    location_entries: List[dict] = []
+    location_references: List[dict] = []
+    address_partOf: Dict = None
+
+    tract_identifier = record["census_tract"]
+    if tract_identifier:
+        tract_identifier = create_identifier(f"{SFS}/location/tract", tract_identifier)
+        tract_location = create_location_resource([location_type], [tract_identifier])
+        tract_entry, tract_reference = create_entry_and_reference(tract_location, "Location")
+        # tract_reference is not used outside of address_partOf so does not
+        # not need to be appended to the list of location_references.
+        address_partOf = tract_reference
+        location_entries.append(tract_entry)
+
+    address_hash = record["address_hash"]
+    address_identifier = create_identifier(f"{SFS}/location/address", address_hash)
+    addres_location = create_location_resource([location_type], [address_identifier], address_partOf)
+    address_entry, address_reference = create_entry_and_reference(addres_location, "Location")
+
+    location_entries.append(address_entry)
+    location_references.append(address_reference)
+
+    return location_entries, location_references
+
+
+def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
+    """ Returns a FHIR Questionnaire Response resource entry """
+    response_items = determine_questionnaire_items(record)
+
+    if not response_items:
+        return None
+
+    questionnaire_response_resource = create_questionnaire_response_resource(
+        patient_reference   = patient_reference,
+        encounter_reference = encounter_reference,
+        items               = response_items
+    )
+
+    return create_resource_entry(
+        resource = questionnaire_response_resource,
+        full_url = generate_full_url_uuid()
+    )
+
+
+def determine_questionnaire_items(record: dict) -> List[dict]:
+    """ Returns a list of FHIR Questionnaire Response answer items """
+    items: Dict[str, Any] = {}
+
+    if record["age"]:
+        items["age"] = [{ 'valueInteger': (int(record["age"]))}]
+
+    if record["race"]:
+        items["race"] = []
+        for code in race(record["race"]):
+            items["race"].append({ 'valueCoding': create_coding(f"{SFS}/race", code)})
+
+    if record["ethnicity"]:
+        items["ethnicity"] = [{ 'valueBoolean': ethnicity(record["ethnicity"]) }]
+
+    # TODO
+    # add the remaining questionnaire responses:
+    # - survey_testing_because_exposed
+    # - if_symptoms_how_long
+    # - survey_have_symptoms_now
+    # - inferred_symptomatic
+    # - vaccine_status
+
+    questionnaire_items: List[dict] = []
+    for key,value in items.items():
+        questionnaire_items.append(create_questionnaire_response_item(
+            question_id = key,
+            answers = value
+        ))
+
+    return questionnaire_items
+
+
+def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
+
+    patient_entry, patient_reference = create_patient(record)
+
+    if not patient_entry:
+        LOG.info("Skipping clinical data pull with insufficient information to construct patient")
+        return None
+
+    specimen_entry, specimen_reference = create_specimen(record, patient_reference)
+    location_entries, location_references = create_resident_locations(record)
+    encounter_entry, encounter_reference = create_encounter(db, record, patient_reference, location_references)
+
+    if not encounter_entry:
+        LOG.info("Skipping clinical data pull with insufficient information to construct encounter")
+        return None
+
+    questionnaire_response_entry = create_questionnaire_response(record, patient_reference, encounter_reference)
+
+    specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
+
+    resource_entries = [
+        patient_entry,
+        specimen_entry,
+        encounter_entry,
+        questionnaire_response_entry,
+        specimen_observation_entry
+    ]
+
+    if location_entries:
+        resource_entries.extend(location_entries)
+
+    return create_bundle_resource(
+        bundle_id = str(uuid4()),
+        timestamp = datetime.now().astimezone().isoformat(),
+        source = f"{record['_provenance']['filename']},row:{record['_provenance']['row']}" ,
+        entries = list(filter(None, resource_entries))
+    )
 
 def site_identifier(site_name: str) -> str:
     """
@@ -161,6 +385,7 @@ def site_identifier(site_name: str) -> str:
         "UWNC": "RetrospectiveUWMedicalCenter",
         "SCH": "RetrospectiveChildrensHospitalSeattle",
         "KP": "KaiserPermanente",
+        "PHSKC": "RetrospectivePHSKC",
     }
     if site_name not in site_map:
         raise UnknownSiteError(f"Unknown site name «{site_name}»")
@@ -552,7 +777,7 @@ def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
     Find corresponding UUID for scanned sample or collection barcode within
     warehouse.identifier.
 
-    Will be sample barcode if from UW and collection barcode if from SCH.
+    Will be sample barcode if from UW or PHSKC, and collection barcode if from SCH.
     """
     identifier = find_identifier(db, barcode)
 

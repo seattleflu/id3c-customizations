@@ -87,7 +87,7 @@ def redcap_det_uw_retrospectives(*,
     for entries in [location_entries, immunization_entries, condition_entries]:
         if entries:
             resource_entries.extend(entries)
-    
+
     if diagnostic_report_resource_entry:
         resource_entries.append(diagnostic_report_resource_entry)
 
@@ -335,7 +335,7 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
     disposition = redcap_record['discharge_disposition']
     if not disposition:
         return None
-    
+
     # Lowercase, remove leading number characters, and standardize whitespace
     standardized_disposition = standardize_whitespace(re.sub('^\d+', '', disposition.lower()))
 
@@ -407,9 +407,9 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
 
         #raise UnknownHospitalDischargeDisposition("Unknown discharge disposition value "
         #    f"«{standardized_disposition}» for barcode «{redcap_record['barcode']}».")
-    
+
         return None
-        
+
     return mapper[standardized_disposition]
 
 
@@ -433,6 +433,7 @@ def create_encounter_class(redcap_record: dict) -> dict:
         "lim"   : "IMP",
         "obs"   : "IMP",
         "obv"   : "IMP",
+        "field" : "FLD",
     }
 
     standardized_encounter_class = standardize_whitespace(encounter_class.lower())
@@ -471,7 +472,9 @@ def create_encounter_status(redcap_record: dict) -> str:
 
     standardized_status = standardize_whitespace(status.lower())
 
-    if standardized_status not in mapper:
+    if standardized_status in mapper.values():
+        return standardized_status
+    elif standardized_status not in mapper:
         raise Exception(f"Unknown encounter status «{standardized_status}».")
 
     return mapper[standardized_status]
@@ -569,12 +572,12 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         if immunization_status not in ["y", "n", ""]:
             raise UnknownImmunizationStatus (f"Unknown immunization status «{immunization_status}».")
 
-        # Standardize vaccine name 
+        # Standardize vaccine name
         if column_map["status"] == "flu_status" and column_map["name"] == None:
             vaccine_name = "flu unspecified"
         else:
             vaccine_name = standardize_whitespace(record[column_map["name"]]).lower()
-        
+
         # Validate vaccine name and determine CVX code
         vaccine_code = None
         if vaccine_name in vaccine_mapper:
@@ -584,11 +587,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
 
         # Standardize date format
         immunization_date = record[column_map["date"]]
-        
+
         if immunization_status == "y" and vaccine_code:
             immunization_identifier_hash = generate_hash(f"{record['mrn']}{vaccine_code['code']}{immunization_date}".lower())
             immunization_identifier = create_identifier(f"{SFS}/immunization", immunization_identifier_hash)
-        
+
             immunization_resource = create_immunization_resource(
                 patient_reference = patient_reference,
                 immunization_identifier = [immunization_identifier],
@@ -742,7 +745,7 @@ def present(redcap_record: dict, test: str) -> Optional[bool]:
     for prefix in test_result_prefix_map:
         if standardized_result.startswith(prefix):
             return test_result_prefix_map[prefix]
-    
+
     raise UnknownTestResult(f"Unknown test result value «{standardized_result}» for «{redcap_record['barcode']}».")
 
 
