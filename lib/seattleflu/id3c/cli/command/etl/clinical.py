@@ -324,9 +324,9 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
     if record["survey_have_symptoms_now"]:
         items["survey_have_symptoms_now"] = [{ 'valueBoolean': survey_have_symptoms_now(record["survey_have_symptoms_now"])}]
 
-    # TODO
-    # add the remaining questionnaire responses:
-    # - survey_testing_because_exposed
+    if record["survey_testing_because_exposed"]:
+        items["survey_testing_because_exposed"] = [{ 'valueString': survey_testing_because_exposed(record["survey_testing_because_exposed"])}]
+
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():
@@ -924,6 +924,43 @@ def survey_have_symptoms_now(survey_have_symptoms_now_response: Optional[Any]) -
         raise Exception(f"Unknown survey_have_symptoms_now_response «{survey_have_symptoms_now_response}»")
 
     return survey_have_symptoms_now_map[survey_have_symptoms_now_response]
+
+
+def survey_testing_because_exposed(survey_testing_because_exposed_response: Optional[Any]) -> Optional[str]:
+    """
+    Given a *survey_testing_because_exposed_response*, returns a standardized value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> survey_testing_because_exposed("No")
+    'no'
+
+    >>> survey_testing_because_exposed("Yes - Received alert by phone app that I was near a person with COVID")
+    'yes_received_app_alert'
+
+    >>> survey_testing_because_exposed("maybe")
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown survey_testing_because_exposed value «maybe»
+
+    """
+
+    if survey_testing_because_exposed_response is None:
+        LOG.debug("No survey_testing_because_exposed response found.")
+        return None
+
+    survey_testing_because_exposed_map = {
+        "No":                                                                       "no",
+        "Yes - I believe I have been exposed":                                      "yes_believe_exposed",
+        "Yes - referred by a contact such as a friend-family-coworker":             "yes_referred_by_contact",
+        "Yes - Received alert by phone app that I was near a person with COVID":    "yes_received_app_alert",
+        "Yes - referred by Public Health":                                          "yes_referred_by_public_health",
+        "Yes - referred by your health care provider":                              "yes_referred_by_provider"
+    }
+
+    if survey_testing_because_exposed_response not in survey_testing_because_exposed_map:
+        raise Exception(f"Unknown survey_testing_because_exposed value «{survey_testing_because_exposed_response}»")
+
+    return survey_testing_because_exposed_map[survey_testing_because_exposed_response]
 
 
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
