@@ -3,6 +3,7 @@ Process DETs for the Fred Hutch AIRS REDCap projects.
 """
 from dateutil.relativedelta import relativedelta
 from enum import Enum
+from typing import NamedTuple
 
 from .redcap import *
 from id3c.cli.command.etl import redcap_det
@@ -13,7 +14,7 @@ import logging
 LOG = logging.getLogger(__name__)
 
 
-class AIRSProject(NamedTuple):
+class AIRSProject():
     id: int
     lang: str
     command_name: str
@@ -23,8 +24,9 @@ class AIRSProject(NamedTuple):
         self.lang = lang
         self.command_name = command_name
 
+
 PROJECTS = [
-    AIRSProject(1372, "en", 'airs')
+    AIRSProject(1372, "en", "airs")
 ]
 
 LANGUAGE_CODE = {
@@ -47,6 +49,16 @@ REQUIRED_ENROLLMENT_INSTRUMENTS = [
     'informed_consent',
     'enrollment'
 ]
+
+# TODO: this is blood draw location,
+#  so that seems distinct from swab location,
+#  but I'm adding it here for reference
+site_map = {
+    1: "CCRC @ Fred Hutch",
+    2: "Mobile Phlebotomy",
+}
+ 
+SWAB_AND_SEND_SITE = 'FHAIRSSwabNSend' # TODO: I just made this up
 
 # A decorator lets us keep command registration up here at the top, instead of
 # moving the loop after the definition of redcap_det_airs().
@@ -101,7 +113,8 @@ def redcap_det_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
     # Create the participant resource entry and reference.
     patient_entry, patient_reference = create_patient_using_demographics(
-        sex = enrollment.get['enr_sex'],
+        sex = enrollment.get('enr_sex'),
+        preferred_language = LANGUAGE_CODE.get(enrollment.project.id),
         first_name = enrollment['scr_first_name'],
         last_name = enrollment['scr_last_name'],
         birth_date = enrollment['enr_dob'],
@@ -149,11 +162,14 @@ def redcap_det_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             LOG.debug('Skipping record instance with insufficient information to construct the encounter')
             continue
 
+        location_entry = location_resource_entries[1] # address_entry
+        location = location_entry['resource']         # address_location
+
         # From this point on, log at the `warning` level if we have to skip the encounter.
         # That situation would be one we'd need to dig into.
         site_reference = create_site_reference(
             location = location,
-            site_map = site_map,
+            site_map = None, # TODO: safe to assume this is a self-swab at home?
             default_site = SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
@@ -164,7 +180,8 @@ def redcap_det_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         # Map the various symptoms variables to their onset date.
         if event_type == EventType.ENCOUNTER:
             symptom_onset_map = {
-                'airs_kit_activation': redcap_record_instance['symptom_duration_2'] or 'airs_kit_activation_2': redcap_record_instance['symptom_duration_2_v2'],
+                'airs_kit_activation': redcap_record_instance['symptom_duration_2'],
+                'airs_kit_activation_2': redcap_record_instance['symptom_duration_2_v2'],
             }
             contained, diagnosis = build_contained_and_diagnosis(
                 patient_reference = patient_reference,
@@ -181,6 +198,7 @@ def redcap_det_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             encounter_id = create_encounter_id(redcap_record_instance),
             encounter_date = encounter_date,
             patient_reference = patient_reference,
+            collection_code = CollectionCode.HOME_HEALTH, # TODO: again, safe to assume this is a self-swab at home?
             site_reference = site_reference,
             locations = location_resource_entries,
             diagnosis = diagnosis,
@@ -367,7 +385,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord,
         question_categories = question_categories,
         patient_reference = patient_reference,
         encounter_reference = encounter_reference,
-        system_identifier = INTERNAL_SYSTEM
+        system_identifier = INTERNAL_SYSTEM)
 
 
 def create_weekly_questionnaire_response(record: REDCapRecord, patient_reference: dict,
@@ -506,7 +524,7 @@ def create_symptoms_questionnaire_response(record: REDCapRecord, patient_referen
 
     # Do some pre-processing
     # Combine checkbox answers into one list
-    checkbox_fields = [
+    checkbox_fields: List[str] = [
     ]
 
     question_categories = {
