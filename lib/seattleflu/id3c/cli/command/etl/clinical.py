@@ -315,13 +315,14 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
     if record["if_symptoms_how_long"]:
         items["if_symptoms_how_long"] = [{ 'valueString': if_symptoms_how_long(record["if_symptoms_how_long"])}]
 
+    if record["vaccine_status"]:
+        items["vaccine_status"] = [{ 'valueString': covid_vaccination_status(record["vaccine_status"])}]
 
     # TODO
     # add the remaining questionnaire responses:
     # - survey_testing_because_exposed
     # - survey_have_symptoms_now
     # - inferred_symptomatic
-    # - vaccine_status
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():
@@ -814,6 +815,41 @@ def if_symptoms_how_long(if_symptoms_how_long_response: Optional[Any]) -> Option
         raise Exception(f"Unknown if_symptoms_how_long value «{if_symptoms_how_long_response}»")
 
     return symptoms_duration_map[if_symptoms_how_long_response]
+
+
+def covid_vaccination_status(covid_vaccination_status_response: Optional[Any]) -> Optional[str]:
+    """
+    Given a *covid_vaccination_status_response*, returns a standardized value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> covid_vaccination_status('Yes I am fully vaccinated.')
+    'fully_vaccinated'
+
+    >>> covid_vaccination_status("No but I am partially vaccinated (e.g. 1 dose of a 2-dose series).")
+    'partially_vaccinated'
+
+    >>> covid_vaccination_status("I don't know")
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown covid_vaccination_status value «I don't know»
+
+    """
+
+    if covid_vaccination_status_response is None:
+        LOG.debug("No covid_vaccination_status_response response found.")
+        return None
+
+    covid_vaccination_status_map = {
+        "Yes I am fully vaccinated.":                                           "fully_vaccinated",
+        "No I am not vaccinated.":                                              "not_vaccinated",
+        "No but I am partially vaccinated (e.g. 1 dose of a 2-dose series).":   "partially_vaccinated",
+        "Yes I am fully vaccinated and I also have received a booster.":        "boosted",
+    }
+
+    if covid_vaccination_status_response not in covid_vaccination_status_map:
+        raise Exception(f"Unknown covid_vaccination_status value «{covid_vaccination_status_response}»")
+
+    return covid_vaccination_status_map[covid_vaccination_status_response]
 
 
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
