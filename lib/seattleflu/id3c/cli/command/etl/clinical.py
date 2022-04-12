@@ -312,10 +312,13 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
     if record["ethnicity"]:
         items["ethnicity"] = [{ 'valueBoolean': ethnicity(record["ethnicity"]) }]
 
+    if record["if_symptoms_how_long"]:
+        items["if_symptoms_how_long"] = [{ 'valueString': if_symptoms_how_long(record["if_symptoms_how_long"])}]
+
+
     # TODO
     # add the remaining questionnaire responses:
     # - survey_testing_because_exposed
-    # - if_symptoms_how_long
     # - survey_have_symptoms_now
     # - inferred_symptomatic
     # - vaccine_status
@@ -770,6 +773,47 @@ def insurance(insurance_response: Optional[Any]) -> list:
             raise Exception(f"Unknown insurance name «{insurance}»") from None
 
     return list(map(standardize_insurance, insurance_response))
+
+
+def if_symptoms_how_long(if_symptoms_how_long_response: Optional[Any]) -> Optional[str]:
+    """
+    Given a *if_symptoms_how_long_response*, returns a standardized value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> if_symptoms_how_long('1 day')
+    '1_day'
+
+    >>> if_symptoms_how_long("I don't have symptoms")
+    'no_symptoms'
+
+    >>> if_symptoms_how_long("I don't know")
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown if_symptoms_how_long value «I don't know»
+
+    """
+
+    if if_symptoms_how_long_response is None:
+        LOG.debug("No if_symptoms_how_long response found.")
+        return None
+
+    symptoms_duration_map = {
+        "1 day": "1_day",
+        "2 days": "2_days",
+        "3 days": "3_days",
+        "4 days": "4_days",
+        "5 days": "5_days",
+        "6 days": "6_days",
+        "7 days": "7_days",
+        "8 days": "8_days",
+        "9+ days": "9_or_more_days",
+        "I don't have symptoms": "no_symptoms",
+    }
+
+    if if_symptoms_how_long_response not in symptoms_duration_map:
+        raise Exception(f"Unknown if_symptoms_how_long value «{if_symptoms_how_long_response}»")
+
+    return symptoms_duration_map[if_symptoms_how_long_response]
 
 
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
