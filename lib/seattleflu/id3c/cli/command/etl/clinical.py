@@ -318,11 +318,13 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
     if record["vaccine_status"]:
         items["vaccine_status"] = [{ 'valueString': covid_vaccination_status(record["vaccine_status"])}]
 
+    if record["inferred_symptomatic"]:
+        items["inferred_symptomatic"] = [{ 'valueBoolean': inferred_symptomatic(record["inferred_symptomatic"])}]
+
     # TODO
     # add the remaining questionnaire responses:
     # - survey_testing_because_exposed
     # - survey_have_symptoms_now
-    # - inferred_symptomatic
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():
@@ -850,6 +852,41 @@ def covid_vaccination_status(covid_vaccination_status_response: Optional[Any]) -
         raise Exception(f"Unknown covid_vaccination_status value «{covid_vaccination_status_response}»")
 
     return covid_vaccination_status_map[covid_vaccination_status_response]
+
+
+def inferred_symptomatic(inferred_symptomatic_response: Optional[Any]) -> Optional[bool]:
+    """
+    Given a *inferred_symptomatic_response*, returns boolean value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> inferred_symptomatic('FALSE')
+    False
+
+    >>> inferred_symptomatic('TRUE')
+    True
+
+    >>> inferred_symptomatic('maybe')
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown inferred_symptomatic_response «maybe»
+
+    """
+    if inferred_symptomatic_response is None:
+        LOG.debug("No inferred_symptomatic response found.")
+        return None
+
+    if isinstance(inferred_symptomatic_response, str):
+        inferred_symptomatic_response = inferred_symptomatic_response.lower().strip()
+
+    inferred_symptomatic_map = {
+        "false": False,
+        "true": True,
+    }
+
+    if inferred_symptomatic_response not in inferred_symptomatic_map:
+        raise Exception(f"Unknown inferred_symptomatic_response «{inferred_symptomatic_response}»")
+
+    return inferred_symptomatic_map[inferred_symptomatic_response]
 
 
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
