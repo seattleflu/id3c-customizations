@@ -321,10 +321,12 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
     if record["inferred_symptomatic"]:
         items["inferred_symptomatic"] = [{ 'valueBoolean': inferred_symptomatic(record["inferred_symptomatic"])}]
 
+    if record["survey_have_symptoms_now"]:
+        items["survey_have_symptoms_now"] = [{ 'valueBoolean': survey_have_symptoms_now(record["survey_have_symptoms_now"])}]
+
     # TODO
     # add the remaining questionnaire responses:
     # - survey_testing_because_exposed
-    # - survey_have_symptoms_now
 
     questionnaire_items: List[dict] = []
     for key,value in items.items():
@@ -887,6 +889,41 @@ def inferred_symptomatic(inferred_symptomatic_response: Optional[Any]) -> Option
         raise Exception(f"Unknown inferred_symptomatic_response «{inferred_symptomatic_response}»")
 
     return inferred_symptomatic_map[inferred_symptomatic_response]
+
+
+def survey_have_symptoms_now(survey_have_symptoms_now_response: Optional[Any]) -> Optional[bool]:
+    """
+    Given a *survey_have_symptoms_now_response*, returns boolean value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> survey_have_symptoms_now('yes')
+    True
+
+    >>> survey_have_symptoms_now('no')
+    False
+
+    >>> survey_have_symptoms_now('maybe')
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown survey_have_symptoms_now_response «maybe»
+
+    """
+    if survey_have_symptoms_now_response is None:
+        LOG.debug("No survey_have_symptoms_now response found.")
+        return None
+
+    if isinstance(survey_have_symptoms_now_response, str):
+        survey_have_symptoms_now_response = survey_have_symptoms_now_response.lower().strip()
+
+    survey_have_symptoms_now_map = {
+        "yes": True,
+        "no": False,
+    }
+
+    if survey_have_symptoms_now_response not in survey_have_symptoms_now_map:
+        raise Exception(f"Unknown survey_have_symptoms_now_response «{survey_have_symptoms_now_response}»")
+
+    return survey_have_symptoms_now_map[survey_have_symptoms_now_response]
 
 
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
