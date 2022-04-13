@@ -489,6 +489,9 @@ def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geoc
         ), axis=1
     )
 
+    # localize encounter timestamps to pacific time
+    clinical_records['encountered'] = clinical_records['collect_ts'].dt.tz_localize('America/Los_Angeles')
+
     # calculate age based on sample collection date and birth day
     clinical_records['birth_date'] = pd.to_datetime(clinical_records['birth_date'])
     clinical_records['age'] = clinical_records.apply(
