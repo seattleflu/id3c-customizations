@@ -794,13 +794,16 @@ def if_symptoms_how_long(if_symptoms_how_long_response: Optional[Any]) -> Option
     >>> if_symptoms_how_long("I don't know")
     Traceback (most recent call last):
         ...
-    Exception: Unknown if_symptoms_how_long value «I don't know»
+    Exception: Unknown if_symptoms_how_long value «i don't know»
 
     """
 
     if if_symptoms_how_long_response is None:
         LOG.debug("No if_symptoms_how_long response found.")
         return None
+
+    if isinstance(if_symptoms_how_long_response, str):
+        if_symptoms_how_long_response = if_symptoms_how_long_response.lower().strip()
 
     symptoms_duration_map = {
         "1 day": "1_day",
@@ -812,7 +815,7 @@ def if_symptoms_how_long(if_symptoms_how_long_response: Optional[Any]) -> Option
         "7 days": "7_days",
         "8 days": "8_days",
         "9+ days": "9_or_more_days",
-        "I don't have symptoms": "no_symptoms",
+        "i don't have symptoms": "no_symptoms",
     }
 
     if if_symptoms_how_long_response not in symptoms_duration_map:
@@ -835,7 +838,7 @@ def covid_vaccination_status(covid_vaccination_status_response: Optional[Any]) -
     >>> covid_vaccination_status("I don't know")
     Traceback (most recent call last):
         ...
-    Exception: Unknown covid_vaccination_status value «I don't know»
+    Exception: Unknown covid_vaccination_status value «i don't know»
 
     """
 
@@ -843,11 +846,14 @@ def covid_vaccination_status(covid_vaccination_status_response: Optional[Any]) -
         LOG.debug("No covid_vaccination_status_response response found.")
         return None
 
+    if isinstance(covid_vaccination_status_response, str):
+        covid_vaccination_status_response = covid_vaccination_status_response.lower().strip()
+
     covid_vaccination_status_map = {
-        "Yes I am fully vaccinated.":                                           "fully_vaccinated",
-        "No I am not vaccinated.":                                              "not_vaccinated",
-        "No but I am partially vaccinated (e.g. 1 dose of a 2-dose series).":   "partially_vaccinated",
-        "Yes I am fully vaccinated and I also have received a booster.":        "boosted",
+        "yes i am fully vaccinated.":                                           "fully_vaccinated",
+        "no i am not vaccinated.":                                              "not_vaccinated",
+        "no but i am partially vaccinated (e.g. 1 dose of a 2-dose series).":   "partially_vaccinated",
+        "yes i am fully vaccinated and i also have received a booster.":        "boosted",
     }
 
     if covid_vaccination_status_response not in covid_vaccination_status_map:
@@ -948,13 +954,16 @@ def survey_testing_because_exposed(survey_testing_because_exposed_response: Opti
         LOG.debug("No survey_testing_because_exposed response found.")
         return None
 
+    if isinstance(survey_testing_because_exposed_response, str):
+        survey_testing_because_exposed_response = survey_testing_because_exposed_response.lower().strip()
+
     survey_testing_because_exposed_map = {
-        "No":                                                                       "no",
-        "Yes - I believe I have been exposed":                                      "yes_believe_exposed",
-        "Yes - referred by a contact such as a friend-family-coworker":             "yes_referred_by_contact",
-        "Yes - Received alert by phone app that I was near a person with COVID":    "yes_received_app_alert",
-        "Yes - referred by Public Health":                                          "yes_referred_by_public_health",
-        "Yes - referred by your health care provider":                              "yes_referred_by_provider"
+        "no":                                                                       "no",
+        "yes - i believe i have been exposed":                                      "yes_believe_exposed",
+        "yes - referred by a contact such as a friend-family-coworker":             "yes_referred_by_contact",
+        "yes - received alert by phone app that i was near a person with covid":    "yes_received_app_alert",
+        "yes - referred by public health":                                          "yes_referred_by_public_health",
+        "yes - referred by your health care provider":                              "yes_referred_by_provider"
     }
 
     if survey_testing_because_exposed_response not in survey_testing_because_exposed_map:
