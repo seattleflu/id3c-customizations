@@ -226,8 +226,7 @@ def create_encounter(db: DatabaseSession,
 
     encounter_class = create_encounter_class(record)
     encounter_status = create_encounter_status(record)
-
-    record_source = f"{record['_provenance']['filename']},row:{record['_provenance']['row']}"
+    record_source = create_provenance(record)
 
     encounter_resource = create_encounter_resource(
         encounter_source = record_source,
@@ -970,6 +969,21 @@ def survey_testing_because_exposed(survey_testing_because_exposed_response: Opti
         raise Exception(f"Unknown survey_testing_because_exposed value «{survey_testing_because_exposed_response}»")
 
     return survey_testing_because_exposed_map[survey_testing_because_exposed_response]
+
+
+def create_provenance(record: dict) -> str:
+    """
+    Create JSON object indicating the source file and row of a given *record*.
+
+    Used in FHIR Encounter resources as the meta.source, which ultimately winds
+    up in ID3C's ``warehouse.encounter.details`` column.
+    """
+    data_scheme = 'data:application/json'
+
+    if '_provenance' in record and set(['filename','row']).issubset(record['_provenance']):
+        return data_scheme + ',' + quote(json.dumps(record['_provenance']))
+    else:
+        raise Exception(f"Error: _provenance missing or incomplete (must contain filename and row)")
 
 
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
