@@ -443,8 +443,10 @@ def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple, manifest_f
 @clinical.command("parse-phskc")
 @click.argument("phskc_filename", metavar = "<PHSKC Clinical Data filename>")
 @click.argument("phskc_specimen_manifest_filename", metavar = "<PHSKC Specimen Manifest filename(s)>")
-@click.argument("geocoding_cache_file", metavar = "<Geocoding cache filename>")
-def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geocoding_cache_file: str) -> None:
+@click.argument("geocoding_cache_file", envvar = "GEOCODING_CACHE", metavar = "<Geocoding cache filename>",
+            type = click.Path(dir_okay=False, writable=True))
+
+def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geocoding_cache_file: str = None) -> None:
     """
     Process clinical data from PHSKC.
 
