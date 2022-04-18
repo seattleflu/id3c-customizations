@@ -18,6 +18,13 @@ from math import ceil
 from id3c.db.session import DatabaseSession
 from id3c.cli import cli
 from id3c.cli.io.pandas import dump_ndjson, load_file_as_dataframe, read_excel
+from id3c.cli.command.geocode import get_geocoded_address
+from id3c.cli.command.location import location_lookup
+from id3c.cli.command.de_identify import generate_hash
+from id3c.cli.command import pickled_cache
+from dateutil.relativedelta import relativedelta
+from .etl.redcap_map import map_sex
+from .etl.fhir import generate_patient_hash
 from . import (
     add_provenance,
     age_ceiling,
@@ -152,22 +159,6 @@ def remove_pii(df: pd.DataFrame) -> pd.DataFrame:
     df["individual"] = df["individual"].apply(generate_hash)
     df["identifier"] = df["identifier"].apply(generate_hash)
 
-
-def generate_hash(identifier: str):
-    """
-    Generate hash for *identifier* that is linked to identifiable records.
-    Must provide a "PARTICIPANT_DEIDENTIFIER_SECRET" as an OS environment
-    variable.
-    """
-    secret = os.environ["PARTICIPANT_DEIDENTIFIER_SECRET"]
-
-    assert len(secret) > 0, "Empty *secret* provided!"
-    assert len(identifier) > 0, "Empty *identifier* provided!"
-
-    new_hash = hashlib.sha256()
-    new_hash.update(identifier.encode("utf-8"))
-    new_hash.update(secret.encode("utf-8"))
-    return new_hash.hexdigest()
 
 def drop_missing_rows(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """
@@ -304,7 +295,7 @@ def add_icd10(df: pd.DataFrame) -> None:
 
 def add_insurance(df: pd.DataFrame) -> None:
     """
-    Adds a new column for insurance type to a given *df*. 
+    Adds a new column for insurance type to a given *df*.
     """
     def insurance(series: pd.Series) -> pd.Series:
         """ Returns an array of unique insurance types from a given *series*. """
@@ -316,8 +307,8 @@ def add_insurance(df: pd.DataFrame) -> None:
 
 
 def create_encounter_identifier(df: pd.DataFrame) -> None:
-    """ 
-    Creates an encounter identifier column on a given *df*. 
+    """
+    Creates an encounter identifier column on a given *df*.
     """
     df["identifier"] = (
         df["individual"] + df["encountered"].astype('string')
@@ -374,7 +365,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
 
     if manifest_format=="year1":
         del column_map["censustract"]
-    
+
     clinical_records = clinical_records.rename(columns=column_map)
 
     barcode_quality_control(clinical_records, output)
@@ -423,7 +414,7 @@ def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple, manifest_f
         manifest_data = manifest_data.append(manifest)
 
     manifest_data.dropna(subset = ['kp_id'], inplace = True)
-    
+
     regex = re.compile(r"^KP-([0-9]{6,})-[0-9]$", re.IGNORECASE)
     manifest_data.kp_id = manifest_data.kp_id.apply(lambda x: regex.sub('WA\\1', x))
 
@@ -431,6 +422,218 @@ def add_kp_manifest_data(df: pd.DataFrame, manifest_filenames: tuple, manifest_f
     manifest_data = trim_whitespace(manifest_data)
 
     return df.merge(manifest_data[['barcode', 'enrollid']], how='left')
+
+
+@clinical.command("parse-phskc")
+@click.argument("phskc_filename", metavar = "<PHSKC Clinical Data filename>")
+@click.argument("phskc_specimen_manifest_filename", metavar = "<PHSKC Specimen Manifest filename(s)>")
+@click.argument("geocoding_cache_file", envvar = "GEOCODING_CACHE", metavar = "<Geocoding cache filename>",
+            type = click.Path(dir_okay=False, writable=True))
+
+def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geocoding_cache_file: str = None) -> None:
+    """
+    Process clinical data from PHSKC.
+
+    Given a <PHSKC Clinical Data filename> of an Excel document, a
+    <PHSKC Specimen Manifest Filename> of a newline-delimited JSON document,
+    and a <Geocoding Cache filename> selects specific columns of interest and
+    reformats the queried data into a stream of JSON documents suitable for the
+    "upload" sibling command.
+
+    Clinical records are parsed and transformed into suitable data for our downstream
+    FHIR and Clinical ETLs. Any PII is removed in this function. Parsed data is joined
+    with barcode data present in the manifest file. Only data that matches existing
+    barcode data will be included.
+
+    All clinical records parsed are output to stdout as newline-delimited JSON
+    records.  You will likely want to redirect stdout to a file.
+    """
+    # specify type of inferred_symptomatic to prevent pandas casting automatically to boolean
+    clinical_records = pd.read_excel(phskc_filename, dtype={'inferred_symptomatic': 'str'})
+    clinical_records.columns = clinical_records.columns.str.lower()
+
+    clinical_records = trim_whitespace(clinical_records)
+    clinical_records = add_provenance(clinical_records, phskc_filename)
+
+    clinical_records['site'] = 'PHSKC'
+    clinical_records['patient_class'] = 'field'
+    clinical_records['encounter_status'] = 'finished'
+
+    # generate encounter and individual identifiers for each record
+    clinical_records['individual'] = clinical_records.apply(
+        lambda row: generate_patient_hash(
+            row['pat_name'].split(',')[::-1],
+            map_sex(row['sex']),
+            str(row['birth_date']),
+            str(row["pat_address_zip"])
+        ), axis=1
+    )
+
+    clinical_records['identifier'] = clinical_records.apply(
+        lambda row: generate_hash(
+            f"{row['individual']}{row['collect_ts']}".lower()
+        ), axis=1
+    )
+
+    # localize encounter timestamps to pacific time
+    clinical_records['encountered'] = clinical_records['collect_ts'].dt.tz_localize('America/Los_Angeles')
+
+    # calculate age based on sample collection date and birth day
+    clinical_records['birth_date'] = pd.to_datetime(clinical_records['birth_date'])
+    clinical_records['age'] = clinical_records.apply(
+        lambda row: age_ceiling(
+                relativedelta(
+                    row['collect_ts'],
+                    row['birth_date']
+                ).years
+            ), axis=1
+    )
+
+    # geocode addresses, then hash them and get the census tract to remove PII from downstream processes
+    with pickled_cache(geocoding_cache_file) as cache:
+        clinical_records['lat'], clinical_records['lang'], clinical_records['canonical_address'] = zip(
+            *clinical_records.apply(
+                lambda row: get_geocoded_address(
+                    {
+                        'street': row['pat_address_line1'],
+                        'secondary': row['pat_address_line2'],
+                        'city': row['pat_address_city'],
+                        'state': row['pat_address_state'],
+                        'zipcode': row['pat_address_zip']
+                    },
+                    cache
+                ),
+                axis=1
+            )
+        )
+
+    db = DatabaseSession()
+    clinical_records = clinical_records.apply(
+       lambda row: encode_addresses(db, row), axis=1
+    )
+
+    column_map = {
+        'ethnic_group': 'ethnicity',
+        'barcode': 'phskc_barcode'
+    }
+
+    columns_to_keep = list(column_map.keys()) + [
+        '_provenance',
+        'individual',
+        'identifier',
+        'site',
+        'sex',
+        'age',
+        'race',
+        'encountered',
+        'address_hash',
+        'census_tract',
+        'main_cid',
+        'all_cids',
+        #'reason_for_visit',
+        'survey_testing_because_exposed',
+        'if_symptoms_how_long',
+        'survey_have_symptoms_now',
+        'inferred_symptomatic',
+        'vaccine_status',
+        'patient_class',
+        'encounter_status'
+    ]
+
+    clinical_records = clinical_records[columns_to_keep]
+    clinical_records = clinical_records.rename(columns=column_map)
+
+    # phskc data is sent with some rows duplicated, so before we add manifest data
+    # we should drop these copied rows, keeping the first one
+    clinical_records.drop_duplicates(subset=clinical_records.columns.difference(['_provenance']), inplace=True)
+    clinical_records = add_phskc_manifest_data(clinical_records, phskc_specimen_manifest_filename)
+
+    # drop all columns used for joining; we only need to ingest the joined barcode
+    clinical_records.drop(['merge_col', 'main_cid', 'phskc_barcode', 'all_cids'], axis=1, inplace=True)
+
+    dump_ndjson(clinical_records)
+
+
+def add_phskc_manifest_data(df: pd.DataFrame, manifest_filename: str) -> pd.DataFrame:
+    """
+    Join the specimen manifest data from the given *manifest_filename* with the
+    given clinical records DataFrame *df*.
+    """
+    rename_map = {
+        'cid': 'merge_col',
+        'sample': 'barcode'
+    }
+
+    manifest_data = pd.read_json(manifest_filename, lines=True)
+    manifest_data.dropna(subset=['cid'], inplace = True)
+
+    manifest_data = manifest_data.rename(columns=rename_map)
+    manifest_data = trim_whitespace(manifest_data)
+
+    # find and drop AQ sheet rows containing a duplicated CID
+    duplicated_cids = manifest_data.duplicated(subset=['merge_col'], keep=False)
+    if duplicated_cids.any():
+        LOG.warning(f'Dropping {duplicated_cids.sum()} rows with duplicated CID(s) from PHSKC manifest data')
+        manifest_data = manifest_data[~duplicated_cids]
+
+    # Since we get two CIDs with each PHSKC record and they aren't guaranteed
+    # to be the same, we should try both if they are not the same (note: they
+    # are almost always the same). If main_cid is in the AQ sheet, we will give
+    # priority to that sample match. If it isn't, we can use the sample associated
+    # with all_cids (if available). If both of these are not in the AQ sheet, we
+    # should check if the barcode is, since it is also possible the lab used that
+    # if the CID was not used. If the barcode is not in the AQ sheet, there is no
+    # change to the output and no sample will match this record.
+    # If the barcode is in the manifest, we will use that to link the record
+    # to a sample and swap the barcode with the main CID for that row.
+    df['merge_col'] = df['main_cid'].copy()
+
+    if not df['main_cid'].equals(df['all_cids']):
+        main_cid = pd.DataFrame(df['main_cid'])
+        all_cid = pd.DataFrame(df['all_cids'])
+
+        # merge cid dataframes to find common rows, use those common rows to select any rows
+        # from main_cid and all_cids that are not in common
+        common_cids = main_cid.merge(all_cid, left_on='main_cid', right_on='all_cids')
+        differing_cids = df[
+            (~main_cid.main_cid.isin(common_cids.main_cid)) & (~main_cid.main_cid.isin(common_cids.all_cids))
+        ]
+
+        # use all_cids only if it is in the manifest data and the main_cid value does not map to a barcode
+        differing_cids = differing_cids.drop(
+            differing_cids.loc[differing_cids['main_cid'].isin(manifest_data['merge_col'])].index
+        )
+        differing_cids['merge_col'] = differing_cids['all_cids'].copy()
+
+        df.update(differing_cids)
+
+    # Use barcode as a backup against any records where main_cid or all_cids don't match any AQ sheet records
+    non_mapping_cids = df[(~df.main_cid.isin(manifest_data.merge_col)) & (~df.all_cids.isin(manifest_data.merge_col))]
+    mappable_barcodes = non_mapping_cids[non_mapping_cids.phskc_barcode.isin(manifest_data.merge_col)].copy()
+    mappable_barcodes['merge_col'] = mappable_barcodes['phskc_barcode']
+    df.update(mappable_barcodes)
+
+    # only need records that map to a barcode, so can inner merge
+    return df.merge(manifest_data[['barcode', 'merge_col']], how='inner', on='merge_col')
+
+
+def encode_addresses(db: DatabaseSession, row: pd.Series) -> pd.Series:
+    """
+    Given a series with latitude and longitute data, plus a canonical
+    address, encodes that data into census tract information and hashes
+    the address.
+    """
+    if row['lat'] and row['lang']:
+        row['census_tract'] = location_lookup(db, (row['lat'], row['lang']), 'tract')[1]
+    else:
+        row['census_tract'] = None
+
+    if row['canonical_address']:
+        row['address_hash'] = generate_hash(row['canonical_address'])
+    else:
+        row['address_hash'] = None
+
+    return row
 
 
 def convert_numeric_columns_to_binary(df: pd.DataFrame) -> pd.DataFrame:
