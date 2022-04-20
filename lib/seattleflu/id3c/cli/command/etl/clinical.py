@@ -5,11 +5,20 @@ import click
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Dict
 from id3c.cli.command import with_database_session
 from id3c.db import find_identifier
 from id3c.db.session import DatabaseSession
 from id3c.db.datatypes import Json
+from id3c.cli.command.etl.redcap_det import insert_fhir_bundle
+from .redcap_det_uw_retrospectives import (
+    create_specimen,
+    find_sample_origin_by_barcode,
+    UnknownSampleOrigin,
+    create_encounter_class,
+    create_encounter_status,
+)
+
 from id3c.cli.command.etl import (
     etl,
 
@@ -34,7 +43,9 @@ from id3c.cli.command.etl import (
     UnknownAdmitICUResponseError,
 
 )
-from . import race
+from . import race, ethnicity
+from .fhir import *
+from .redcap_map import map_sex
 
 
 LOG = logging.getLogger(__name__)
@@ -104,45 +115,265 @@ def etl_clinical(*, db: DatabaseSession):
                 details    = {"type": "retrospective"})
 
 
-            # Most of the time we expect to see new individuals and new
-            # encounters, so an insert-first approach makes more sense.
-            # Encounters we see more than once are presumed to be
-            # corrections.
-            individual = upsert_individual(db,
-                identifier  = record.document["individual"],
-                sex         = sex(record.document["AssignedSex"]))
+            # PHSKC will be handled differently that other clinical records, converted
+            # to FHIR format and inserted into receiving.fhir table to be processed
+            # by the FHIR ETL. When time allows, SCH and KP should follow suit.
+            if site.identifier == 'RetrospectivePHSKC':
+                fhir_bundle = generate_fhir_bundle(db, record.document)
+                insert_fhir_bundle(db, fhir_bundle)
 
-            encounter = upsert_encounter(db,
-                identifier      = record.document["identifier"],
-                encountered     = record.document["encountered"],
-                individual_id   = individual.id,
-                site_id         = site.id,
-                age             = age(record.document),
-                details         = encounter_details(record.document))
+            else:
+                # Most of the time we expect to see new individuals and new
+                # encounters, so an insert-first approach makes more sense.
+                # Encounters we see more than once are presumed to be
+                # corrections.
+                individual = upsert_individual(db,
+                    identifier  = record.document["individual"],
+                    sex         = sex(record.document["AssignedSex"]))
 
-            sample = update_sample(db,
-                sample = sample,
-                encounter_id = encounter.id)
+                encounter = upsert_encounter(db,
+                    identifier      = record.document["identifier"],
+                    encountered     = record.document["encountered"],
+                    individual_id   = individual.id,
+                    site_id         = site.id,
+                    age             = age(record.document),
+                    details         = encounter_details(record.document))
 
-            # Link encounter to a Census tract, if we have it
-            tract_identifier = record.document.get("census_tract")
+                sample = update_sample(db,
+                    sample = sample,
+                    encounter_id = encounter.id)
 
-            if tract_identifier:
-                # Special-case float-like identifiers in earlier date
-                tract_identifier = re.sub(r'\.0$', '', str(tract_identifier))
+                # Link encounter to a Census tract, if we have it
+                tract_identifier = record.document.get("census_tract")
 
-                tract = find_location(db, "tract", tract_identifier)
-                assert tract, f"Tract «{tract_identifier}» is unknown"
+                if tract_identifier:
+                    # Special-case float-like identifiers in earlier date
+                    tract_identifier = re.sub(r'\.0$', '', str(tract_identifier))
 
-                upsert_encounter_location(db,
-                    encounter_id = encounter.id,
-                    relation = "residence",
-                    location_id = tract.id)
+                    tract = find_location(db, "tract", tract_identifier)
+                    assert tract, f"Tract «{tract_identifier}» is unknown"
+
+                    upsert_encounter_location(db,
+                        encounter_id = encounter.id,
+                        relation = "residence",
+                        location_id = tract.id)
 
             mark_processed(db, record.id, {"status": "processed"})
 
             LOG.info(f"Finished processing clinical record {record.id}")
 
+
+def create_patient(record: dict) -> Optional[tuple]:
+    """ Returns a FHIR Patient resource entry and reference. """
+    if not record["sex"] or not record["individual"]:
+        return None, None
+
+    gender = map_sex(record["sex"])
+
+    patient_identifier = create_identifier(f"{SFS}/individual", record["individual"])
+    patient_resource = create_patient_resource([patient_identifier], gender)
+
+    return create_entry_and_reference(patient_resource, "Patient")
+
+
+def create_encounter_location_references(db: DatabaseSession, record: dict, resident_locations: list = None) -> Optional[list]:
+    """ Returns FHIR Encounter location references """
+    sample_origin = find_sample_origin_by_barcode(db, record["barcode"])
+
+    if not sample_origin:
+        return None
+
+    origin_site_map = {
+        "phskc_retro":  "RetrospectivePHSKC",
+
+        # for future use
+        "sch_retro":    "RetrospectiveSCH",
+        "kp":           "KaiserPermanente",
+    }
+
+    if sample_origin not in origin_site_map:
+        raise UnknownSampleOrigin(f"Unknown sample_origin «{sample_origin}»")
+
+    encounter_site = origin_site_map[sample_origin]
+    site_identifier = create_identifier(f"{SFS}/site", encounter_site)
+    site_reference = create_reference(
+        reference_type = "Location",
+        identifier = site_identifier
+    )
+
+    location_references = resident_locations or []
+    location_references.append(site_reference)
+
+    return list(map(lambda ref: {"location": ref}, location_references))
+
+
+def create_encounter(db: DatabaseSession,
+                     record: dict,
+                     patient_reference: dict,
+                     location_references: list) -> Optional[tuple]:
+    """ Returns a FHIR Encounter resource entry and reference """
+    encounter_location_references = create_encounter_location_references(db, record, location_references)
+
+    if not encounter_location_references:
+        return None, None
+
+    encounter_date = record["encountered"]
+    if not encounter_date:
+        return None, None
+
+    encounter_id = record["identifier"]
+    encounter_identifier = create_identifier(f"{SFS}/encounter", encounter_id)
+
+    encounter_class = create_encounter_class(record)
+    encounter_status = create_encounter_status(record)
+    record_source = create_provenance(record)
+
+    encounter_resource = create_encounter_resource(
+        encounter_source = record_source,
+        encounter_identifier = [encounter_identifier],
+        encounter_class = encounter_class,
+        encounter_date = encounter_date,
+        encounter_status = encounter_status,
+        patient_reference = patient_reference,
+        location_references = encounter_location_references,
+    )
+
+    return create_entry_and_reference(encounter_resource, "Encounter")
+
+
+def create_resident_locations(record: dict) -> Optional[tuple]:
+    """
+    Returns FHIR Location resource entry and reference for resident address
+    and Location resource entry for Census tract.
+    """
+    if not record["address_hash"]:
+        LOG.debug("No address found in REDCap record")
+        return None, None
+
+    location_type_system = 'http://terminology.hl7.org/CodeSystem/v3-RoleCode'
+    location_type = create_codeable_concept(location_type_system, 'PTRES')
+    location_entries: List[dict] = []
+    location_references: List[dict] = []
+    address_partOf: Dict = None
+
+    tract_identifier = record["census_tract"]
+    if tract_identifier:
+        tract_identifier = create_identifier(f"{SFS}/location/tract", tract_identifier)
+        tract_location = create_location_resource([location_type], [tract_identifier])
+        tract_entry, tract_reference = create_entry_and_reference(tract_location, "Location")
+        # tract_reference is not used outside of address_partOf so does not
+        # not need to be appended to the list of location_references.
+        address_partOf = tract_reference
+        location_entries.append(tract_entry)
+
+    address_hash = record["address_hash"]
+    address_identifier = create_identifier(f"{SFS}/location/address", address_hash)
+    addres_location = create_location_resource([location_type], [address_identifier], address_partOf)
+    address_entry, address_reference = create_entry_and_reference(addres_location, "Location")
+
+    location_entries.append(address_entry)
+    location_references.append(address_reference)
+
+    return location_entries, location_references
+
+
+def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
+    """ Returns a FHIR Questionnaire Response resource entry """
+    response_items = determine_questionnaire_items(record)
+
+    if not response_items:
+        return None
+
+    questionnaire_response_resource = create_questionnaire_response_resource(
+        patient_reference   = patient_reference,
+        encounter_reference = encounter_reference,
+        items               = response_items
+    )
+
+    return create_resource_entry(
+        resource = questionnaire_response_resource,
+        full_url = generate_full_url_uuid()
+    )
+
+
+def determine_questionnaire_items(record: dict) -> List[dict]:
+    """ Returns a list of FHIR Questionnaire Response answer items """
+    items: Dict[str, Any] = {}
+
+    if record["age"]:
+        items["age"] = [{ 'valueInteger': (int(record["age"]))}]
+
+    if record["race"]:
+        items["race"] = []
+        for code in race(record["race"]):
+            items["race"].append({ 'valueCoding': create_coding(f"{SFS}/race", code)})
+
+    if record["ethnicity"]:
+        items["ethnicity"] = [{ 'valueBoolean': ethnicity(record["ethnicity"]) }]
+
+    if record["if_symptoms_how_long"]:
+        items["if_symptoms_how_long"] = [{ 'valueString': if_symptoms_how_long(record["if_symptoms_how_long"])}]
+
+    if record["vaccine_status"]:
+        items["vaccine_status"] = [{ 'valueString': covid_vaccination_status(record["vaccine_status"])}]
+
+    if record["inferred_symptomatic"]:
+        items["inferred_symptomatic"] = [{ 'valueBoolean': inferred_symptomatic(record["inferred_symptomatic"])}]
+
+    if record["survey_have_symptoms_now"]:
+        items["survey_have_symptoms_now"] = [{ 'valueBoolean': survey_have_symptoms_now(record["survey_have_symptoms_now"])}]
+
+    if record["survey_testing_because_exposed"]:
+        items["survey_testing_because_exposed"] = [{ 'valueString': survey_testing_because_exposed(record["survey_testing_because_exposed"])}]
+
+
+    questionnaire_items: List[dict] = []
+    for key,value in items.items():
+        questionnaire_items.append(create_questionnaire_response_item(
+            question_id = key,
+            answers = value
+        ))
+
+    return questionnaire_items
+
+
+def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
+
+    patient_entry, patient_reference = create_patient(record)
+
+    if not patient_entry:
+        LOG.info("Skipping clinical data pull with insufficient information to construct patient")
+        return None
+
+    specimen_entry, specimen_reference = create_specimen(record, patient_reference)
+    location_entries, location_references = create_resident_locations(record)
+    encounter_entry, encounter_reference = create_encounter(db, record, patient_reference, location_references)
+
+    if not encounter_entry:
+        LOG.info("Skipping clinical data pull with insufficient information to construct encounter")
+        return None
+
+    questionnaire_response_entry = create_questionnaire_response(record, patient_reference, encounter_reference)
+
+    specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
+
+    resource_entries = [
+        patient_entry,
+        specimen_entry,
+        encounter_entry,
+        questionnaire_response_entry,
+        specimen_observation_entry
+    ]
+
+    if location_entries:
+        resource_entries.extend(location_entries)
+
+    return create_bundle_resource(
+        bundle_id = str(uuid4()),
+        timestamp = datetime.now().astimezone().isoformat(),
+        source = f"{record['_provenance']['filename']},row:{record['_provenance']['row']}" ,
+        entries = list(filter(None, resource_entries))
+    )
 
 def site_identifier(site_name: str) -> str:
     """
@@ -161,6 +392,7 @@ def site_identifier(site_name: str) -> str:
         "UWNC": "RetrospectiveUWMedicalCenter",
         "SCH": "RetrospectiveChildrensHospitalSeattle",
         "KP": "KaiserPermanente",
+        "PHSKC": "RetrospectivePHSKC",
     }
     if site_name not in site_map:
         raise UnknownSiteError(f"Unknown site name «{site_name}»")
@@ -547,12 +779,219 @@ def insurance(insurance_response: Optional[Any]) -> list:
     return list(map(standardize_insurance, insurance_response))
 
 
+def if_symptoms_how_long(if_symptoms_how_long_response: Optional[Any]) -> Optional[str]:
+    """
+    Given a *if_symptoms_how_long_response*, returns a standardized value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> if_symptoms_how_long('1 day')
+    '1_day'
+
+    >>> if_symptoms_how_long("I don't have symptoms")
+    'no_symptoms'
+
+    >>> if_symptoms_how_long("I don't know")
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown if_symptoms_how_long value «i don't know»
+
+    """
+
+    if if_symptoms_how_long_response is None:
+        LOG.debug("No if_symptoms_how_long response found.")
+        return None
+
+    if isinstance(if_symptoms_how_long_response, str):
+        if_symptoms_how_long_response = if_symptoms_how_long_response.lower().strip()
+
+    symptoms_duration_map = {
+        "1 day": "1_day",
+        "2 days": "2_days",
+        "3 days": "3_days",
+        "4 days": "4_days",
+        "5 days": "5_days",
+        "6 days": "6_days",
+        "7 days": "7_days",
+        "8 days": "8_days",
+        "9+ days": "9_or_more_days",
+        "i don't have symptoms": "no_symptoms",
+    }
+
+    if if_symptoms_how_long_response not in symptoms_duration_map:
+        raise Exception(f"Unknown if_symptoms_how_long value «{if_symptoms_how_long_response}»")
+
+    return symptoms_duration_map[if_symptoms_how_long_response]
+
+
+def covid_vaccination_status(covid_vaccination_status_response: Optional[Any]) -> Optional[str]:
+    """
+    Given a *covid_vaccination_status_response*, returns a standardized value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> covid_vaccination_status('Yes I am fully vaccinated.')
+    'fully_vaccinated'
+
+    >>> covid_vaccination_status("No but I am partially vaccinated (e.g. 1 dose of a 2-dose series).")
+    'partially_vaccinated'
+
+    >>> covid_vaccination_status("I don't know")
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown covid_vaccination_status value «i don't know»
+
+    """
+
+    if covid_vaccination_status_response is None:
+        LOG.debug("No covid_vaccination_status_response response found.")
+        return None
+
+    if isinstance(covid_vaccination_status_response, str):
+        covid_vaccination_status_response = covid_vaccination_status_response.lower().strip()
+
+    covid_vaccination_status_map = {
+        "yes i am fully vaccinated.":                                           "fully_vaccinated",
+        "no i am not vaccinated.":                                              "not_vaccinated",
+        "no but i am partially vaccinated (e.g. 1 dose of a 2-dose series).":   "partially_vaccinated",
+        "yes i am fully vaccinated and i also have received a booster.":        "boosted",
+    }
+
+    if covid_vaccination_status_response not in covid_vaccination_status_map:
+        raise Exception(f"Unknown covid_vaccination_status value «{covid_vaccination_status_response}»")
+
+    return covid_vaccination_status_map[covid_vaccination_status_response]
+
+
+def inferred_symptomatic(inferred_symptomatic_response: Optional[Any]) -> Optional[bool]:
+    """
+    Given a *inferred_symptomatic_response*, returns boolean value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> inferred_symptomatic('FALSE')
+    False
+
+    >>> inferred_symptomatic('TRUE')
+    True
+
+    >>> inferred_symptomatic('maybe')
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown inferred_symptomatic_response «maybe»
+
+    """
+    if inferred_symptomatic_response is None:
+        LOG.debug("No inferred_symptomatic response found.")
+        return None
+
+    if isinstance(inferred_symptomatic_response, str):
+        inferred_symptomatic_response = inferred_symptomatic_response.lower().strip()
+
+    inferred_symptomatic_map = {
+        "false": False,
+        "true": True,
+    }
+
+    if inferred_symptomatic_response not in inferred_symptomatic_map:
+        raise Exception(f"Unknown inferred_symptomatic_response «{inferred_symptomatic_response}»")
+
+    return inferred_symptomatic_map[inferred_symptomatic_response]
+
+
+def survey_have_symptoms_now(survey_have_symptoms_now_response: Optional[Any]) -> Optional[bool]:
+    """
+    Given a *survey_have_symptoms_now_response*, returns boolean value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> survey_have_symptoms_now('yes')
+    True
+
+    >>> survey_have_symptoms_now('no')
+    False
+
+    >>> survey_have_symptoms_now('maybe')
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown survey_have_symptoms_now_response «maybe»
+
+    """
+    if survey_have_symptoms_now_response is None:
+        LOG.debug("No survey_have_symptoms_now response found.")
+        return None
+
+    if isinstance(survey_have_symptoms_now_response, str):
+        survey_have_symptoms_now_response = survey_have_symptoms_now_response.lower().strip()
+
+    survey_have_symptoms_now_map = {
+        "yes": True,
+        "no": False,
+    }
+
+    if survey_have_symptoms_now_response not in survey_have_symptoms_now_map:
+        raise Exception(f"Unknown survey_have_symptoms_now_response «{survey_have_symptoms_now_response}»")
+
+    return survey_have_symptoms_now_map[survey_have_symptoms_now_response]
+
+
+def survey_testing_because_exposed(survey_testing_because_exposed_response: Optional[Any]) -> Optional[str]:
+    """
+    Given a *survey_testing_because_exposed_response*, returns a standardized value.
+    Raises an :class:`Exception` if the given response is unknown.
+
+    >>> survey_testing_because_exposed("No")
+    'no'
+
+    >>> survey_testing_because_exposed("Yes - Received alert by phone app that I was near a person with COVID")
+    'yes_received_app_alert'
+
+    >>> survey_testing_because_exposed("maybe")
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown survey_testing_because_exposed value «maybe»
+
+    """
+
+    if survey_testing_because_exposed_response is None:
+        LOG.debug("No survey_testing_because_exposed response found.")
+        return None
+
+    if isinstance(survey_testing_because_exposed_response, str):
+        survey_testing_because_exposed_response = survey_testing_because_exposed_response.lower().strip()
+
+    survey_testing_because_exposed_map = {
+        "no":                                                                       "no",
+        "yes - i believe i have been exposed":                                      "yes_believe_exposed",
+        "yes - referred by a contact such as a friend-family-coworker":             "yes_referred_by_contact",
+        "yes - received alert by phone app that i was near a person with covid":    "yes_received_app_alert",
+        "yes - referred by public health":                                          "yes_referred_by_public_health",
+        "yes - referred by your health care provider":                              "yes_referred_by_provider"
+    }
+
+    if survey_testing_because_exposed_response not in survey_testing_because_exposed_map:
+        raise Exception(f"Unknown survey_testing_because_exposed value «{survey_testing_because_exposed_response}»")
+
+    return survey_testing_because_exposed_map[survey_testing_because_exposed_response]
+
+
+def create_provenance(record: dict) -> str:
+    """
+    Create JSON object indicating the source file and row of a given *record*.
+
+    Used in FHIR Encounter resources as the meta.source, which ultimately winds
+    up in ID3C's ``warehouse.encounter.details`` column.
+    """
+    data_scheme = 'data:application/json'
+
+    if '_provenance' in record and set(['filename','row']).issubset(record['_provenance']):
+        return data_scheme + ',' + quote(json.dumps(record['_provenance']))
+    else:
+        raise Exception(f"Error: _provenance missing or incomplete (must contain filename and row)")
+
+
 def sample_identifier(db: DatabaseSession, barcode: str) -> Optional[str]:
     """
     Find corresponding UUID for scanned sample or collection barcode within
     warehouse.identifier.
 
-    Will be sample barcode if from UW and collection barcode if from SCH.
+    Will be sample barcode if from UW or PHSKC, and collection barcode if from SCH.
     """
     identifier = find_identifier(db, barcode)
 

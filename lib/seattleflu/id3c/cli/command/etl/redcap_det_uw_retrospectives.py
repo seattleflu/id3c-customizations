@@ -433,6 +433,7 @@ def create_encounter_class(redcap_record: dict) -> dict:
         "lim"   : "IMP",
         "obs"   : "IMP",
         "obv"   : "IMP",
+        "field" : "FLD",
     }
 
     standardized_encounter_class = standardize_whitespace(encounter_class.lower())
@@ -471,7 +472,9 @@ def create_encounter_status(redcap_record: dict) -> str:
 
     standardized_status = standardize_whitespace(status.lower())
 
-    if standardized_status not in mapper:
+    if standardized_status in mapper.values():
+        return standardized_status
+    elif standardized_status not in mapper:
         raise Exception(f"Unknown encounter status «{standardized_status}».")
 
     return mapper[standardized_status]
