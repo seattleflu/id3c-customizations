@@ -489,9 +489,20 @@ def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geoc
             ), axis=1
     )
 
-    # geocode addresses, then hash them and get the census tract to remove PII from downstream processes
+    # fill address NA values with empty strings to prevent geocoding failure, geocode addresses,
+    # then hash them and get the census tract to remove PII from downstream processes
+    clinical_records.fillna(
+        {
+            'pat_address_line1': '',
+            'pat_address_line2': '',
+            'pat_address_city': '',
+            'pat_address_state': '',
+            'pat_address_zip': '',
+        }, inplace=True
+    )
+
     with pickled_cache(geocoding_cache_file) as cache:
-        clinical_records['lat'], clinical_records['lang'], clinical_records['canonical_address'] = zip(
+        clinical_records['lat'], clinical_records['lng'], clinical_records['canonical_address'] = zip(
             *clinical_records.apply(
                 lambda row: get_geocoded_address(
                     {
@@ -623,8 +634,8 @@ def encode_addresses(db: DatabaseSession, row: pd.Series) -> pd.Series:
     address, encodes that data into census tract information and hashes
     the address.
     """
-    if row['lat'] and row['lang']:
-        row['census_tract'] = location_lookup(db, (row['lat'], row['lang']), 'tract')[1]
+    if row['lat'] and row['lng']:
+        row['census_tract'] = location_lookup(db, (row['lat'], row['lng']), 'tract')[1]
     else:
         row['census_tract'] = None
 
