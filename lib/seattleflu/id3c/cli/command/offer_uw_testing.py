@@ -32,7 +32,7 @@ STUDY_START_DATE = date(2021, 9, 9)
 
 TESTING_INSTRUMENT = "testing_determination_internal"
 
-REDCAP_BATCH_SIZE = 250
+REDCAP_BATCH_SIZE = 150
 
 
 @cli.command("offer-uw-testing", help = __doc__)
