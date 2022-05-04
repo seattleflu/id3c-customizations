@@ -425,6 +425,9 @@ def create_encounter_class(redcap_record: dict) -> dict:
 
     mapper = {
         "outpatient" : "AMB",
+        "hospital outpatient surgery": "AMB",
+        "series pt-ot-st": "AMB", # Physical-occupational-speech therapy
+        "deceased - organ donor": "AMB",
         "inpatient"  : "IMP",
         "emergency"  : "EMER",
         "op"    : "AMB",
@@ -433,6 +436,7 @@ def create_encounter_class(redcap_record: dict) -> dict:
         "lim"   : "IMP",
         "obs"   : "IMP",
         "obv"   : "IMP",
+        "observation" : "IMP",
         "field" : "FLD",
     }
 
@@ -466,6 +470,7 @@ def create_encounter_status(redcap_record: dict) -> str:
         'preadmit'  : 'arrived',
         'lwbs'      : 'cancelled',  # LWBS = left without being seen.
         'canceled'  : 'cancelled',
+        'no show'   : 'cancelled',
         'completed' : 'finished',
         'discharged': 'finished',
     }
