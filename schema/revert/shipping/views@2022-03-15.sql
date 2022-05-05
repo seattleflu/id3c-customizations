@@ -1735,12 +1735,12 @@ create materialized view shipping.scan_encounters_v1 as
           when covid_vax in (values('dont_know'), ('dont_say')) then 'unknown'
           when covid_vax = 'yes' then
             case
-              when (vac_name_3 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_3::timestamp) >= 14)
-                or (vac_name_1 = 'johnson' and vac_name_2 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14) then 'boosted'
               when vac_name_1 = 'johnson' and date_part('day', encountered::timestamp - vac_date::timestamp) >= 14 then 'fully_vaccinated'
               when vac_name_1 in (values('pfizer'), ('moderna')) and vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14 then 'fully_vaccinated'
               when vac_name_1 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date::timestamp) >= 1 then 'partially_vaccinated'
               when date_part('day', encountered::timestamp - vac_date::timestamp) = 0 then 'not_vaccinated'
+              when (vac_name_3 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - vac_date_3::timestamp) >= 14)
+                or (vac_name_1 = 'johnson' and vac_name_2 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - vac_date_2::timestamp) >= 14) then 'boosted'
               else 'unknown'
             end
           else 'unknown'
