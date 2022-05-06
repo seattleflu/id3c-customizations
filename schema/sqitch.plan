@@ -433,3 +433,6 @@ shipping/views [shipping/views@2022-03-11] 2022-03-15T21:17:16Z Melissa Truong <
 
 shipping/views [shipping/views@2022-03-15] 2022-04-04T21:30:30Z Dave Reinhart <davidrr@uw.edu> # Modifications to shipping.scan_encounters_v1 materialized view
 @2022-04-04 2022-04-04T22:57:17Z Dave Reinhart <davidrr@uw.edu> # Schema as of 04 April 2022
+
+operations/deliverables_log 2022-04-29T20:24:12Z Dave Reinhart <davidrr@uw.edu> # Add table to track sample test result deliverables with timestamps.
+@2022-05-05 2022-05-05T19:26:51Z Dave Reinhart <davidrr@uw.edu> # Schema as of 05 May 2022
