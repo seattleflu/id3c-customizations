@@ -436,3 +436,6 @@ shipping/views [shipping/views@2022-03-15] 2022-04-04T21:30:30Z Dave Reinhart <d
 
 operations/deliverables_log 2022-04-29T20:24:12Z Dave Reinhart <davidrr@uw.edu> # Add table to track sample test result deliverables with timestamps.
 @2022-05-05 2022-05-05T19:26:51Z Dave Reinhart <davidrr@uw.edu> # Schema as of 05 May 2022
+
+roles/return-results-exporter/grants [roles/return-results-exporter/grants@2022-05-05] 2022-05-09T17:34:13Z Dave Reinhart <davidrr@uw.edu> # Grant permissions to return-results-exporter on deliverables_log table.
+@2022-05-09 2022-05-09T17:41:36Z Dave Reinhart <davidrr@uw.edu> # Schema as of 09 May 2022.
