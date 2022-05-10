@@ -4,13 +4,13 @@
 begin;
 
 revoke all on database :"DBNAME" from "return-results-exporter";
-revoke all on schema receiving, warehouse, shipping, operations from "return-results-exporter";
-revoke all on all tables in schema receiving, warehouse, shipping, operations from "return-results-exporter";
+revoke all on schema receiving, warehouse, shipping from "return-results-exporter";
+revoke all on all tables in schema receiving, warehouse, shipping from "return-results-exporter";
 
 grant connect on database :"DBNAME" to "return-results-exporter";
 
 grant usage
-    on schema shipping, operations
+    on schema shipping
     to "return-results-exporter";
 
 grant select
@@ -35,10 +35,6 @@ grant select
 
 grant delete, insert
     on shipping.latest_results
-    to "return-results-exporter";
-
-grant insert
-    on operations.deliverables_log
     to "return-results-exporter";
 
 commit;
