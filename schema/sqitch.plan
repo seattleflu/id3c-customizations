@@ -439,3 +439,6 @@ operations/deliverables_log 2022-04-29T20:24:12Z Dave Reinhart <davidrr@uw.edu> 
 
 roles/return-results-exporter/grants [roles/return-results-exporter/grants@2022-05-05] 2022-05-09T17:34:13Z Dave Reinhart <davidrr@uw.edu> # Grant permissions to return-results-exporter on deliverables_log table.
 @2022-05-09 2022-05-09T17:41:36Z Dave Reinhart <davidrr@uw.edu> # Schema as of 09 May 2022.
+
+roles/return-results-exporter/grants [roles/return-results-exporter/grants@2022-05-09] 2022-05-10T16:02:37Z Dave Reinhart <davidrr@uw.edu> # Add select permission on deliverables_log to return-results-exporter role.
+@2022-05-10 2022-05-10T16:06:40Z Dave Reinhart <davidrr@uw.edu> # Schema as of 10 May 2022.

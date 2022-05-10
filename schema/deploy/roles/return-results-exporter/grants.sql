@@ -37,7 +37,7 @@ grant delete, insert
     on shipping.latest_results
     to "return-results-exporter";
 
-grant insert
+grant select, insert
     on operations.deliverables_log
     to "return-results-exporter";
 
