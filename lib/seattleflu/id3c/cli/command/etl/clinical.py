@@ -15,6 +15,7 @@ from .redcap_det_uw_retrospectives import (
     create_specimen,
     find_sample_origin_by_barcode,
     UnknownSampleOrigin,
+    UnknownTestResult,
     create_encounter_class,
     create_encounter_status,
 )
@@ -43,7 +44,7 @@ from id3c.cli.command.etl import (
     UnknownAdmitICUResponseError,
 
 )
-from . import race, ethnicity
+from . import race, ethnicity, standardize_whitespace
 from .fhir import *
 from .redcap_map import map_sex
 
@@ -277,6 +278,45 @@ def create_resident_locations(record: dict) -> Optional[tuple]:
     return location_entries, location_references
 
 
+def create_clinical_result_observation_resource(record: dict) -> Optional[List[dict]]:
+    """
+    Determine the clinical results based on responses in *record* and
+    create observation resources for each result following the FHIR format
+    (http://www.hl7.org/implement/standards/fhir/observation.html)
+    """
+    cov19_snomed_code = {
+            'system': 'http://snomed.info/sct',
+            'code': '871562009',
+            'display': 'Detection of SARS-CoV-2',
+        }
+
+    result = virology_test_result(record)
+
+    clinical_observation = observation_resource('clinical')
+    clinical_observation['id'] = 'result-1'
+    clinical_observation['code']['coding'] = [cov19_snomed_code]
+    clinical_observation['valueBoolean'] = result
+
+    return [clinical_observation] or None
+
+
+def virology_test_result(record: dict) -> Optional[bool]:
+    """
+    Given a *record* with a UW Virology test result, returns
+    boolean indicating the result of the rest
+    """
+    result = standardize_whitespace(record['result_value']).lower()
+
+    if result == 'det':
+        return True
+    elif result == 'ndet':
+        return False
+    elif result == 'incon':
+        return None
+    else:
+        raise UnknownTestResult(result)
+
+
 def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
     """ Returns a FHIR Questionnaire Response resource entry """
     response_items = determine_questionnaire_items(record)
@@ -357,6 +397,19 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
+    diagnostic_code = create_codeable_concept(
+        system = f'{SFS}/presence-absence-panel',
+        code = test_coding(record['site'])
+    )
+
+    diagnostic_report_resource_entry = create_diagnostic_report(
+        record,
+        patient_reference,
+        specimen_reference,
+        diagnostic_code,
+        create_clinical_result_observation_resource,
+    )
+
     resource_entries = [
         patient_entry,
         specimen_entry,
@@ -368,12 +421,35 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
     if location_entries:
         resource_entries.extend(location_entries)
 
+    if diagnostic_report_resource_entry:
+        resource_entries.append(diagnostic_report_resource_entry)
+
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
         source = f"{record['_provenance']['filename']},row:{record['_provenance']['row']}" ,
         entries = list(filter(None, resource_entries))
     )
+
+def test_coding(site_name: str) -> str:
+    """
+    Given a *site_name*, returns the code associated with the external test run
+    on samples from this site.
+    """
+    if not site_name:
+        LOG.debug("No site name found")
+        return "Unknown"
+
+    site_name = site_name.upper()
+
+    code_map = {
+        "PHSKC": "phskc-retrospective"
+    }
+
+    if site_name not in code_map:
+        raise UnknownSiteError(f"Unknown site name «{site_name}»")
+
+    return code_map[site_name]
 
 def site_identifier(site_name: str) -> str:
     """

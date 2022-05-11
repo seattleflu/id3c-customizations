@@ -61,13 +61,13 @@ def create_patient_resource(patient_identifier: List[dict],
     return patient_resource
 
 
-def create_diagnostic_report(redcap_record:dict,
+def create_diagnostic_report(record:dict,
                              patient_reference: dict,
                              specimen_reference: dict,
                              diagnostic_code: dict,
-                             create_device_result_observation_resource: Callable) -> Optional[dict]:
+                             create_device_result_observation_resources: Callable) -> Optional[dict]:
     """
-    Create FHIR diagnostic report from given *redcap_record*.
+    Create FHIR diagnostic report from given *record*.
 
     Links the generated diagnostic report to a specific *patient_reference* and
     *specimen_reference*.
@@ -77,7 +77,7 @@ def create_diagnostic_report(redcap_record:dict,
     *create_device_result_observation_resource* function which attaches
     observation resources to the diagnostic report.
     """
-    clinical_results = create_device_result_observation_resource(redcap_record)
+    clinical_results = create_device_result_observation_resources(record)
     if not clinical_results:
         return None
 
@@ -89,7 +89,7 @@ def create_diagnostic_report(redcap_record:dict,
         )
         diagnostic_result_references.append(reference)
 
-    collection_datetime = redcap_record['collection_date']
+    collection_datetime = record['collection_date']
 
     diagnostic_report_resource = create_diagnostic_report_resource(
         datetime = collection_datetime,
@@ -348,6 +348,7 @@ def create_specimen_observation(specimen_reference: dict,
         "specimen": specimen_reference
     }
 
+
 def create_immunization_resource(patient_reference: dict,
                                  immunization_identifier: List[dict],
                                  immunization_date: str,
@@ -357,7 +358,7 @@ def create_immunization_resource(patient_reference: dict,
     Create an immunization resource following the FHIR format
     (https://www.hl7.org/fhir/immunization.html)
     """
-    
+
     return({
         "resourceType": "Immunization",
         "identifier": immunization_identifier,
@@ -369,7 +370,7 @@ def create_immunization_resource(patient_reference: dict,
         }
     })
 
-    
+
 def create_questionnaire_response_resource(patient_reference: dict,
                                            encounter_reference: dict,
                                            items: List[dict]) -> dict:
