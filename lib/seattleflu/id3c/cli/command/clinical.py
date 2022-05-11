@@ -33,7 +33,6 @@ from . import (
     group_true_values_into_list,
 )
 
-
 LOG = logging.getLogger(__name__)
 
 
@@ -525,7 +524,8 @@ def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geoc
 
     column_map = {
         'ethnic_group': 'ethnicity',
-        'barcode': 'phskc_barcode'
+        'barcode': 'phskc_barcode',
+        'collect_ts': 'collection_date'
     }
 
     columns_to_keep = list(column_map.keys()) + [
@@ -548,7 +548,8 @@ def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geoc
         'inferred_symptomatic',
         'vaccine_status',
         'patient_class',
-        'encounter_status'
+        'encounter_status',
+        'result_value'
     ]
 
     clinical_records = clinical_records[columns_to_keep]
