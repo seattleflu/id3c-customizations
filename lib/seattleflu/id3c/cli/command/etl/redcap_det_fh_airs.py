@@ -50,8 +50,6 @@ class EventType(Enum):
 REVISION = 1
 
 INTERNAL_SYSTEM = "https://seattleflu.org"
-# TODO: ENCOUNTER_EVENT_NAME, SWAB_AND_SEND_SITE, UW_DROPBOX_SITE
-# may not be necessary for this study
 ENROLLMENT_EVENT_NAME = "screening_and_enro_arm_1"
 ENCOUNTER_EVENT_NAMES = [
     "week_01_arm_1",
@@ -85,9 +83,9 @@ ENCOUNTER_EVENT_NAMES = [
 
 SWAB_AND_SEND_SITE = 'AIRSSwabNSend'
 
-STUDY_START_DATE = datetime(2021, 9, 9) # TODO: I dunno lol
+STUDY_START_DATE = datetime(2021, 9, 9)
 
-# TODO: are all these instruments required for enrollment?
+
 REQUIRED_ENROLLMENT_INSTRUMENTS = [
     'screening',
     'screening_call',
@@ -173,19 +171,8 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
 
-        # TODO: I believe there's only one collection_method: swab_and_send
-        # The study documents say: 
-        #    If they report symptoms on a survey, 
-        #    they will be prompted to self-collect a nasal swab,
-        #    which will be delivered and returned via courier, 
-        #    and complete a brief symptom survey
-        # which doesn't even rhyme.
         elif redcap_record_instance.event_name in ENCOUNTER_EVENT_NAMES:
             if is_complete('weekly', redcap_record_instance):
-            #TODO: Do we skip events when no kit was sent, or are they still relevant?
-            #and \
-            #    (is_complete('airs_kit_activation_complete', redcap_record_instance) or \
-            #     is_complete('airs_kit_activation_2_complete', redcap_record_instance)):
                 event_type = EventType.ENCOUNTER
                 collection_method = CollectionMethod.SWAB_AND_SEND
             else:
@@ -201,11 +188,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             "that we process")
             continue
 
-        # Skip an ENCOUNTER instance if we don't have the data we need to
-        # create an encounter.
-        # In this study they may send up to 2 AIRS kits per weekly encounter,
-        #  so I guess we need to check both
-        # TODO: verify with study that this is irrelevant if we only check if 'weekly' is complete, above.
         if event_type == EventType.ENCOUNTER:
             if not is_complete('weekly', redcap_record_instance) \
                 or not collection_method:
@@ -225,8 +207,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             'uw_club':  'UWClub'
             }
 
-        # TODO: since there's only one collection method
-        #  (courier-delivered swabs) I believe this will always be the same.
         site_reference = create_site_reference(
             location = None,
             site_map = location_site_map,
@@ -240,7 +220,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         # Map the various symptoms variables to their onset date.
         # For daily_symptoms_covid_like we don't know the actual onset date. The questions asks
         # "in the past 24 hours"
-        # TODO: verify with study
         if event_type == EventType.ENCOUNTER:
             symptom_onset_map = {
                 # sic--this misspelling is in the redcap form.
@@ -323,7 +302,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             enrollment_questionnaire_entry = airs_create_enrollment_questionnaire_response(
             enrollment, patient_reference, initial_encounter_reference)
         else:
-            # TODO: this will change for event_type == encounter
             symptom_questionnaire_entry = airs_create_symptom_questionnaire_response(
                 redcap_record_instance, patient_reference, initial_encounter_reference)
 
@@ -331,8 +309,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 # Don't set locations because the weekly survey doesn't ask for home address.
                 weekly_encounter_entry, weekly_encounter_reference = create_encounter(
                     encounter_id = create_encounter_id(redcap_record_instance, True),
-                    # TODO: verify with study whether we want one weekly encounter
-                    # or separate ones for each test
                     encounter_date = extract_date_from_survey_timestamp(redcap_record_instance, 'weekly'),
                     patient_reference = patient_reference,
                     site_reference = site_reference,
@@ -345,7 +321,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
                 weekly_questionnaire_entry = airs_create_weekly_questionnaire_response(
                     redcap_record_instance, patient_reference, weekly_encounter_reference)
-                # TODO: verify with study this is required
                 weekly_computed_questionnaire_entry = airs_create_computed_questionnaire_response(
                     redcap_record_instance, patient_reference, weekly_encounter_reference,
                     birthdate, parse_date_from_string(weekly_encounter_entry['resource']['period']['start']))
@@ -377,8 +352,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
 def airs_get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[str]:
     encounter_date = None
 
-    # TODO: I don't think we need to proceed if wk_date isn't defined
-    #  (ie, this weekly encounter isn't complete yet)
     if event_type == EventType.ENCOUNTER:
         encounter_date = extract_date_from_survey_timestamp(record, 'weekly') \
 
@@ -487,7 +460,7 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
     ]
 
     decimal_questions: List[str] = [
-        # TODO: none so far, but maybe in future
+        # none so far, but maybe in future
     ]
 
     coding_questions = [
@@ -518,7 +491,6 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
     record['countries_visited_base'] = combine_multiple_fields(record, 'country', '_base')
     record['states_visited_base'] = combine_multiple_fields(record, 'state', '_base')
 
-    # TODO: Do we need this? There are multiple date questions encompassing COVID & flu vaccinations
     if record.get('scr_num_doses') and int(record['scr_num_doses']) > 0:
         vacc_covid = '1'
     else:
@@ -751,8 +723,6 @@ def airs_build_patient(enrollment: REDCapRecord) -> tuple:
         first_name = enrollment['scr_first_name'],
         last_name = enrollment['scr_last_name'],
         birth_date = enrollment['enr_dob'],
-        # TODO: verify using 'enr_mail_zip' is appropriate here;
-        # there's also 'scr_zip' which isn't necessarily the same
         zipcode = enrollment['enr_mail_zip'],
         record = enrollment,
         system_identifier = INTERNAL_SYSTEM)
@@ -769,7 +739,6 @@ def airs_build_location_info(db: DatabaseSession, cache: TTLCache,
     # Is this group housing? If so, map it to a value that results in
     #  build_residential_location_resources() assigning it a 'lodging'
     #  housing_type. 
-    # TODO: verify with study this is appropriate
     if enrollment.get('enr_living_area') == '1':
         # Maps to 'lodging'
         housing = 'shelter'
@@ -809,7 +778,6 @@ def airs_build_specimens(db,
 
     if specimen_received:
         # Use barcode fields in this order.
-        # TODO: verify with study
         prioritized_barcodes = [
             redcap_record_instance["results_barcode"],
             redcap_record_instance["return_utm_barcode"],
@@ -862,7 +830,6 @@ def airs_build_specimens(db,
 
     if specimen_received_v2:
         # Use barcode fields in this order.
-        # TODO: verify with study
         prioritized_barcodes_v2 = [
             redcap_record_instance["results_barcode_v2"],
             redcap_record_instance["return_utm_barcode_v2"],
