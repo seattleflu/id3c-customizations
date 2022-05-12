@@ -180,6 +180,10 @@ def get_latest_results(session):
     """
     LOG.debug("Exporting latest results for LIMS integration")
 
+    # restrict access to LIMS IP and localhost
+    if request.remote_addr not in [os.environ['LIMS_IP'], '127.0.0.1']:
+        abort(403)
+
     latest_results = datastore.fetch_rows_from_table(session, ("shipping", "latest_results"))
 
     return Response((row[0] + '\n' for row in latest_results), mimetype="application/x-ndjson")
