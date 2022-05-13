@@ -2,6 +2,8 @@
 Process DETs for the Fred Hutch AIRS study into the FHIR receiving table
 """
 import logging
+import os
+
 from dateutil.relativedelta import relativedelta
 from enum import Enum
 from id3c.cli.command.etl import redcap_det
@@ -25,14 +27,17 @@ class AIRSProject():
         self.command_name = command_name
 
 
-REDCAP_URL  = 'https://redcap.fredhutch.org/'     # REDCap server hostname
-REDCAP_PID  = 1372                                # REDCap project ID
-REDCAP_LANG = 'en'                                # Survey language
-ETL_COMMAND = 'fh-airs'                           # Run as 'id3c etl redcap-det <ETL_COMMAND>'
+REDCAP_URL  = os.environ.get('FH_AIRS_REDCAP_API_URL') # REDCap server hostname
+REDCAP_PID  = 1372                                 # REDCap project ID
+REDCAP_LANG = 'en'                                 # Survey language
+ETL_COMMAND = 'fh-airs'                            # Run as 'id3c etl redcap-det <ETL_COMMAND>'
 
 PROJECTS = [
         AIRSProject(REDCAP_PID, REDCAP_LANG, ETL_COMMAND)
     ]
+
+if not REDCAP_URL:
+    REDCAP_URL = 'https://redcap.fredhutch.org/'
 
 LANGUAGE_CODE = {
 project.id: project.lang
@@ -40,8 +45,6 @@ project.id: project.lang
 
 class CollectionMethod(Enum):
     SWAB_AND_SEND = 'swab_and_send'
-    KIOSK = 'kiosk'
-    UW_DROPBOX = 'uw_dropbox'
 
 class EventType(Enum):
     ENROLLMENT = 'enrollment'
@@ -82,9 +85,6 @@ ENCOUNTER_EVENT_NAMES = [
 ]
 
 SWAB_AND_SEND_SITE = 'AIRSSwabNSend'
-
-STUDY_START_DATE = datetime(2021, 9, 9)
-
 
 REQUIRED_ENROLLMENT_INSTRUMENTS = [
     'screening',
@@ -144,11 +144,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         LOG.debug(f"The following required enrollment instruments «{incomplete_enrollment_instruments}» are not yet marked complete.")
         return None
 
-    # If the participant's age < 18 do not continue
-    if (enrollment['scr_age'] == "" or int(enrollment['scr_age']) < 18):
-        LOG.debug("The participant age is blank or marked as under 18. Skipping record.")
-        return None
-
     patient_entry, patient_reference = airs_build_patient(enrollment)
     
     if not patient_entry:
@@ -198,18 +193,9 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
                         ": insufficient information to construct encounter")
                     continue
 
-        # We should never have to consult this
-        location_site_map = {
-            'bothell':  'UWBothell',
-            'odegaard': 'UWOdegaardLibrary',
-            'slu':      'UWSouthLakeUnion',
-            'tacoma':   'UWTacoma',
-            'uw_club':  'UWClub'
-            }
-
         site_reference = create_site_reference(
             location = None,
-            site_map = location_site_map,
+            site_map = None,
             default_site = SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
@@ -218,16 +204,17 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         diagnosis: List[dict] = []
 
         # Map the various symptoms variables to their onset date.
-        # For daily_symptoms_covid_like we don't know the actual onset date. The questions asks
-        # "in the past 24 hours"
         if event_type == EventType.ENCOUNTER:
             symptom_onset_map = {
                 # sic--this misspelling is in the redcap form.
                 'symptoms': redcap_record_instance['ss_ealiest_date'],
             }
-        # Irrelevant, no symptom questions are present in enrollment
+        # Irrelevant because no symptom questions are present in enrollment,
+        # but I'd like to keep the condition that event_type == ENROLLMENT
+        # separate in case that changes. It should also not be included in
+        # the same case that an invalid event_type is passed.
         elif event_type == EventType.ENROLLMENT:
-            symptom_onset_map = {'symptoms_base': redcap_record_instance['wk_symp_start_date']}
+            symptom_onset_map = {}
         # Should never get here due to the event_type check at the top of the loop
         else:
             LOG.error(f"Invalid event_type {event_type} fell through")
@@ -353,16 +340,16 @@ def airs_get_encounter_date(record: REDCapRecord, event_type: EventType) -> Opti
     encounter_date = None
 
     if event_type == EventType.ENCOUNTER:
-        encounter_date = extract_date_from_survey_timestamp(record, 'weekly') \
-
-        # This will never be true for AIRS since 'daily_attestation' isn't a thing
-        if encounter_date is None and is_complete('daily_attestation', record) and record.repeat_instance:
-            encounter_date = get_date_from_repeat_instance(record.repeat_instance)
-
+        encounter_date = extract_date_from_survey_timestamp(record, 'weekly')
     elif event_type == EventType.ENROLLMENT:
         encounter_date = record.get('enr_date_complete') and \
             datetime.strptime(record.get('enr_date_complete'), '%Y-%m-%d').strftime('%Y-%m-%d')
-
+    else:
+        # We should never get here, but we should also never have an 
+        #  if/elif without an else
+        LOG.error(f"Invalid date: {record.event_name!r} for record "
+                  f"{record.get('subject_id')} contains event_type {event_type}, "
+                  "but that is not one that we process.")
     return encounter_date
 
 
@@ -398,15 +385,14 @@ def get_collection_date(record: REDCapRecord, collection_method: CollectionMetho
     # they are populated they use the browser's time zone.
     collection_date = None
 
-    if collection_method == CollectionMethod.KIOSK:
-        collection_date = extract_date_from_survey_timestamp(record, "kiosk_registration_4c7f") or record.get("nasal_swab_q")
-
-    elif collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
+    if collection_method == CollectionMethod.SWAB_AND_SEND:
         collection_date = record.get("date_on_tube") \
             or extract_date_from_survey_timestamp(record, "husky_test_kit_registration") \
             or record.get("kit_reg_date") \
             or extract_date_from_survey_timestamp(record, "test_fulfillment_form") \
             or record.get("back_end_scan_date")
+    else:
+        raise ValueError(f"Record {record.id}: invalid collection_method {collection_method}")
 
     return collection_date
 
@@ -486,10 +472,6 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
 
     for field in checkbox_fields:
         record[field] = combine_checkbox_answers(record, field)
-
-    # Combine all fields answering the same question
-    record['countries_visited_base'] = combine_multiple_fields(record, 'country', '_base')
-    record['states_visited_base'] = combine_multiple_fields(record, 'state', '_base')
 
     if record.get('scr_num_doses') and int(record['scr_num_doses']) > 0:
         vacc_covid = '1'
@@ -688,16 +670,6 @@ def airs_create_computed_questionnaire_response(record: REDCapRecord, patient_re
         system_identifier = INTERNAL_SYSTEM)
 
 
-def get_date_from_repeat_instance(instance_id: int) -> str:
-    """
-    Returns the date associated with a REDCap repeat instance.
-    This is safe to do only when the Daily Attestation exists
-    because the Musher sets the repeat instance based on the date.
-    Returns the date as a string because that is how it is used.
-    """
-    return (STUDY_START_DATE + relativedelta(days=(instance_id -1))).strftime('%Y-%m-%d')
-
-
 def airs_map_sex(airs_sex: str) -> str:
     sex_map = {
         "1": "male",
@@ -738,12 +710,19 @@ def airs_build_location_info(db: DatabaseSession, cache: TTLCache,
     """
     # Is this group housing? If so, map it to a value that results in
     #  build_residential_location_resources() assigning it a 'lodging'
-    #  housing_type. 
+    #  housing_type. This doesn't map cleanly between AIRS and
+    #  what is expected in `build_residential_location_resources()`.
+    group_housing = {
+                        # AIRS group home type:
+        '1': 'none',    # Dormitory
+        '2': 'none',    # Home
+        '3': 'shelter', # Homeless Shelter,
+        '4': 'ltc',     # Long-term shelter or skilled nursing facility
+        '5': 'none',    # Other (specified elsewhere, but there's no facility to handle that in redcap.py)
+    }
     if enrollment.get('enr_living_area') == '1':
-        # Maps to 'lodging'
-        housing = 'shelter'
+        housing = group_housing[enrollment.get('enr_living_group')]
     elif enrollment.get('enr_living_area') == '2':
-        # Doesn't map to 'lodging'
         housing = 'single-family-home'
     else:
         # enr_living_area is a radio button so this should never happen,
