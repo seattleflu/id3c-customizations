@@ -42,7 +42,6 @@ drop view if exists shipping.genome_submission_metadata_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
-drop view if exists shipping.scan_encounters_with_best_available_vaccination_data_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
 
 drop view if exists shipping.observation_with_presence_absence_result_v3;
@@ -1747,17 +1746,9 @@ create materialized view shipping.scan_encounters_v1 as
           else 'unknown'
         end as vaccination_status,
         case
-          when vac_name_3 is not null then
-            case
-              when (vac_name_1 = vac_name_2 and vac_name_1 = vac_name_3) then vac_name_3
-              else 'multiple'
-            end
-          when vac_name_2 is not null then
-            case
-              when vac_name_1 = vac_name_2 then vac_name_2
-              else 'multiple'
-            end
-          else vac_name_1
+          when vac_name_1 is not null and (COALESCE(vac_name_2, vac_name_3) is null or (vac_name_1 = vac_name_2 and vac_name_1 = vac_name_3)) then vac_name_1
+          when vac_name_1 is not null and (vac_name_1 != vac_name_2 or vac_name_1 != vac_name_3) then 'multiple'
+          else null
         end as vaccine_manufacturer,
         case
           when covid_doses = '1' then '1_dose'

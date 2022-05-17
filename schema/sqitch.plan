@@ -442,3 +442,6 @@ roles/return-results-exporter/grants [roles/return-results-exporter/grants@2022-
 
 roles/return-results-exporter/grants [roles/return-results-exporter/grants@2022-05-09] 2022-05-10T16:02:37Z Dave Reinhart <davidrr@uw.edu> # Add select permission on deliverables_log to return-results-exporter role.
 @2022-05-10 2022-05-10T16:06:40Z Dave Reinhart <davidrr@uw.edu> # Schema as of 10 May 2022.
+
+shipping/views [shipping/views@2022-05-10] 2022-05-17T19:43:47Z Dave Reinhart <davidrr@uw.edu> # Add shipping view for SCAN encounters with best available vaccination data.
+@2022-05-17 2022-05-17T22:00:27Z Dave Reinhart <davidrr@uw.edu> # Schema as of 17 May 2022.

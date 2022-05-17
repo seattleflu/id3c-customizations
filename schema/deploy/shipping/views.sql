@@ -2328,6 +2328,196 @@ grant select
   to "incidence-modeler";
 
 
+create or replace view shipping.scan_encounters_with_best_available_vaccination_data_v1 as
+
+    with vac_1_most_frequent_valid_date as (
+      select distinct on (individual)
+      individual,
+      vac_date,
+      vac_name_1
+      from shipping.scan_encounters_v1
+      where vac_date >= '2020-12-01'
+        and vac_date::date <= encountered::date
+      group by individual, vac_date, vac_name_1
+      having count(*) > 1
+      order by individual, count(*) desc
+    ),
+    vac_1_next_best_date as (
+      select distinct on (individual)
+      individual,
+      vac_date,
+      vac_name_1,
+      case
+        when vac_date < '2020-12-01' or vac_date::date > encountered::date then 1
+      end as vac_date_1_out_of_range
+      from shipping.scan_encounters_v1
+      where individual not in (select individual from vac_1_most_frequent_valid_date)
+        and vac_date is not null
+      order by individual, vac_date_1_out_of_range nulls first, encountered
+    ),
+    vac_2_most_frequent_valid_date as (
+      select distinct on (individual)
+      individual,
+      vac_date_2,
+      vac_name_2
+      from shipping.scan_encounters_v1
+      where vac_date_2 >= '2020-12-01'
+        and vac_date_2::date <= encountered::date
+      group by individual, vac_date_2, vac_name_2
+      having count(*) > 1
+      order by individual, count(*) desc
+    ),
+    vac_2_next_best_date as (
+      select distinct on (individual)
+      individual,
+      vac_date_2,
+      vac_name_2,
+      case
+        when vac_date_2 < '2020-12-01' or vac_date_2::date > encountered::date then 1
+      end as vac_date_2_out_of_range
+      from shipping.scan_encounters_v1
+      where individual not in (select individual from vac_2_most_frequent_valid_date)
+        and vac_date_2 is not null
+      order by individual, vac_date_2_out_of_range nulls first, encountered
+    ),
+    vac_3_most_frequent_valid_date as (
+      select distinct on (individual)
+      individual,
+      vac_date_3,
+      vac_name_3
+      from shipping.scan_encounters_v1
+      where vac_date_3 >= '2020-12-01'
+        and vac_date_3::date <= encountered::date
+      group by individual, vac_date_3, vac_name_3
+      having count(*) > 1
+      order by individual, count(*) desc
+    ),
+    vac_3_next_best_date as (
+      select distinct on (individual)
+      individual,
+      vac_date_3,
+      vac_name_3,
+      case
+        when vac_date_3 < '2020-12-01' or vac_date_3::date > encountered::date then 1
+      end as vac_date_3_out_of_range
+      from shipping.scan_encounters_v1
+      where individual not in (select individual from vac_3_most_frequent_valid_date)
+        and vac_date_3 is not null
+      order by individual, vac_date_3_out_of_range nulls first, encountered
+    ),
+    encounters_with_best_available_vac as (
+      select individual,
+        encounter_id,
+        encountered::date,
+        covid_doses,
+        covid_vax,
+        coalesce(vac_1_most_frequent_valid_date.vac_date, vac_1_next_best_date.vac_date) as best_available_vac_date_1,
+        coalesce(vac_1_most_frequent_valid_date.vac_name_1, vac_1_next_best_date.vac_name_1) as best_available_vac_name_1,
+        coalesce(vac_2_most_frequent_valid_date.vac_date_2, vac_2_next_best_date.vac_date_2) as best_available_vac_date_2,
+        coalesce(vac_2_most_frequent_valid_date.vac_name_2, vac_2_next_best_date.vac_name_2) as best_available_vac_name_2,
+        coalesce(vac_3_most_frequent_valid_date.vac_date_3, vac_3_next_best_date.vac_date_3) as best_available_vac_date_3,
+        coalesce(vac_3_most_frequent_valid_date.vac_name_3, vac_3_next_best_date.vac_name_3) as best_available_vac_name_3,
+        vac_date_1_out_of_range,
+        vac_date_2_out_of_range,
+        vac_date_3_out_of_range,
+        vaccination_status as old_vaccination_status
+        from
+        shipping.scan_encounters_v1
+        left join vac_1_most_frequent_valid_date using (individual)
+        left join vac_1_next_best_date using (individual)
+        left join vac_2_most_frequent_valid_date using (individual)
+        left join vac_2_next_best_date using (individual)
+        left join vac_3_most_frequent_valid_date using (individual)
+        left join vac_3_next_best_date using (individual)
+    ),
+    encounters_with_best_available_vac_applied as (
+      select individual,
+        encounter_id,
+        encountered,
+        covid_doses,
+        covid_vax,
+        case
+          when best_available_vac_date_1::date <= encountered::date then array[best_available_vac_date_1, best_available_vac_name_1]
+          else array[null,null]
+        end as applied_vac_1,
+        case
+          when best_available_vac_date_2::date <= encountered::date then array[best_available_vac_date_2, best_available_vac_name_2]
+          else array[null,null]
+        end as applied_vac_2,
+        case
+          when best_available_vac_date_3::date <= encountered::date then array[best_available_vac_date_3, best_available_vac_name_3]
+          else array[null,null]
+        end as applied_vac_3,
+        vac_date_1_out_of_range,
+        vac_date_2_out_of_range,
+        vac_date_3_out_of_range,
+        case
+          when best_available_vac_date_1 > best_available_vac_date_2
+            or best_available_vac_date_2 > best_available_vac_date_3
+            or best_available_vac_date_1 > best_available_vac_date_3
+          then 1
+        end as vac_dates_out_of_order,
+        old_vaccination_status
+      from encounters_with_best_available_vac
+    ),
+    encounters_with_best_available_vac_applied_dose_count as (
+      select individual,
+        encounter_id,
+        encountered,
+        covid_vax as pt_entered_covid_vax,
+        covid_doses as pt_entered_covid_doses,
+        case
+          when applied_vac_3[1] is not null then 3
+          when applied_vac_2[1] is not null then 2
+          when applied_vac_1[1] is not null then 1
+          when encountered::date < '2020-12-01' or covid_vax = 'no' then 0
+          else null
+        end as calculated_covid_doses,
+        applied_vac_1[1] as calculated_vac_date_1,
+        applied_vac_1[2] as calculated_vac_name_1,
+        applied_vac_2[1] as calculated_vac_date_2,
+        applied_vac_2[2] as calculated_vac_name_2,
+        applied_vac_3[1] as calculated_vac_date_3,
+        applied_vac_3[2] as calculated_vac_name_3,
+        vac_date_1_out_of_range,
+        vac_date_2_out_of_range,
+        vac_date_3_out_of_range,
+        old_vaccination_status
+      from encounters_with_best_available_vac_applied
+    )
+
+    select
+      individual,
+      encounter_id,
+      encountered,
+      pt_entered_covid_vax,
+      pt_entered_covid_doses,
+      calculated_covid_doses,
+      calculated_vac_date_1,
+      calculated_vac_name_1,
+      calculated_vac_date_2,
+      calculated_vac_name_2,
+      calculated_vac_date_3,
+      calculated_vac_name_3,
+      vac_date_1_out_of_range,
+      vac_date_2_out_of_range,
+      vac_date_3_out_of_range,
+      case
+        when encountered < '2020-12-01' then 'na'
+        when pt_entered_covid_vax = 'no' then 'not_vaccinated'
+          when (vac_date_3_out_of_range is null and  (calculated_vac_name_3 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - calculated_vac_date_3::timestamp) >= 14))
+            or (vac_date_2_out_of_range is null and calculated_vac_name_1 = 'johnson' and calculated_vac_name_2 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - calculated_vac_date_2::timestamp) >= 14) then 'boosted'
+          when vac_date_1_out_of_range is null and calculated_vac_name_1 = 'johnson' and date_part('day', encountered::timestamp - calculated_vac_date_1::timestamp) >= 14 then 'fully_vaccinated'
+          when vac_date_2_out_of_range is null and calculated_vac_name_1 in (values('pfizer'), ('moderna')) and calculated_vac_name_2 in (values('pfizer'), ('moderna')) and date_part('day', encountered::timestamp - calculated_vac_date_2::timestamp) >= 14 then 'fully_vaccinated'
+          when vac_date_1_out_of_range is null and calculated_vac_name_1 in (values('pfizer'), ('moderna'), ('johnson')) and date_part('day', encountered::timestamp - calculated_vac_date_1::timestamp) >= 1 then 'partially_vaccinated'
+          when vac_date_1_out_of_range is null and date_part('day', encountered::timestamp - calculated_vac_date_1::timestamp) = 0 then 'not_vaccinated'
+        when coalesce(vac_date_1_out_of_range, vac_date_2_out_of_range, vac_date_3_out_of_range) = 1 then 'invalid'
+          else 'unknown'
+      end as best_available_vac_status
+    from encounters_with_best_available_vac_applied_dose_count
+;
+
+
 /******************** VIEWS FOR GENOMIC DATA ********************/
 create or replace view shipping.flu_assembly_jobs_v1 as
 
