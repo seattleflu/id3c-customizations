@@ -6,6 +6,7 @@ from id3c.api.exceptions import BadRequest
 from id3c.api.utils.routes import authenticated_datastore_session_required
 from . import datastore
 import os
+import re
 
 LOG = logging.getLogger(__name__)
 
@@ -204,8 +205,15 @@ def get_deliverables_log(session):
     sent_on = request.args.get('sent')
     process_name = request.args.get('process_name')
 
-    if not sent_on or not process_name:
-        raise BadRequest(f"Missing required argument")
+    date_format = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    if not sent_on:
+        raise BadRequest(f"Missing required argument «sent≫.")
+    if not date_format.match(sent_on):
+        raise BadRequest(f"Argument «sent≫ improperly formatted (expected format: YYYY-MM-DD).")
+    elif not process_name:
+        raise BadRequest(f"Missing required argument «process_name≫.")
+    elif process_name not in ['return-of-results', 'wa-doh-linelists']:
+        raise BadRequest(f"Unrecognized «process_name≫ (expected: 'return-of-results' or 'wa-doh-linelists').")
 
     deliverables_log = datastore.fetch_deliverables_log(session, sent_on, process_name)
 
