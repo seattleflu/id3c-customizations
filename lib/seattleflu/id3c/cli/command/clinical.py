@@ -223,6 +223,24 @@ def parse_sch(sch_filename, manifest_format, output):
             "cov_d2_date": "CovidShot2Date",
             "covid_vx_manu": "CovidShotManufacturer",
         })
+    elif manifest_format == 'year4':
+        column_map.update({
+            "flu_vx_12mo": "FluShot",
+            "flu_date": "FluShotDate",
+            "covid_screen": "CovidScreen",
+            "covid_vx_d1": "CovidShot1",
+            "cov_d1_date": "CovidShot1Date",
+            "covid_vx_manu1": "CovidShot1Manu",
+            "covid_vx_d2": "CovidShot2",
+            "cov_d2_date": "CovidShot2Date",
+            "covid_vx_manu2": "CovidShot2Manu",
+            "covid_vx_d3": "CovidShot3",
+            "cov_d3_date": "CovidShot3Date",
+            "covid_vx_manu3": "CovidShot3Manu",
+        })
+    else:
+        # Don't fall through silently
+        LOG.warning(f"Invalid manufest_format {manifest_format}")
 
     clinical_records = clinical_records.rename(columns=column_map)
 
@@ -271,6 +289,13 @@ def parse_sch(sch_filename, manifest_format, output):
         clinical_records["FluShotDate"] = pd.to_datetime(clinical_records["FluShotDate"]).dt.strftime('%Y-%m-%d')
         clinical_records["CovidShot1Date"] = pd.to_datetime(clinical_records["CovidShot1Date"]).dt.strftime('%Y-%m-%d')
         clinical_records["CovidShot2Date"] = pd.to_datetime(clinical_records["CovidShot2Date"]).dt.strftime('%Y-%m-%d')
+
+    # Reformat vaccination dates
+    if manifest_format == 'year4':
+        clinical_records["FluShotDate"] = pd.to_datetime(clinical_records["FluShotDate"]).dt.strftime('%Y-%m-%d')
+        clinical_records["CovidShot1Date"] = pd.to_datetime(clinical_records["CovidShot1Date"]).dt.strftime('%Y-%m-%d')
+        clinical_records["CovidShot2Date"] = pd.to_datetime(clinical_records["CovidShot2Date"]).dt.strftime('%Y-%m-%d')
+        clinical_records["CovidShot3Date"] = pd.to_datetime(clinical_records["CovidShot3Date"]).dt.strftime('%Y-%m-%d')
 
     # Insert static value columns
     clinical_records["site"] = "SCH"
