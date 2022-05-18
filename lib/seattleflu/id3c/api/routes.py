@@ -1,9 +1,12 @@
 import logging
-from flask import jsonify, Response, Blueprint
+from flask import jsonify, request, abort, Response, Blueprint
 from flask_cors import cross_origin
 from id3c.api.routes import api_v1, blueprints
+from id3c.api.exceptions import BadRequest
 from id3c.api.utils.routes import authenticated_datastore_session_required
 from . import datastore
+import os
+import re
 
 LOG = logging.getLogger(__name__)
 
@@ -178,6 +181,40 @@ def get_latest_results(session):
     """
     LOG.debug("Exporting latest results for LIMS integration")
 
+    # restrict access to LIMS IP and localhost
+    if request.remote_addr not in [os.environ['LIMS_IP'], '127.0.0.1']:
+        abort(403)
+
     latest_results = datastore.fetch_rows_from_table(session, ("shipping", "latest_results"))
 
     return Response((row[0] + '\n' for row in latest_results), mimetype="application/x-ndjson")
+
+
+@api_v1.route("/operations/deliverables-log", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_deliverables_log(session):
+    """
+    Export deliverables log
+    """
+    LOG.debug("Exporting deliverables log for LIMS integration")
+
+    # restrict access to LIMS IP and localhost
+    if request.remote_addr not in [os.environ['LIMS_IP'], '127.0.0.1']:
+        abort(403)
+
+    sent_on = request.args.get('sent')
+    process_name = request.args.get('process_name')
+
+    date_format = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    if not sent_on:
+        raise BadRequest(f"Missing required argument «sent≫.")
+    if not date_format.match(sent_on):
+        raise BadRequest(f"Argument «sent≫ improperly formatted (expected format: YYYY-MM-DD).")
+    elif not process_name:
+        raise BadRequest(f"Missing required argument «process_name≫.")
+    elif process_name not in ['return-of-results', 'wa-doh-linelists']:
+        raise BadRequest(f"Unrecognized «process_name≫ (expected: 'return-of-results' or 'wa-doh-linelists').")
+
+    deliverables_log = datastore.fetch_deliverables_log(session, sent_on, process_name)
+
+    return Response((row[0] + '\n' for row in deliverables_log), mimetype="application/x-ndjson")

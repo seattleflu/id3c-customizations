@@ -69,3 +69,51 @@ def fetch_genomic_sequences(session: DatabaseSession,
             """,(lineage, segment))
 
         yield from cursor
+
+
+@export
+@catch_permission_denied
+def fetch_deliverables_log(session: DatabaseSession,
+                        sent_on: str,
+                        process_name: str) -> Iterable[Tuple[str]]:
+    """
+    Export entries from operations.deliverables_log based on the
+    provided *sent_on* date and *process_name*, with associated sample
+    and collection barcodes populated.
+    """
+
+    with session, session.cursor() as cursor:
+        cursor.execute("""
+            select row_to_json(r)::text
+            from (select deliverables_log_id,
+                        lower(coalesce(sample_barcode, right(sample.identifier,8))) as sample_barcode,
+                        lower(coalesce(collection_barcode, right(sample.collection_identifier,8))) as collection_barcode,
+
+                        -- only return details that may be useful for QC
+                        (select jsonb_object_agg(key, value) FROM jsonb_each(deliverables_log.details)
+                            where key in (
+                                          -- wa doh linelist details
+                                          '_provenance',
+                                          'record_id',
+                                          'study_arm',
+                                          'date_tested',
+                                          'test_result',
+                                          'collection_date',
+                                          'redcap_event_name',
+
+                                          -- return of results details
+                                          'result_ts',
+                                          'swab_type',
+                                          'collect_ts',
+                                          'status_code',
+                                          'staff_observed',
+                                          'pre_analytical_specimen_collection')
+                        ) as details
+
+                    from operations.deliverables_log
+                        left join warehouse.identifier samp_identifier on samp_identifier.barcode = sample_barcode
+                        left join warehouse.sample on samp_identifier.uuid::text = sample.identifier
+                    where sent::date = %s and process_name = %s) as r
+            """,(sent_on, process_name))
+
+        yield from cursor
