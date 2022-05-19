@@ -463,15 +463,19 @@ def encounter_details(document: dict) -> dict:
     if "CovidScreen" in document:
         details["responses"]["CovidScreen"] = covid_screen(document.get("CovidScreen"))
 
-    for k in ["CovidShot1", "CovidShot2"]:
+    for k in ["CovidShot1", "CovidShot2", "CovidShot3"]:
         if k in document:
             details["responses"][k] = covid_shot(document[k])
 
     if "CovidShotManufacturer" in document:
         details["responses"]["CovidShotManufacturer"] = covid_shot_maunufacturer(document.get("CovidShotManufacturer"))
 
+    for k in ["CovidShot1Manu", "CovidShot2Manu", "CovidShot3Manu"]:
+        if k in document:
+            details["responses"][k] = covid_shot_maunufacturer(document[k])
+
     # include vaccine date fields if present and not empty
-    for k in ["FluShotDate", "CovidShot1Date", "CovidShot2Date"]:
+    for k in ["FluShotDate", "CovidShot1Date", "CovidShot2Date", "CovidShot3Date"]:
         if document.get(k):
             details["responses"][k] = [document[k]]
 
@@ -662,6 +666,9 @@ def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> lis
     >>> covid_shot_maunufacturer('Moderna')
     ['moderna']
 
+    >>> covid_shot_maunufacturer('Janssen')
+    ['janssen']
+
     >>> covid_shot_maunufacturer('SomeCompany')
     Traceback (most recent call last):
         ...
@@ -678,6 +685,7 @@ def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> lis
     valid_covid_manufacturers = [
         "pfizer",
         "moderna",
+        "janssen",
     ]
 
     if covid_shot_manufacturer_name not in valid_covid_manufacturers:
