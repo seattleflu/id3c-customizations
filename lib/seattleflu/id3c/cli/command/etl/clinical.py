@@ -666,6 +666,9 @@ def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> lis
     >>> covid_shot_maunufacturer('Moderna')
     ['moderna']
 
+    >>> covid_shot_maunufacturer('Janssen')
+    ['janssen']
+
     >>> covid_shot_maunufacturer('SomeCompany')
     Traceback (most recent call last):
         ...
@@ -682,6 +685,7 @@ def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> lis
     valid_covid_manufacturers = [
         "pfizer",
         "moderna",
+        "janssen",
     ]
 
     if covid_shot_manufacturer_name not in valid_covid_manufacturers:
