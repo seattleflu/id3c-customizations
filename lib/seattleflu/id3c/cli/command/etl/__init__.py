@@ -146,7 +146,7 @@ def ethnicity(ethnicity: str) -> Optional[bool]:
 
     >>> ethnicity("NOT HISPANIC OR LATINO")
     False
-    
+
     >>> ethnicity("NULL") == None
     True
 
@@ -163,7 +163,7 @@ def ethnicity(ethnicity: str) -> Optional[bool]:
     else:
         ethnicity = standardize_whitespace(ethnicity.lower())
 
-    # Leaving this code here to be implemented later. My original approach was to use FHIR 
+    # Leaving this code here to be implemented later. My original approach was to use FHIR
     # coding for ethnicity, which would be preffered, but for consistency with other ETLs
     # I switched to ingesting ethnicity as a boolean. To transition to FHIR codes across all projects will
     # require updating multiple ETLs, shipping views, and re-ingesting data. A card has been added
