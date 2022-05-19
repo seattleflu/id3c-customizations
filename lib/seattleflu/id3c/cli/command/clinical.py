@@ -173,9 +173,9 @@ def drop_missing_rows(df: pd.DataFrame, column: str) -> pd.DataFrame:
     help="The filename for the output of missing barcodes")
 @click.option("--manifest-format",
     metavar="<manifest format>",
-    default="year3",
-    type=click.Choice(['year1','year2','year3']),
-    help="The format of input manifest file; default is \"year3\"")
+    default="year4",
+    type=click.Choice(['year1','year2','year3','year4']),
+    help="The format of input manifest file; default is \"year4\"")
 
 def parse_sch(sch_filename, manifest_format, output):
     """
@@ -212,7 +212,7 @@ def parse_sch(sch_filename, manifest_format, output):
     # Accounting for differences in format for year 3
     if manifest_format in ['year1', 'year2']:
         column_map["vaccine_given"] = "FluShot"
-    elif manifest_format == 'year3':
+    elif manifest_format in ['year3', 'year4']:
         column_map.update({
             "flu_vx_12mo": "FluShot",
             "flu_date": "FluShotDate",
@@ -221,26 +221,20 @@ def parse_sch(sch_filename, manifest_format, output):
             "cov_d1_date": "CovidShot1Date",
             "covid_vx_d2": "CovidShot2",
             "cov_d2_date": "CovidShot2Date",
-            "covid_vx_manu": "CovidShotManufacturer",
         })
-    elif manifest_format == 'year4':
-        column_map.update({
-            "flu_vx_12mo": "FluShot",
-            "flu_date": "FluShotDate",
-            "covid_screen": "CovidScreen",
-            "covid_vx_d1": "CovidShot1",
-            "cov_d1_date": "CovidShot1Date",
-            "covid_vx_manu1": "CovidShot1Manu",
-            "covid_vx_d2": "CovidShot2",
-            "cov_d2_date": "CovidShot2Date",
-            "covid_vx_manu2": "CovidShot2Manu",
-            "covid_vx_d3": "CovidShot3",
-            "cov_d3_date": "CovidShot3Date",
-            "covid_vx_manu3": "CovidShot3Manu",
-        })
+        if manifest_format == 'year3':
+            column_map["covid_vx_manu"] = "CovidShotManufacturer"
+        elif manifest_format == 'year4':
+            column_map.update({
+                "covid_vx_manu1": "CovidShot1Manu",
+                "covid_vx_manu2": "CovidShot2Manu",
+                "covid_vx_manu3": "CovidShot3Manu",
+                "covid_vx_d3": "CovidShot3",
+                "cov_d3_date": "CovidShot3Date",
+            })
     else:
         # Don't fall through silently
-        LOG.warning(f"Invalid manufest_format {manifest_format}")
+        LOG.warning(f"Invalid manifest_format {manifest_format}")
 
     clinical_records = clinical_records.rename(columns=column_map)
 
@@ -285,16 +279,11 @@ def parse_sch(sch_filename, manifest_format, output):
     clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
 
     # Reformat vaccination dates
-    if manifest_format == 'year3':
+    if manifest_format in ['year3', 'year4']:
         clinical_records["FluShotDate"] = pd.to_datetime(clinical_records["FluShotDate"]).dt.strftime('%Y-%m-%d')
         clinical_records["CovidShot1Date"] = pd.to_datetime(clinical_records["CovidShot1Date"]).dt.strftime('%Y-%m-%d')
         clinical_records["CovidShot2Date"] = pd.to_datetime(clinical_records["CovidShot2Date"]).dt.strftime('%Y-%m-%d')
-
-    # Reformat vaccination dates
     if manifest_format == 'year4':
-        clinical_records["FluShotDate"] = pd.to_datetime(clinical_records["FluShotDate"]).dt.strftime('%Y-%m-%d')
-        clinical_records["CovidShot1Date"] = pd.to_datetime(clinical_records["CovidShot1Date"]).dt.strftime('%Y-%m-%d')
-        clinical_records["CovidShot2Date"] = pd.to_datetime(clinical_records["CovidShot2Date"]).dt.strftime('%Y-%m-%d')
         clinical_records["CovidShot3Date"] = pd.to_datetime(clinical_records["CovidShot3Date"]).dt.strftime('%Y-%m-%d')
 
     # Insert static value columns

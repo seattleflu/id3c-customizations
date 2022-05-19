@@ -471,8 +471,8 @@ def encounter_details(document: dict) -> dict:
         details["responses"]["CovidShotManufacturer"] = covid_shot_maunufacturer(document.get("CovidShotManufacturer"))
 
     for k in ["CovidShot1Manu", "CovidShot2Manu", "CovidShot3Manu"]:
-        if document.get(k):
-            details["responses"][k] = [document[k]]
+        if k in document:
+            details["responses"][k] = covid_shot_maunufacturer(document[k])
 
     # include vaccine date fields if present and not empty
     for k in ["FluShotDate", "CovidShot1Date", "CovidShot2Date", "CovidShot3Date"]:
