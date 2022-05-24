@@ -42,6 +42,7 @@ drop view if exists shipping.genome_submission_metadata_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
+drop view if exists shipping.scan_encounters_with_best_available_vaccination_data_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
 
 drop view if exists shipping.observation_with_presence_absence_result_v3;
@@ -1011,6 +1012,74 @@ revoke all
 grant select
    on shipping.fhir_encounter_details_v2
    to "incidence-modeler";
+
+
+create or replace view shipping.phskc_encounter_details_v1 as
+
+    with
+        phskc_encounters as (
+            select encounter_id,
+                age,
+                sex
+            from warehouse.encounter
+              left join warehouse.individual using (individual_id)
+            where site_id = 569
+            group by encounter_id, sex
+        ),
+
+        encounter_metadata as (
+            select encounter_id,
+                max (code_response[1]) filter ( where link_id = 'race' ) as race,
+                max (string_response[1]) filter ( where link_id = 'survey_testing_because_exposed' ) as survey_testing_because_exposed,
+                max (string_response[1]) filter ( where link_id = 'if_symptoms_how_long' ) as if_symptoms_how_long,
+                max (string_response[1]) filter ( where link_id = 'vaccine_status' ) as vaccine_status,
+                bool_or (boolean_response) filter ( where link_id = 'ethnicity' ) as hispanic_or_latino,
+                bool_or (boolean_response) filter ( where link_id = 'inferred_symptomatic' ) as inferred_symptomatic,
+                bool_or (boolean_response) filter ( where link_id = 'survey_have_symptoms_now' ) as survey_have_symptoms_now
+            from shipping.fhir_questionnaire_responses_v1
+            group by encounter_id
+        ),
+
+        location_info as (
+            select encounter_id,
+                hierarchy as loc_data
+            from warehouse.encounter
+              left join warehouse.encounter_location using (encounter_id)
+              left join warehouse.location using (location_id)
+        ),
+
+        pa_result as (
+            select encounter_id,
+                present as present
+            from warehouse.encounter
+              left join warehouse.sample using (encounter_id)
+              left join warehouse.presence_absence as pa using (sample_id)
+            where target_id = 952
+            group by encounter_id, present
+        )
+
+    select
+        encounter_id,
+        age_in_years(age) as age,
+        sex,
+        race,
+        hispanic_or_latino,
+        inferred_symptomatic,
+        survey_testing_because_exposed,
+        survey_have_symptoms_now,
+        if_symptoms_how_long,
+        vaccine_status,
+        loc_data -> 'puma' as puma_code,
+        loc_data -> 'tract' as census_tract,
+        present as virology_result_hcov19_present
+      from phskc_encounters
+        left join encounter_metadata using (encounter_id)
+        left join location_info using (encounter_id)
+        left join pa_result using (encounter_id)
+      order by encounter_id;
+
+comment on view shipping.phskc_encounter_details_v1 is
+  'Shipping view for encounter details of PHSKC Retrospective samples';
 
 
 /******************** VIEWS FOR IDM MODELERS ********************/
