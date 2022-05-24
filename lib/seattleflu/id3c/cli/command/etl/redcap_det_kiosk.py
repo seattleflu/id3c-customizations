@@ -1,4 +1,6 @@
 """
+Deprecated, data collection ended
+
 Process REDCap DETs that are specific to the Kiosk Enrollment Project.
 """
 import logging

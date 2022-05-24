@@ -1,4 +1,6 @@
 """
+Deprecated, data collection ended
+
 Process REDCap DETs that are specific to the
 Seattle Flu Study - Swab and Send - Asymptomatic Enrollments
 """
