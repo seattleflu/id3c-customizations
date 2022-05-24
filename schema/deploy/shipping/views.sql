@@ -2340,7 +2340,7 @@ create or replace view shipping.scan_encounters_with_best_available_vaccination_
         and vac_date::date <= encountered::date
       group by individual, vac_date, vac_name_1
       having count(*) > 1
-      order by individual, count(*) desc
+      order by individual, count(*) desc, min(encountered)
     ),
     vac_1_next_best_date as (
       select distinct on (individual)
@@ -2365,7 +2365,7 @@ create or replace view shipping.scan_encounters_with_best_available_vaccination_
         and vac_date_2::date <= encountered::date
       group by individual, vac_date_2, vac_name_2
       having count(*) > 1
-      order by individual, count(*) desc
+      order by individual, count(*) desc, min(encountered)
     ),
     vac_2_next_best_date as (
       select distinct on (individual)
@@ -2390,7 +2390,7 @@ create or replace view shipping.scan_encounters_with_best_available_vaccination_
         and vac_date_3::date <= encountered::date
       group by individual, vac_date_3, vac_name_3
       having count(*) > 1
-      order by individual, count(*) desc
+      order by individual, count(*) desc, min(encountered)
     ),
     vac_3_next_best_date as (
       select distinct on (individual)
