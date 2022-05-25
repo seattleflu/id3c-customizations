@@ -448,3 +448,6 @@ shipping/views [shipping/views@2022-05-10] 2022-05-17T19:43:47Z Dave Reinhart <d
 
 shipping/views [shipping/views@2022-05-17] 2022-05-23T18:44:46Z Ben Capodanno <capodb@uw.edu> # Add shipping view for PHSKC data
 @2022-05-23 2022-05-24T21:24:12Z Ben Capodanno <capodb@uw.edu> # Schema as of 23 May 2022
+
+shipping/views [shipping/views@2022-05-23] 2022-05-25T21:37:08Z Dave Reinhart <davidrr@uw.edu> # Refactor uw_reopening_ehs_reporting_v1 shipping view.
+@2022-05-25 2022-05-25T22:00:09Z Dave Reinhart <davidrr@uw.edu> # Schema as of 25 May 2022.

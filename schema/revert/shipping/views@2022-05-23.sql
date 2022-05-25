@@ -22,8 +22,6 @@ drop view if exists shipping.scan_hcov19_result_counts_v2;
 drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
-drop view if exists shipping.phskc_encounter_details_v1;
-
 drop view if exists shipping.uw_priority_queue_v1;
 drop view if exists shipping.__uw_priority_queue_v1;
 drop materialized view if exists shipping.__uw_encounters;
@@ -61,6 +59,7 @@ drop view if exists shipping.linelist_data_for_wa_doh_v1;
 drop view if exists shipping.hcov19_observation_v1;
 drop view if exists shipping.hcov19_presence_absence_result_v1;
 
+drop view if exists shipping.phskc_encounter_details_v1;
 drop view if exists shipping.fhir_encounter_details_v2;
 drop view if exists shipping.fhir_encounter_details_v1;
 drop materialized view if exists shipping.fhir_questionnaire_responses_v1;
@@ -1014,74 +1013,6 @@ revoke all
 grant select
    on shipping.fhir_encounter_details_v2
    to "incidence-modeler";
-
-
-create or replace view shipping.phskc_encounter_details_v1 as
-
-    with
-        phskc_encounters as (
-            select encounter_id,
-                age,
-                sex
-            from warehouse.encounter
-              left join warehouse.individual using (individual_id)
-            where site_id = 569
-            group by encounter_id, sex
-        ),
-
-        encounter_metadata as (
-            select encounter_id,
-                max (code_response[1]) filter ( where link_id = 'race' ) as race,
-                max (string_response[1]) filter ( where link_id = 'survey_testing_because_exposed' ) as survey_testing_because_exposed,
-                max (string_response[1]) filter ( where link_id = 'if_symptoms_how_long' ) as if_symptoms_how_long,
-                max (string_response[1]) filter ( where link_id = 'vaccine_status' ) as vaccine_status,
-                bool_or (boolean_response) filter ( where link_id = 'ethnicity' ) as hispanic_or_latino,
-                bool_or (boolean_response) filter ( where link_id = 'inferred_symptomatic' ) as inferred_symptomatic,
-                bool_or (boolean_response) filter ( where link_id = 'survey_have_symptoms_now' ) as survey_have_symptoms_now
-            from shipping.fhir_questionnaire_responses_v1
-            group by encounter_id
-        ),
-
-        location_info as (
-            select encounter_id,
-                hierarchy as loc_data
-            from warehouse.encounter
-              left join warehouse.encounter_location using (encounter_id)
-              left join warehouse.location using (location_id)
-        ),
-
-        pa_result as (
-            select encounter_id,
-                present as present
-            from warehouse.encounter
-              left join warehouse.sample using (encounter_id)
-              left join warehouse.presence_absence as pa using (sample_id)
-            where target_id = 952
-            group by encounter_id, present
-        )
-
-    select
-        encounter_id,
-        age_in_years(age) as age,
-        sex,
-        race,
-        hispanic_or_latino,
-        inferred_symptomatic,
-        survey_testing_because_exposed,
-        survey_have_symptoms_now,
-        if_symptoms_how_long,
-        vaccine_status,
-        loc_data -> 'puma' as puma_code,
-        loc_data -> 'tract' as census_tract,
-        present as virology_result_hcov19_present
-      from phskc_encounters
-        left join encounter_metadata using (encounter_id)
-        left join location_info using (encounter_id)
-        left join pa_result using (encounter_id)
-      order by encounter_id;
-
-comment on view shipping.phskc_encounter_details_v1 is
-  'Shipping view for encounter details of PHSKC Retrospective samples';
 
 
 /******************** VIEWS FOR IDM MODELERS ********************/
@@ -2411,7 +2342,7 @@ create or replace view shipping.scan_encounters_with_best_available_vaccination_
         and vac_date::date <= encountered::date
       group by individual, vac_date, vac_name_1
       having count(*) > 1
-      order by individual, count(*) desc, min(encountered)
+      order by individual, count(*) desc
     ),
     vac_1_next_best_date as (
       select distinct on (individual)
@@ -2436,7 +2367,7 @@ create or replace view shipping.scan_encounters_with_best_available_vaccination_
         and vac_date_2::date <= encountered::date
       group by individual, vac_date_2, vac_name_2
       having count(*) > 1
-      order by individual, count(*) desc, min(encountered)
+      order by individual, count(*) desc
     ),
     vac_2_next_best_date as (
       select distinct on (individual)
@@ -2461,7 +2392,7 @@ create or replace view shipping.scan_encounters_with_best_available_vaccination_
         and vac_date_3::date <= encountered::date
       group by individual, vac_date_3, vac_name_3
       having count(*) > 1
-      order by individual, count(*) desc, min(encountered)
+      order by individual, count(*) desc
     ),
     vac_3_next_best_date as (
       select distinct on (individual)
@@ -3699,57 +3630,44 @@ grant select
 
 create or replace view shipping.uw_reopening_ehs_reporting_v1 as
 (
-  with encounters as
-  (
   select ids.barcode
-  , age as age_at_encounter
-  , sex
-  , pronouns as preferred_pronouns
-  , text_or_email as preferred_contact_method_for_study
-  , text_or_email_attestation as preferred_contact_method_for_attestations
-  , enrollment_date_time as study_enrollment_date_time
-  , campus_location
-  , affiliation
-  , athlete as is_student_athlete
-  , student_level
-  , sea_employee_type as employee_category
-  , inperson_classes as is_taking_inperson_classes
-  , uw_job as works_at_uw
-  , on_campus_freq as on_campus_frequency_code
-  , case
-      when on_campus_freq = 'one_or_less' then 'One day a week or less'
-      when on_campus_freq = 'two_or_more' then 'Two days a week or more'
-      when on_campus_freq = 'not_on_campus' then 'Do not come to campus'
-      else 'Unknown'
-  end as on_campus_frequency_description
-  , wfh_base as able_to_work_or_study_from_home_code
-  , case
-      when wfh_base = 'onsite' then 'No, I always have to be on-site for work or school'
-      when wfh_base = 'only_wfh' then 'Yes, I have only worked or studied from home'
-      when wfh_base = 'wfh_onsite' then 'I have worked or studied both from home AND on-site'
-      when wfh_base = 'dont_say' then 'Prefer not to say'
-      else 'Unknown'
-  end as able_to_work_or_study_from_home_description
-  , core_housing_type as housing_type
-  , core_house_members as number_house_members
-  , live_other_uw as lives_with_uw_students_or_employees
-  , uw_apt_yesno as lives_in_uw_apartment
-  , alerts_off
-  from shipping.uw_reopening_encounters_v1
-  join warehouse.identifier ids on ids.uuid::text = collection_identifier
-  )
-  , results as
-  (
-  select qrcode as barcode
-  , collect_ts as sample_collection_date
-  , status_code as test_result
-  , result_ts as test_result_date
-  from shipping.return_results_v3
-  where qrcode in (select barcode from encounters)
-  and status_code in ( values ('positive'), ('negative'), ('inconclusive'), ('never-tested'))
-  )
-  select * from results
-  join encounters using (barcode)
+  , results.collect_ts as sample_collection_date
+  , results.status_code as test_result
+  , results.result_ts as test_result_date
+  , encounters.age as age_at_encounter
+  , encounters.sex
+  , encounters.pronouns as preferred_pronouns
+  , encounters.text_or_email as preferred_contact_method_for_study
+  , encounters.text_or_email_attestation as preferred_contact_method_for_attestations
+  , encounters.enrollment_date_time as study_enrollment_date_time
+  , encounters.campus_location
+  , encounters.affiliation
+  , encounters.athlete as is_student_athlete
+  , encounters.student_level
+  , encounters.sea_employee_type as employee_category
+  , encounters.inperson_classes as is_taking_inperson_classes
+  , encounters.uw_job as works_at_uw
+  , encounters.on_campus_freq as on_campus_frequency_code
+  , case when encounters.on_campus_freq = 'one_or_less' then 'One day a week or less'
+    when encounters.on_campus_freq = 'two_or_more' then
+    'Two days a week or more' when encounters.on_campus_freq = 'not_on_campus' then
+    'Do not come to campus' else 'Unknown' end as on_campus_frequency_description
+  , encounters.wfh_base as able_to_work_or_study_from_home_code
+  , case when encounters.wfh_base = 'onsite' then 'No, I always have to be on-site for work or school'
+    when encounters.wfh_base = 'only_wfh' then 'Yes, I have only worked or studied from home'
+    when encounters.wfh_base = 'wfh_onsite' then 'I have worked or studied both from home AND on-site'
+    when encounters.wfh_base = 'dont_say' then 'Prefer not to say' else
+    'Unknown' end as able_to_work_or_study_from_home_description
+  , encounters.core_housing_type as housing_type
+  , encounters.core_house_members as number_house_members
+  , encounters.live_other_uw as lives_with_uw_students_or_employees
+  , encounters.uw_apt_yesno as lives_in_uw_apartment
+  , encounters.alerts_off
+
+  from shipping.uw_reopening_encounters_v1 encounters
+  join warehouse.identifier ids on cast(ids.uuid as text) = encounters.collection_identifier
+  join shipping.return_results_v3 results on results.qrcode = ids.barcode
+  where results.status_code in (values ('positive'), ('negative'), ('inconclusive'), ('never-tested'))
 )
 ;
 
