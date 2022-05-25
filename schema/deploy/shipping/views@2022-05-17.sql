@@ -42,7 +42,6 @@ drop view if exists shipping.genome_submission_metadata_v1;
 drop view if exists shipping.flu_assembly_jobs_v1;
 
 drop view if exists shipping.scan_follow_up_encounters_v1;
-drop view if exists shipping.scan_encounters_with_best_available_vaccination_data_v1;
 drop materialized view if exists shipping.scan_encounters_v1;
 
 drop view if exists shipping.observation_with_presence_absence_result_v3;
@@ -59,7 +58,6 @@ drop view if exists shipping.linelist_data_for_wa_doh_v1;
 drop view if exists shipping.hcov19_observation_v1;
 drop view if exists shipping.hcov19_presence_absence_result_v1;
 
-drop view if exists shipping.phskc_encounter_details_v1;
 drop view if exists shipping.fhir_encounter_details_v2;
 drop view if exists shipping.fhir_encounter_details_v1;
 drop materialized view if exists shipping.fhir_questionnaire_responses_v1;
