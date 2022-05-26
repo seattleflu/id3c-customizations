@@ -1,4 +1,6 @@
 """
+Deprecated, data collection ended
+
 Process DETs for the Childcare REDCap projects.
 Out of concern for privacy (PII), for this project we decided not
 to store the participant's age on encounters. The `age` column
