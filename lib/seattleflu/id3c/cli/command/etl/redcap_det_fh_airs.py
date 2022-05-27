@@ -386,11 +386,12 @@ def get_collection_date(record: REDCapRecord, collection_method: CollectionMetho
     collection_date = None
 
     if collection_method == CollectionMethod.SWAB_AND_SEND:
-        collection_date = record.get("date_on_tube") \
-            or extract_date_from_survey_timestamp(record, "husky_test_kit_registration") \
+        collection_date = record.get("kit_reg_date_v2") \
+            or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc_2") \
+            or record.get("back_end_scan_v2") \
             or record.get("kit_reg_date") \
-            or extract_date_from_survey_timestamp(record, "test_fulfillment_form") \
-            or record.get("back_end_scan_date")
+            or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc") \
+            or record.get("back_end_scan")
     else:
         raise ValueError(f"Record {record.id}: invalid collection_method {collection_method}")
 
