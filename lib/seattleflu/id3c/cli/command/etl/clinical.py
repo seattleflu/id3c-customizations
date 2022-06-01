@@ -933,10 +933,12 @@ def covid_vaccination_status(covid_vaccination_status_response: Optional[Any]) -
         covid_vaccination_status_response = covid_vaccination_status_response.lower().strip()
 
     covid_vaccination_status_map = {
-        "yes i am fully vaccinated.":                                           "fully_vaccinated",
-        "no i am not vaccinated.":                                              "not_vaccinated",
-        "no but i am partially vaccinated (e.g. 1 dose of a 2-dose series).":   "partially_vaccinated",
-        "yes i am fully vaccinated and i also have received a booster.":        "boosted",
+        "yes i am fully vaccinated.":                                                   "fully_vaccinated",
+        "no i am not vaccinated.":                                                      "not_vaccinated",
+        "no but i am partially vaccinated (e.g. 1 dose of a 2-dose series).":           "partially_vaccinated",
+        "yes i am fully vaccinated and i also have received a booster.":                "boosted",
+        "yes i am fully vaccinated and i also have received 1 booster dose.":           "boosted",
+        "yes i am fully vaccinated and i also have received 2 or more booster doses.":  "boosted_two_plus",
     }
 
     if covid_vaccination_status_response not in covid_vaccination_status_map:
