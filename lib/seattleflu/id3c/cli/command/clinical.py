@@ -577,7 +577,8 @@ def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geoc
     # drop all columns used for joining; we only need to ingest the joined barcode
     clinical_records.drop(['merge_col', 'main_cid', 'phskc_barcode', 'all_cids'], axis=1, inplace=True)
 
-    dump_ndjson(clinical_records)
+    if not clinical_records.empty:
+        dump_ndjson(clinical_records)
 
 
 def add_phskc_manifest_data(df: pd.DataFrame, manifest_filename: str) -> pd.DataFrame:
