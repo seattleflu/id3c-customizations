@@ -132,21 +132,6 @@ def create_conditions(record:dict, patient_reference: dict, encounter_reference:
 
     return condition_entries
 
-def create_patient(record: dict) -> Optional[tuple]:
-    """ Returns a FHIR Patient resource entry and reference. """
-    if not record["sex"] or not record["personid"]:
-        return None, None
-
-    gender = map_sex(record["sex"])
-
-    # This matches how clinical parse_uw creates individual identifier
-    patient_id = generate_hash(record["personid"].lower())
-
-    patient_identifier = create_identifier(f"{SFS}/individual", patient_id)
-    patient_resource = create_patient_resource([patient_identifier], gender)
-
-    return create_entry_and_reference(patient_resource, "Patient")
-
 
 def create_resident_locations(db: DatabaseSession, cache: TTLCache, record: dict) -> Optional[tuple]:
     """

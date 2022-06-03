@@ -7,6 +7,7 @@ from typing import Optional
 from id3c.db.session import DatabaseSession
 from .clinical import standardize_whitespace
 from .fhir import *
+from .redcap_map import map_sex
 
 LOG = logging.getLogger(__name__)
 
@@ -120,6 +121,30 @@ def create_encounter_status(record: dict) -> str:
         raise Exception(f"Unknown encounter status «{standardized_status}».")
 
     return mapper[standardized_status]
+
+
+def create_patient(record: dict) -> Optional[tuple]:
+
+    """ Returns a FHIR Patient resource entry and reference. """
+
+    if not record["sex"]:
+        return None, None
+
+    gender = map_sex(record["sex"])
+
+    # phskc samples
+    if record.get("individual", None):
+        patient_id = record["individual"]
+    # uw retro samples
+    elif record.get("personid", None):
+        patient_id = generate_hash(record["personid"].lower())
+    else:
+        return None, None
+
+    patient_identifier = create_identifier(f"{SFS}/individual", patient_id)
+    patient_resource = create_patient_resource([patient_identifier], gender)
+
+    return create_entry_and_reference(patient_resource, "Patient")
 
 
 class UnknownTestResult(ValueError):

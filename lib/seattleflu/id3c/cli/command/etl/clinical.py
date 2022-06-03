@@ -156,19 +156,6 @@ def etl_clinical(*, db: DatabaseSession):
             LOG.info(f"Finished processing clinical record {record.id}")
 
 
-def create_patient(record: dict) -> Optional[tuple]:
-    """ Returns a FHIR Patient resource entry and reference. """
-    if not record["sex"] or not record["individual"]:
-        return None, None
-
-    gender = map_sex(record["sex"])
-
-    patient_identifier = create_identifier(f"{SFS}/individual", record["individual"])
-    patient_resource = create_patient_resource([patient_identifier], gender)
-
-    return create_entry_and_reference(patient_resource, "Patient")
-
-
 def create_encounter_location_references(db: DatabaseSession, record: dict, resident_locations: list = None) -> Optional[list]:
     """ Returns FHIR Encounter location references """
     sample_origin = find_sample_origin_by_barcode(db, record["barcode"])
