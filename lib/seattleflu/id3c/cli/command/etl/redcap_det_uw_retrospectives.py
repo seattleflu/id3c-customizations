@@ -17,6 +17,7 @@ from id3c.cli.command.geocode import get_geocoded_address
 from seattleflu.id3c.cli.command import age_ceiling
 from . import standardize_whitespace, first_record_instance, race, ethnicity
 from .fhir import *
+from .clinical_retrospectives import *
 from .redcap_map import *
 
 LOG = logging.getLogger(__name__)
@@ -147,19 +148,6 @@ def create_patient(record: dict) -> Optional[tuple]:
     return create_entry_and_reference(patient_resource, "Patient")
 
 
-def create_specimen(record: dict, patient_reference: dict) -> tuple:
-    """ Returns a FHIR Specimen resource entry and reference. """
-    barcode = record["barcode"]
-    specimen_identifier = create_identifier(f"{SFS}/sample", barcode)
-    specimen_type = "NSECR" # Nasal swab.
-
-    specimen_resource = create_specimen_resource(
-        [specimen_identifier], patient_reference, specimen_type
-    )
-
-    return create_entry_and_reference(specimen_resource, "Specimen")
-
-
 def create_resident_locations(db: DatabaseSession, cache: TTLCache, record: dict) -> Optional[tuple]:
     """
     Returns FHIR Location resource entry and reference for resident address
@@ -282,28 +270,6 @@ def create_encounter_location_references(db: DatabaseSession, record: dict, resi
     return list(map(lambda ref: {"location": ref}, location_references))
 
 
-def find_sample_origin_by_barcode(db: DatabaseSession, barcode: str) -> Optional[str]:
-    """
-    Given an SFS *barcode* return the `sample_origin` found in sample.details
-    """
-    sample = db.fetch_row("""
-        select details ->> 'sample_origin' as sample_origin
-        from warehouse.sample
-        join warehouse.identifier on sample.identifier = identifier.uuid::text
-        where barcode = %s
-    """, (barcode,))
-
-    if not sample:
-        LOG.error(f"No sample with barcode «{barcode}» found.")
-        return None
-
-    if not sample.sample_origin:
-        LOG.warning(f"Sample with barcode «{barcode}» did not have sample_origin in details")
-        return None
-
-    return sample.sample_origin
-
-
 def create_encounter_hospitalization(redcap_record: dict) -> Optional[Dict[str, Dict]]:
     """
     Returns an Encounter.hospitalization entry created from a given *redcap_record*.
@@ -411,84 +377,6 @@ def discharge_disposition(redcap_record: dict) -> Optional[str]:
         return None
 
     return mapper[standardized_disposition]
-
-
-def create_encounter_class(redcap_record: dict) -> dict:
-    """
-    Creates an Encounter.class coding from a given *redcap_record*. If no
-    encounter class is given, defaults to the coding for `AMB`.
-
-    This attribute is required by FHIR for an Encounter resource.
-    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.class)
-    """
-    encounter_class = redcap_record.get('patient_class', '')
-
-    mapper = {
-        "outpatient" : "AMB",
-        "hospital outpatient surgery": "AMB",
-        "series pt-ot-st": "AMB", # Physical-occupational-speech therapy
-        "deceased - organ donor": "AMB",
-        "inpatient"  : "IMP",
-        "emergency"  : "EMER",
-        "op"    : "AMB",
-        "ed"    : "EMER",  # can also code as "AMB"
-        "ip"    : "IMP",
-        "lim"   : "IMP",
-        "obs"   : "IMP",
-        "obv"   : "IMP",
-        "observation" : "IMP",
-        "field" : "FLD",
-        "surgery overnight stay" : "IMP",
-        "surgery admit" : "IMP",
-    }
-
-    standardized_encounter_class = standardize_whitespace(encounter_class.lower())
-
-    if standardized_encounter_class and standardized_encounter_class not in mapper:
-        raise Exception(f"Unknown encounter class «{encounter_class}» found in "
-                        f"REDCAP_URL: {REDCAP_URL} PROJECT_ID: {PROJECT_ID} barcode: "
-                        f"{redcap_record.get('barcode', 'UNKNOWN')}.")
-
-    # Default to 'AMB' if encounter_class not defined
-    return create_coding(
-        system = "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        code = mapper.get(standardized_encounter_class, 'AMB')
-    )
-
-
-def create_encounter_status(redcap_record: dict) -> str:
-    """
-    Returns an Encounter.status code from a given *redcap_record*. Defaults to
-    'finished' if no encounter status is found, because we can assume this
-    UW Retrospective encounter was an outpatient encounter.
-
-    This attribute is required by FHIR for an Encounter resource.
-    (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.status)
-    """
-    status = redcap_record['encounter_status']
-    if not status:
-        return 'finished'
-
-    mapper = {
-        'arrived'   : 'arrived',
-        'preadmit'  : 'arrived',
-        'lwbs'      : 'cancelled',  # LWBS = left without being seen.
-        'canceled'  : 'cancelled',
-        'no show'   : 'cancelled',
-        'completed' : 'finished',
-        'discharged': 'finished',
-    }
-
-    standardized_status = standardize_whitespace(status.lower())
-
-    if standardized_status in mapper.values():
-        return standardized_status
-    elif standardized_status not in mapper:
-        raise Exception(f"Unknown encounter status «{standardized_status}» found in "
-                        f"REDCAP_URL: {REDCAP_URL} PROJECT_ID: {PROJECT_ID} barcode: "
-                        f"{redcap_record.get('barcode', 'UNKNOWN')}.")
-
-    return mapper[standardized_status]
 
 
 def create_immunization(record: dict, patient_reference: dict) -> Optional[list]:
@@ -822,24 +710,10 @@ def mapped_snomed_test_results(redcap_record: dict) -> Dict[str, bool]:
     return results
 
 
-class UnknownSampleOrigin(ValueError):
-    """
-    Raised by :function: `create_encounter_location_references` if it finds
-    a sample_origin that is not among a set of expected values
-    """
-    pass
-
 class UnknownHospitalDischargeDisposition(ValueError):
     """
     Raised by :function: `discharge_disposition` if it finds
     a discharge disposition value that is not among a set of mapped values
-    """
-    pass
-
-class UnknownTestResult(ValueError):
-    """
-    Raised by :function: `present` if it finds a test result
-    that is not among a set of mapped values
     """
     pass
 

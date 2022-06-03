@@ -11,14 +11,6 @@ from id3c.db import find_identifier
 from id3c.db.session import DatabaseSession
 from id3c.db.datatypes import Json
 from id3c.cli.command.etl.redcap_det import insert_fhir_bundle
-from .redcap_det_uw_retrospectives import (
-    create_specimen,
-    find_sample_origin_by_barcode,
-    UnknownSampleOrigin,
-    UnknownTestResult,
-    create_encounter_class,
-    create_encounter_status,
-)
 
 from id3c.cli.command.etl import (
     etl,
@@ -46,7 +38,7 @@ from id3c.cli.command.etl import (
 )
 from . import race, ethnicity, standardize_whitespace
 from .fhir import *
-from .redcap_map import map_sex
+from .clinical_retrospectives import *
 
 
 LOG = logging.getLogger(__name__)
