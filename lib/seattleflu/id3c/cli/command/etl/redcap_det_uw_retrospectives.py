@@ -12,8 +12,6 @@ from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.redcap import Record as REDCapRecord
 from id3c.cli.command.etl import redcap_det
-from id3c.cli.command.location import location_lookup
-from id3c.cli.command.geocode import get_geocoded_address
 from seattleflu.id3c.cli.command import age_ceiling
 from . import standardize_whitespace, first_record_instance, race, ethnicity
 from .fhir import *
@@ -50,7 +48,7 @@ def redcap_det_uw_retrospectives(*,
         return None
 
     specimen_entry, specimen_reference = create_specimen(redcap_record, patient_reference)
-    location_entries, location_references = create_resident_locations(db, cache, redcap_record)
+    location_entries, location_references = create_resident_locations(redcap_record, db, cache)
     encounter_entry, encounter_reference = create_encounter(db, redcap_record, patient_reference, location_references)
 
     if not encounter_entry:
@@ -131,57 +129,6 @@ def create_conditions(record:dict, patient_reference: dict, encounter_reference:
             ))
 
     return condition_entries
-
-
-def create_resident_locations(db: DatabaseSession, cache: TTLCache, record: dict) -> Optional[tuple]:
-    """
-    Returns FHIR Location resource entry and reference for resident address
-    and Location resource entry for Census tract.
-    """
-    if not record["address"]:
-        LOG.debug("No address found in REDCap record")
-        return None, None
-
-    address = {
-        "street" : record["address"],
-        "secondary": None,
-        "city": None,
-        "state": None,
-        "zipcode": None
-    }
-
-    lat, lng, canonicalized_address = get_geocoded_address(address, cache)
-
-    if not canonicalized_address:
-        LOG.debug("Geocoding of address failed")
-        return None, None
-
-    location_type_system = 'http://terminology.hl7.org/CodeSystem/v3-RoleCode'
-    location_type = create_codeable_concept(location_type_system, 'PTRES')
-    location_entries: List[dict] = []
-    location_references: List[dict] = []
-    address_partOf: Dict = None
-
-    tract = location_lookup(db, (lat,lng), 'tract')
-
-    if tract and tract.identifier:
-        tract_identifier = create_identifier(f"{SFS}/location/tract", tract.identifier)
-        tract_location = create_location_resource([location_type], [tract_identifier])
-        tract_entry, tract_reference = create_entry_and_reference(tract_location, "Location")
-        # tract_reference is not used outside of address_partOf so does not
-        # not need to be appended to the list of location_references.
-        address_partOf = tract_reference
-        location_entries.append(tract_entry)
-
-    address_hash = generate_hash(canonicalized_address)
-    address_identifier = create_identifier(f"{SFS}/location/address", address_hash)
-    addres_location = create_location_resource([location_type], [address_identifier], address_partOf)
-    address_entry, address_reference = create_entry_and_reference(addres_location, "Location")
-
-    location_entries.append(address_entry)
-    location_references.append(address_reference)
-
-    return location_entries, location_references
 
 
 def create_encounter(db: DatabaseSession,

@@ -3,8 +3,11 @@ Clinical -> FHIR ETL shared functions to process retrospective data
 into FHIR bundles
 """
 import logging
-from typing import Optional
+from typing import Optional, Dict
+from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
+from id3c.cli.command.location import location_lookup
+from id3c.cli.command.geocode import get_geocoded_address
 from .clinical import standardize_whitespace
 from .fhir import *
 from .redcap_map import map_sex
@@ -145,6 +148,77 @@ def create_patient(record: dict) -> Optional[tuple]:
     patient_resource = create_patient_resource([patient_identifier], gender)
 
     return create_entry_and_reference(patient_resource, "Patient")
+
+
+def create_resident_locations(record: dict, db: DatabaseSession = None, cache: TTLCache = None) -> Optional[tuple]:
+    """
+    Returns FHIR Location resource entry and reference for resident address
+    and Location resource entry for Census tract. Geocodes the address if
+    necessary.
+    """
+    # default to a hashed address but fall back on a non-hashed address as long
+    # as we have the ability to geocode it.
+    if 'address_hash' in record:
+        geocoding = False
+        address = record["address_hash"]
+    elif db and cache and 'address' in record:
+        geocoding = True
+        address = record['address']
+    else:
+        address = None
+
+    if not address:
+        LOG.debug("No address found in REDCap record")
+        return None, None
+
+    if geocoding:
+        address_record = {
+                "street" : address,
+                "secondary": None,
+                "city": None,
+                "state": None,
+                "zipcode": None
+        }
+
+        lat, lng, canonicalized_address = get_geocoded_address(address_record, cache)
+
+        if not canonicalized_address:
+            LOG.debug("Geocoding of address failed")
+            return None, None
+
+    location_type_system = 'http://terminology.hl7.org/CodeSystem/v3-RoleCode'
+    location_type = create_codeable_concept(location_type_system, 'PTRES')
+    location_entries: List[dict] = []
+    location_references: List[dict] = []
+    address_partOf: Dict = None
+
+    # we can assume we have the census tract in the record if we are not geocoding,
+    # otherwise we can look it up on the fly
+    if geocoding:
+        tract = location_lookup(db, (lat,lng), 'tract')
+        tract_identifier = tract.identifier if tract and tract.identifier else None
+    else:
+        tract_identifier = record["census_tract"]
+
+    if tract_identifier:
+        tract_id = create_identifier(f"{SFS}/location/tract", tract_identifier)
+        tract_location = create_location_resource([location_type], [tract_id])
+        tract_entry, tract_reference = create_entry_and_reference(tract_location, "Location")
+
+        # tract_reference is not used outside of address_partOf so does not
+        # not need to be appended to the list of location_references.
+        address_partOf = tract_reference
+        location_entries.append(tract_entry)
+
+    address_hash = generate_hash(canonicalized_address) if geocoding else record["address_hash"]
+    address_identifier = create_identifier(f"{SFS}/location/address", address_hash)
+    addres_location = create_location_resource([location_type], [address_identifier], address_partOf)
+    address_entry, address_reference = create_entry_and_reference(addres_location, "Location")
+
+    location_entries.append(address_entry)
+    location_references.append(address_reference)
+
+    return location_entries, location_references
 
 
 class UnknownTestResult(ValueError):

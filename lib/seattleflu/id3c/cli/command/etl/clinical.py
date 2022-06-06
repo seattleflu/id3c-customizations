@@ -221,42 +221,6 @@ def create_encounter(db: DatabaseSession,
     return create_entry_and_reference(encounter_resource, "Encounter")
 
 
-def create_resident_locations(record: dict) -> Optional[tuple]:
-    """
-    Returns FHIR Location resource entry and reference for resident address
-    and Location resource entry for Census tract.
-    """
-    if not record["address_hash"]:
-        LOG.debug("No address found in REDCap record")
-        return None, None
-
-    location_type_system = 'http://terminology.hl7.org/CodeSystem/v3-RoleCode'
-    location_type = create_codeable_concept(location_type_system, 'PTRES')
-    location_entries: List[dict] = []
-    location_references: List[dict] = []
-    address_partOf: Dict = None
-
-    tract_identifier = record["census_tract"]
-    if tract_identifier:
-        tract_identifier = create_identifier(f"{SFS}/location/tract", tract_identifier)
-        tract_location = create_location_resource([location_type], [tract_identifier])
-        tract_entry, tract_reference = create_entry_and_reference(tract_location, "Location")
-        # tract_reference is not used outside of address_partOf so does not
-        # not need to be appended to the list of location_references.
-        address_partOf = tract_reference
-        location_entries.append(tract_entry)
-
-    address_hash = record["address_hash"]
-    address_identifier = create_identifier(f"{SFS}/location/address", address_hash)
-    addres_location = create_location_resource([location_type], [address_identifier], address_partOf)
-    address_entry, address_reference = create_entry_and_reference(addres_location, "Location")
-
-    location_entries.append(address_entry)
-    location_references.append(address_reference)
-
-    return location_entries, location_references
-
-
 def create_clinical_result_observation_resource(record: dict) -> Optional[List[dict]]:
     """
     Determine the clinical results based on responses in *record* and
