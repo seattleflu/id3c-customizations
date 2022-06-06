@@ -156,37 +156,6 @@ def etl_clinical(*, db: DatabaseSession):
             LOG.info(f"Finished processing clinical record {record.id}")
 
 
-def create_encounter_location_references(db: DatabaseSession, record: dict, resident_locations: list = None) -> Optional[list]:
-    """ Returns FHIR Encounter location references """
-    sample_origin = find_sample_origin_by_barcode(db, record["barcode"])
-
-    if not sample_origin:
-        return None
-
-    origin_site_map = {
-        "phskc_retro":  "RetrospectivePHSKC",
-
-        # for future use
-        "sch_retro":    "RetrospectiveSCH",
-        "kp":           "KaiserPermanente",
-    }
-
-    if sample_origin not in origin_site_map:
-        raise UnknownSampleOrigin(f"Unknown sample_origin «{sample_origin}»")
-
-    encounter_site = origin_site_map[sample_origin]
-    site_identifier = create_identifier(f"{SFS}/site", encounter_site)
-    site_reference = create_reference(
-        reference_type = "Location",
-        identifier = site_identifier
-    )
-
-    location_references = resident_locations or []
-    location_references.append(site_reference)
-
-    return list(map(lambda ref: {"location": ref}, location_references))
-
-
 def create_encounter(db: DatabaseSession,
                      record: dict,
                      patient_reference: dict,
