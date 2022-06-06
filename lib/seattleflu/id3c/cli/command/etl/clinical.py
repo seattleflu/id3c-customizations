@@ -36,7 +36,7 @@ from id3c.cli.command.etl import (
     UnknownAdmitICUResponseError,
 
 )
-from . import race, ethnicity, standardize_whitespace
+from . import race, ethnicity
 from .fhir import *
 from .clinical_retrospectives import *
 
@@ -188,45 +188,6 @@ def create_encounter(db: DatabaseSession,
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
-
-
-def create_clinical_result_observation_resource(record: dict) -> Optional[List[dict]]:
-    """
-    Determine the clinical results based on responses in *record* and
-    create observation resources for each result following the FHIR format
-    (http://www.hl7.org/implement/standards/fhir/observation.html)
-    """
-    cov19_snomed_code = {
-            'system': 'http://snomed.info/sct',
-            'code': '871562009',
-            'display': 'Detection of SARS-CoV-2',
-        }
-
-    result = virology_test_result(record)
-
-    clinical_observation = observation_resource('clinical')
-    clinical_observation['id'] = 'result-1'
-    clinical_observation['code']['coding'] = [cov19_snomed_code]
-    clinical_observation['valueBoolean'] = result
-
-    return [clinical_observation] or None
-
-
-def virology_test_result(record: dict) -> Optional[bool]:
-    """
-    Given a *record* with a UW Virology test result, returns
-    boolean indicating the result of the rest
-    """
-    result = standardize_whitespace(record['result_value']).lower()
-
-    if result == 'det':
-        return True
-    elif result == 'ndet':
-        return False
-    elif result == 'incon':
-        return None
-    else:
-        raise UnknownTestResult(result)
 
 
 def determine_questionnaire_items(record: dict) -> List[dict]:

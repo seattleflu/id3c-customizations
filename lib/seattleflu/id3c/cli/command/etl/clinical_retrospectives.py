@@ -3,12 +3,13 @@ Clinical -> FHIR ETL shared functions to process retrospective data
 into FHIR bundles
 """
 import logging
+import re
 from typing import Optional, Dict, Callable
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.location import location_lookup
 from id3c.cli.command.geocode import get_geocoded_address
-from .clinical import standardize_whitespace
+from . import standardize_whitespace
 from .fhir import *
 from .redcap_map import map_sex
 
@@ -275,6 +276,174 @@ def create_questionnaire_response(record: dict,
         resource = questionnaire_response_resource,
         full_url = generate_full_url_uuid()
     )
+
+
+def create_clinical_result_observation_resource(record: dict) -> Optional[List[dict]]:
+    """
+    Determine the clinical results based on responses in *record* and
+    create observation resources for each result following the FHIR format
+    (http://www.hl7.org/implement/standards/fhir/observation.html)
+    """
+    code_map = {
+        '871562009': {
+            'system': 'http://snomed.info/sct',
+            'code': '871562009',
+            'display': 'Detection of SARS-CoV-2',
+        },
+        '181000124108': {
+            'system': 'http://snomed.info/sct',
+            'code': '181000124108',
+            'display': 'Influenza A virus present',
+        },
+        '441345003': {
+            'system': 'http://snomed.info/sct',
+            'code': '441345003',
+            'display': 'Influenza B virus present',
+        },
+        '441278007': {
+            'system': 'http://snomed.info/sct',
+            'code': '441278007',
+            'display': 'Respiratory syncytial virus untyped strain present',
+        },
+        '440925005': {
+            'system': 'http://snomed.info/sct',
+            'code': '440925005',
+            'display': 'Human rhinovirus present',
+        },
+        '440930009': {
+            'system': 'http://snomed.info/sct',
+            'code': '440930009',
+            'display': 'Human adenovirus present',
+        },
+    }
+
+    # While we ingest inconclusive results for PHSKC samples as null, we do not ingest
+    # inconclusive results for UW Retrospective samples. If other samples need their
+    # inconclusive samples ingested, they should be added to this list.
+    #
+    # TODO: Don't really love this method of deciding inconclusive ingestion. Difficult b/c decision
+    #       should be made in function given how it is passed as an argument to a future diagnostic
+    #       result builder function.
+    sites_ingesting_inconclusives = ['phskc']
+    ingest_inconclusives = True if 'site' in record and record['site'].lower() in sites_ingesting_inconclusives else False
+
+    # Create intermediary, mapped clinical results using SNOMED codes.
+    # This is useful in removing duplicate tests (e.g. multiple tests run for
+    # Influenza A)
+    results = mapped_snomed_test_results(record, ingest_inconclusives)
+
+    # Create observation resources for all results in clinical tests
+    diagnostic_results: Any = {}
+
+    for index, finding in enumerate(results):
+        new_observation = observation_resource('clinical')
+        new_observation['id'] = 'result-' + str(index + 1)
+        new_observation['code']['coding'] = [code_map[finding]]
+        new_observation['valueBoolean'] = results[finding]
+        diagnostic_results[finding] = (new_observation)
+
+    return list(diagnostic_results.values()) or None
+
+
+def mapped_snomed_test_results(record: dict, ingesting_inconclusives: bool) -> Dict[str, bool]:
+    """
+    Given a *record*, returns a dict of the mapped SNOMED clinical
+    finding code and the test result.
+    """
+    redcap_to_snomed_map = {
+        'ncvrt':         '871562009',
+        'result_value' : '871562009', # PHSKC UW Virology Test
+        'revfla':        '181000124108',
+        'fluapr':        '181000124108',
+        'revflb':        '441345003',
+        'flubpr':        '441345003',
+        'revrsv':        '441278007',
+        'revrhn':        '440925005',
+        'revadv':        '440930009',
+    }
+
+    results: Dict[str, bool] = {}
+
+    # Populate dict of tests administered during encounter by filtering out
+    # null results. Map the REDCap test variable to the snomed code. In the
+    # event of duplicate clinical findings, prioritize keeping positive results.
+    for test in redcap_to_snomed_map:
+
+        # Only try to get results for tests in the record
+        if test not in record:
+            continue
+
+        code = redcap_to_snomed_map[test]
+
+        # Skip updating results for tests already marked as positive
+        if results.get(code):
+            continue
+
+        try:
+            result = present(record, test)
+        except UnknownTestResult as e:
+            LOG.warning(e)
+            continue
+
+        # Only add inconclusive results when desired, otherwise skip
+        # them. Always skip empty tests.
+        if result == 'positive':
+            result_val = True
+        elif result == 'negative':
+            result_val = False
+        elif result =='inconclusive' and ingesting_inconclusives:
+            result_val = None
+        else:
+            continue
+
+        results[code] = result_val
+
+    return results
+
+
+def present(record: dict, test: str) -> Optional[str]:
+    """
+    Returns a test result presence absence string for a given *test* result from a
+    given *record*. Empty or invalid tests are returned as None.
+    """
+    result = record[test]
+
+    # Lowercase, remove non-alpahnumeric characters(except spaces), then standardize whitespace
+    # Removal of non-alphanumeric characters is to account for inconsistencies in the data received
+    standardized_result = standardize_whitespace(re.sub(r'[^a-z0-9 ]+','',result.lower())) if result else None
+
+    if not standardized_result:
+        return None
+
+    # Only positive or negative results should be given a boolean value in the first position of the tuple.
+    # The second position represents whether a test resulted or not, so should be true for positive, negative,
+    # and inconclusive tests but false for everything else.
+    test_result_prefix_map = {
+        'negative'                              : 'negative',
+        'none detected'                         : 'negative',
+        'not detected'                          : 'negative',
+        'ndet'                                  : 'negative',
+        'det'                                   : 'positive',
+        'positive'                              : 'positive',
+        'cancel'                                : None,
+        'disregard'                             : None,
+        'duplicate request'                     : None,
+        'incon'                                 : 'inconclusive',
+        'indeterminate'                         : 'inconclusive',
+        'pending'                               : None,
+        'test not applicable'                   : None,
+        'wrong test'                            : None,
+        'followup testing required'             : None,
+        'data entry correction'                 : None,
+        'reorder requested'                     : None,
+        'invalid'                               : None,
+    }
+
+    for prefix in test_result_prefix_map:
+        if standardized_result.startswith(prefix):
+            return test_result_prefix_map[prefix]
+
+    raise UnknownTestResult(f"Unknown test result value «{standardized_result}» for «{record['barcode']}».")
 
 
 class UnknownTestResult(ValueError):
