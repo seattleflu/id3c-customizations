@@ -3,7 +3,7 @@ Clinical -> FHIR ETL shared functions to process retrospective data
 into FHIR bundles
 """
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, Callable
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.location import location_lookup
@@ -253,6 +253,28 @@ def create_resident_locations(record: dict, db: DatabaseSession = None, cache: T
     location_references.append(address_reference)
 
     return location_entries, location_references
+
+
+def create_questionnaire_response(record: dict,
+                                  patient_reference: dict,
+                                  encounter_reference: dict,
+                                  determine_questionnaire_items: Callable[[dict], List[dict]]) -> Optional[dict]:
+    """ Returns a FHIR Questionnaire Response resource entry """
+    response_items = determine_questionnaire_items(record)
+
+    if not response_items:
+        return None
+
+    questionnaire_response_resource = create_questionnaire_response_resource(
+        patient_reference   = patient_reference,
+        encounter_reference = encounter_reference,
+        items               = response_items
+    )
+
+    return create_resource_entry(
+        resource = questionnaire_response_resource,
+        full_url = generate_full_url_uuid()
+    )
 
 
 class UnknownTestResult(ValueError):

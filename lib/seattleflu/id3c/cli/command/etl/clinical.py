@@ -229,25 +229,6 @@ def virology_test_result(record: dict) -> Optional[bool]:
         raise UnknownTestResult(result)
 
 
-def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
-    """ Returns a FHIR Questionnaire Response resource entry """
-    response_items = determine_questionnaire_items(record)
-
-    if not response_items:
-        return None
-
-    questionnaire_response_resource = create_questionnaire_response_resource(
-        patient_reference   = patient_reference,
-        encounter_reference = encounter_reference,
-        items               = response_items
-    )
-
-    return create_resource_entry(
-        resource = questionnaire_response_resource,
-        full_url = generate_full_url_uuid()
-    )
-
-
 def determine_questionnaire_items(record: dict) -> List[dict]:
     """ Returns a list of FHIR Questionnaire Response answer items """
     items: Dict[str, Any] = {}
@@ -305,7 +286,7 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
         LOG.info("Skipping clinical data pull with insufficient information to construct encounter")
         return None
 
-    questionnaire_response_entry = create_questionnaire_response(record, patient_reference, encounter_reference)
+    questionnaire_response_entry = create_questionnaire_response(record, patient_reference, encounter_reference, determine_questionnaire_items)
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 

@@ -55,7 +55,7 @@ def redcap_det_uw_retrospectives(*,
         LOG.info("Skipping clinical data pull with insufficient information to construct encounter")
         return None
 
-    questionnaire_response_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference)
+    questionnaire_response_entry = create_questionnaire_response(redcap_record, patient_reference, encounter_reference, determine_questionnaire_items)
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
@@ -416,25 +416,6 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             ))
 
     return immunization_entries
-
-
-def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
-    """ Returns a FHIR Questionnaire Response resource entry """
-    response_items = determine_questionnaire_items(record)
-
-    if not response_items:
-        return None
-
-    questionnaire_response_resource = create_questionnaire_response_resource(
-        patient_reference   = patient_reference,
-        encounter_reference = encounter_reference,
-        items               = response_items
-    )
-
-    return create_resource_entry(
-        resource = questionnaire_response_resource,
-        full_url = generate_full_url_uuid()
-    )
 
 
 def determine_questionnaire_items(record: dict) -> List[dict]:
