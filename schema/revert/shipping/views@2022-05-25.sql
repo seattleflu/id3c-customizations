@@ -22,8 +22,6 @@ drop view if exists shipping.scan_hcov19_result_counts_v2;
 drop view if exists shipping.scan_demographics_v2;
 drop view if exists shipping.scan_demographics_v1;
 
-drop view if exists shipping.phskc_encounter_details_v1;
-
 drop view if exists shipping.uw_priority_queue_v1;
 drop view if exists shipping.__uw_priority_queue_v1;
 drop materialized view if exists shipping.__uw_encounters;
@@ -3699,57 +3697,44 @@ grant select
 
 create or replace view shipping.uw_reopening_ehs_reporting_v1 as
 (
-  with encounters as
-  (
   select ids.barcode
-  , age as age_at_encounter
-  , sex
-  , pronouns as preferred_pronouns
-  , text_or_email as preferred_contact_method_for_study
-  , text_or_email_attestation as preferred_contact_method_for_attestations
-  , enrollment_date_time as study_enrollment_date_time
-  , campus_location
-  , affiliation
-  , athlete as is_student_athlete
-  , student_level
-  , sea_employee_type as employee_category
-  , inperson_classes as is_taking_inperson_classes
-  , uw_job as works_at_uw
-  , on_campus_freq as on_campus_frequency_code
-  , case
-      when on_campus_freq = 'one_or_less' then 'One day a week or less'
-      when on_campus_freq = 'two_or_more' then 'Two days a week or more'
-      when on_campus_freq = 'not_on_campus' then 'Do not come to campus'
-      else 'Unknown'
-  end as on_campus_frequency_description
-  , wfh_base as able_to_work_or_study_from_home_code
-  , case
-      when wfh_base = 'onsite' then 'No, I always have to be on-site for work or school'
-      when wfh_base = 'only_wfh' then 'Yes, I have only worked or studied from home'
-      when wfh_base = 'wfh_onsite' then 'I have worked or studied both from home AND on-site'
-      when wfh_base = 'dont_say' then 'Prefer not to say'
-      else 'Unknown'
-  end as able_to_work_or_study_from_home_description
-  , core_housing_type as housing_type
-  , core_house_members as number_house_members
-  , live_other_uw as lives_with_uw_students_or_employees
-  , uw_apt_yesno as lives_in_uw_apartment
-  , alerts_off
-  from shipping.uw_reopening_encounters_v1
-  join warehouse.identifier ids on ids.uuid::text = collection_identifier
-  )
-  , results as
-  (
-  select qrcode as barcode
-  , collect_ts as sample_collection_date
-  , status_code as test_result
-  , result_ts as test_result_date
-  from shipping.return_results_v3
-  where qrcode in (select barcode from encounters)
-  and status_code in ( values ('positive'), ('negative'), ('inconclusive'), ('never-tested'))
-  )
-  select * from results
-  join encounters using (barcode)
+  , results.collect_ts as sample_collection_date
+  , results.status_code as test_result
+  , results.result_ts as test_result_date
+  , encounters.age as age_at_encounter
+  , encounters.sex
+  , encounters.pronouns as preferred_pronouns
+  , encounters.text_or_email as preferred_contact_method_for_study
+  , encounters.text_or_email_attestation as preferred_contact_method_for_attestations
+  , encounters.enrollment_date_time as study_enrollment_date_time
+  , encounters.campus_location
+  , encounters.affiliation
+  , encounters.athlete as is_student_athlete
+  , encounters.student_level
+  , encounters.sea_employee_type as employee_category
+  , encounters.inperson_classes as is_taking_inperson_classes
+  , encounters.uw_job as works_at_uw
+  , encounters.on_campus_freq as on_campus_frequency_code
+  , case when encounters.on_campus_freq = 'one_or_less' then 'One day a week or less'
+    when encounters.on_campus_freq = 'two_or_more' then
+    'Two days a week or more' when encounters.on_campus_freq = 'not_on_campus' then
+    'Do not come to campus' else 'Unknown' end as on_campus_frequency_description
+  , encounters.wfh_base as able_to_work_or_study_from_home_code
+  , case when encounters.wfh_base = 'onsite' then 'No, I always have to be on-site for work or school'
+    when encounters.wfh_base = 'only_wfh' then 'Yes, I have only worked or studied from home'
+    when encounters.wfh_base = 'wfh_onsite' then 'I have worked or studied both from home AND on-site'
+    when encounters.wfh_base = 'dont_say' then 'Prefer not to say' else
+    'Unknown' end as able_to_work_or_study_from_home_description
+  , encounters.core_housing_type as housing_type
+  , encounters.core_house_members as number_house_members
+  , encounters.live_other_uw as lives_with_uw_students_or_employees
+  , encounters.uw_apt_yesno as lives_in_uw_apartment
+  , encounters.alerts_off
+
+  from shipping.uw_reopening_encounters_v1 encounters
+  join warehouse.identifier ids on cast(ids.uuid as text) = encounters.collection_identifier
+  join shipping.return_results_v3 results on results.qrcode = ids.barcode
+  where results.status_code in (values ('positive'), ('negative'), ('inconclusive'), ('never-tested'))
 )
 ;
 

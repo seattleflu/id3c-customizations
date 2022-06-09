@@ -1476,7 +1476,16 @@ create or replace view shipping.hcov19_presence_absence_result_v1 as
         sample_id,
         presence_absence_id,
         present,
-        pa.modified::date as result_ts,
+        -- On 6/8/2022, we started using the more accurate timestamp received from Samplify
+        -- as the result date (result_ts). Prior to this, the presence_absence.modified date
+        -- was used. Because this column is used in return of results, a date cutoff is being
+        -- applied to avoid changing records that were processed before to this date. --drr
+        case
+          when pa.details ? 'result_timestamp' and pa.details ->> 'result_timestamp' > '2022-06-09' then
+            (pa.details ->> 'result_timestamp')::date
+          else
+            pa.modified::date
+        end as result_ts,
         pa.created::date as hcov19_result_release_date,
         pa.details as details,
         target.identifier as target,
