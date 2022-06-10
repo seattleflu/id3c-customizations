@@ -43,9 +43,6 @@ LANGUAGE_CODE = {
 project.id: project.lang
     for project in PROJECTS }
 
-class CollectionMethod(Enum):
-    SWAB_AND_SEND = 'swab_and_send'
-
 class EventType(Enum):
     ENROLLMENT = 'enrollment'
     ENCOUNTER = 'encounter'
@@ -161,7 +158,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
     for redcap_record_instance in redcap_record_instances:
 
         event_type = None
-        collection_method = None
 
         if redcap_record_instance.event_name == ENROLLMENT_EVENT_NAME:
             event_type = EventType.ENROLLMENT
@@ -169,7 +165,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         elif redcap_record_instance.event_name in ENCOUNTER_EVENT_NAMES:
             if is_complete('weekly', redcap_record_instance):
                 event_type = EventType.ENCOUNTER
-                collection_method = CollectionMethod.SWAB_AND_SEND
             else:
                 LOG.debug("Skipping record id: "
                     f"{redcap_record_instance.get('subject_id')}, "
@@ -184,14 +179,13 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             continue
 
         if event_type == EventType.ENCOUNTER:
-            if not is_complete('weekly', redcap_record_instance) \
-                or not collection_method:
-                    LOG.debug("Skipping record id: "
-                        f"{redcap_record_instance.get('subject_id')}, "
-                        " encounter: "
-                        f"{redcap_record_instance.get('event_name')}, "
-                        ": insufficient information to construct encounter")
-                    continue
+            if not is_complete('weekly', redcap_record_instance):
+                LOG.debug("Skipping record id: "
+                    f"{redcap_record_instance.get('subject_id')}, "
+                    " encounter: "
+                    f"{redcap_record_instance.get('event_name')}, "
+                    ": insufficient information to construct encounter")
+                continue
 
         site_reference = create_site_reference(
             location = None,
@@ -225,11 +219,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             symptom_onset_map = symptom_onset_map,
             system_identifier = INTERNAL_SYSTEM)
 
-        collection_code = None
-        if event_type == EventType.ENROLLMENT or collection_method == CollectionMethod.SWAB_AND_SEND:
-            collection_code = CollectionCode.HOME_HEALTH
-        else:
-            LOG.error(f"Invalid collection_method {collection_method} fell through")
+        collection_code = CollectionCode.HOME_HEALTH
 
         encounter_date = airs_get_encounter_date(redcap_record_instance, event_type)
 
@@ -265,8 +255,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             db,
             patient_reference,
             initial_encounter_reference,
-            redcap_record_instance,
-            collection_method
+            redcap_record_instance
         )
 
         computed_questionnaire_entry = None
@@ -376,7 +365,7 @@ def create_encounter_id(record: REDCapRecord, is_followup_encounter: bool) -> st
         f'{redcap_repeat_instance}{encounter_identifier_suffix}'
 
 
-def get_collection_date(record: REDCapRecord, collection_method: CollectionMethod) -> Optional[str]:
+def airs_get_collection_date(record: REDCapRecord) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
@@ -385,15 +374,12 @@ def get_collection_date(record: REDCapRecord, collection_method: CollectionMetho
     # they are populated they use the browser's time zone.
     collection_date = None
 
-    if collection_method == CollectionMethod.SWAB_AND_SEND:
-        collection_date = record.get("kit_reg_date_v2") \
-            or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc_2") \
-            or record.get("back_end_scan_v2") \
-            or record.get("kit_reg_date") \
-            or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc") \
-            or record.get("back_end_scan")
-    else:
-        raise ValueError(f"Record {record.id}: invalid collection_method {collection_method}")
+    collection_date = record.get("kit_reg_date_v2") \
+        or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc_2") \
+        or record.get("back_end_scan_v2") \
+        or record.get("kit_reg_date") \
+        or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc") \
+        or record.get("back_end_scan")
 
     return collection_date
 
@@ -747,14 +733,12 @@ def airs_build_location_info(db: DatabaseSession, cache: TTLCache,
 def airs_build_specimens(db,
     patient_reference: dict,
     initial_encounter_reference: dict,
-    redcap_record_instance: REDCapRecord,
-    collection_method: CollectionMethod) -> tuple:
+    redcap_record_instance: REDCapRecord) -> tuple:
 
     specimen_entry = None
     specimen_observation_entry = None
     specimen_identifier = None
-    specimen_received = (collection_method == CollectionMethod.SWAB_AND_SEND and \
-        is_complete('post_collection_data_entry_qc', redcap_record_instance))
+    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record_instance)
 
     if specimen_received:
         # Use barcode fields in this order.
@@ -780,7 +764,7 @@ def airs_build_specimens(db,
             specimen_entry, specimen_reference = create_specimen(
                 prioritized_barcodes = prioritized_barcodes,
                 patient_reference = patient_reference,
-                collection_date = get_collection_date(redcap_record_instance, collection_method),
+                collection_date = airs_get_collection_date(redcap_record_instance),
                 sample_received_time = redcap_record_instance['samp_process_date'],
                 able_to_test = redcap_record_instance['able_to_test'],
                 system_identifier = INTERNAL_SYSTEM)
@@ -805,8 +789,7 @@ def airs_build_specimens(db,
     specimen_entry_v2 = None
     specimen_observation_entry_v2 = None
     specimen_identifier_v2 = None
-    specimen_received_v2 = (collection_method == CollectionMethod.SWAB_AND_SEND and \
-        is_complete('post_collection_data_entry_qc_2', redcap_record_instance))
+    specimen_received_v2 = is_complete('post_collection_data_entry_qc_2', redcap_record_instance)
 
     if specimen_received_v2:
         # Use barcode fields in this order.
@@ -832,7 +815,7 @@ def airs_build_specimens(db,
             specimen_entry_v2, specimen_reference_v2 = create_specimen(
                 prioritized_barcodes = prioritized_barcodes_v2,
                 patient_reference = patient_reference,
-                collection_date = get_collection_date(redcap_record_instance, collection_method),
+                collection_date = airs_get_collection_date(redcap_record_instance),
                 sample_received_time = redcap_record_instance['samp_process_date_v2'],
                 able_to_test = redcap_record_instance['able_to_test_v2'],
                 system_identifier = INTERNAL_SYSTEM)
