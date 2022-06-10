@@ -1476,16 +1476,7 @@ create or replace view shipping.hcov19_presence_absence_result_v1 as
         sample_id,
         presence_absence_id,
         present,
-        -- On 6/8/2022, we started using the more accurate timestamp received from Samplify
-        -- as the result date (result_ts). Prior to this, the presence_absence.modified date
-        -- was used. Because this column is used in return of results, a date cutoff is being
-        -- applied to avoid changing records that were processed before to this date. --drr
-        case
-          when pa.details ? 'result_timestamp' and pa.details ->> 'result_timestamp' > '2022-06-09' then
-            (pa.details ->> 'result_timestamp')::date
-          else
-            pa.modified::date
-        end as result_ts,
+        pa.modified::date as result_ts,
         pa.created::date as hcov19_result_release_date,
         pa.details as details,
         target.identifier as target,
@@ -4207,8 +4198,7 @@ create or replace view shipping.linelist_data_for_wa_doh_v1 as (
       where collected >= '2020-06-10 00:00:00 US/Pacific'
       and hcov19_presence_absence_result_v1.details @> '{"assay_type": "Clia"}'
       order by sample_id, encounter_id
-)
-;
+);
 
 comment on view shipping.linelist_data_for_wa_doh_v1 is
   'Custom view of hCoV-19 results for preparing linelists for Washington Department of Health';
@@ -4221,82 +4211,5 @@ grant select
   on shipping.linelist_data_for_wa_doh_v1
   to "return-results-exporter";
 
-
-
-create or replace view shipping.linelist_data_for_wa_doh_v2 as (
-    select distinct on (sample_id)
-          -- The naming scheme of these columns is an artefact of how we
-          -- originally submitted data to WaDoH from REDCap reports. Now they
-          -- expect columns structured and named in a specific way, and we
-          -- cannot modify those with our current linelist format. We can notify
-          -- WaDoH of our intent to change our submitted data format (e.g.
-          -- custom format or ELFF), but they'll need sufficient advanced
-          -- notice. At that point, we can update this view with different
-          -- column names.
-          --
-          -- kfay, 5 January 2021
-          sample_id,
-          sampleid.barcode as sample_barcode,
-          collectionid.barcode as collection_barcode,
-          sample.details ->> 'clia_barcode' as scan_id,
-          case
-              when present = 't' then 'positive'
-              when present = 'f' then 'negative'
-              else 'inconclusive'
-          end as test_result,
-          -- On 2022-06-21, we began using the more accurate result timestamp from Samplify for `date_tested` on DOH linelists.
-          -- To prevent changing values on previously processed records, results prior to this change will continue using
-          -- `hcov19_result_release_date`.
-          case
-              when hcov19_result_release_date < '2022-06-21' then hcov19_result_release_date
-              else result_ts
-          end as date_tested,
-          best_available_encounter_date as enrollment_date,
-          collected as collection_date,
-          best_available_site as site_name,
-          best_available_site_type as site_context,
-          sex as sex_new,
-          case
-            when hispanic_or_latino = 't' then 'yes'
-            when hispanic_or_latino = 'f' then 'no'
-          end as ethnicity,
-          case
-            when pregnant = 't' then 'yes'
-            when pregnant = 'f' then 'no'
-          end as pregnant_yesno,
-          symptom_onset as symptom_duration
-      from
-          shipping.hcov19_presence_absence_result_v1
-          join warehouse.sample using (sample_id)
-          join shipping.sample_with_best_available_encounter_data_v1 using (sample_id)
-          join warehouse.identifier sampleid on sampleid.uuid::text = sample.identifier
-          join warehouse.identifier collectionid on collectionid.uuid::text = sample.collection_identifier
-          left join warehouse.encounter using (encounter_id)
-          left join warehouse.individual using (individual_id)
-          left join shipping.fhir_encounter_details_v2 using (encounter_id)
-      -- Add a date cutoff so that we only return results from samples
-      -- collected after the SCAN IRB study launched on 2020-06-10.
-      -- `shipping.return_results_v3` uses this same filter.
-      where collected >= '2020-06-10 00:00:00 US/Pacific'
-      and hcov19_presence_absence_result_v1.details @> '{"assay_type": "Clia"}'
-      and not sample.details @> '{"note": "never-tested"}'::jsonb
-      -- Exclude AFH/Workplace results received before 2022-11-22 (when this project was added to the linelist process),
-      -- and all other results before 2021-05-13 (when linelist automation started).
-      and ((best_available_site in ('ClinicalAdultFamilyHomes','ClinicalWorkplace') and hcov19_result_release_date > '2021-11-21')
-          or (best_available_site not in ('ClinicalAdultFamilyHomes','ClinicalWorkplace') and hcov19_result_release_date > '2021-05-12'))
-      order by sample_id, encounter_id
-)
-;
-
-comment on view shipping.linelist_data_for_wa_doh_v2 is
-  'Custom view of hCoV-19 results for preparing linelists for Washington Department of Health';
-
-revoke all
-  on shipping.linelist_data_for_wa_doh_v2
-  from "return-results-exporter";
-
-grant select
-  on shipping.linelist_data_for_wa_doh_v2
-  to "return-results-exporter";
 
 commit;

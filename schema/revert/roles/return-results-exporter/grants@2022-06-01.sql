@@ -33,15 +33,11 @@ grant select
   on shipping.linelist_data_for_wa_doh_v1
   to "return-results-exporter";
 
-grant select
-  on shipping.linelist_data_for_wa_doh_v2
-  to "return-results-exporter";
-
 grant delete, insert
     on shipping.latest_results
     to "return-results-exporter";
 
-grant select, insert
+grant insert
     on operations.deliverables_log
     to "return-results-exporter";
 
