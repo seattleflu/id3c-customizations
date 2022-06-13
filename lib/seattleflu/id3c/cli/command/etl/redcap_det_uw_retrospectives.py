@@ -438,12 +438,15 @@ def create_encounter_class(redcap_record: dict) -> dict:
         "obv"   : "IMP",
         "observation" : "IMP",
         "field" : "FLD",
+        "surgery overnight stay" : "IMP",
     }
 
     standardized_encounter_class = standardize_whitespace(encounter_class.lower())
 
     if standardized_encounter_class and standardized_encounter_class not in mapper:
-        raise Exception(f"Unknown encounter class «{encounter_class}».")
+        raise Exception(f"Unknown encounter class «{encounter_class}» found in "
+                        f"REDCAP_URL: {REDCAP_URL} PROJECT_ID: {PROJECT_ID} barcode: "
+                        f"{redcap_record.get('barcode', 'UNKNOWN')}.")
 
     # Default to 'AMB' if encounter_class not defined
     return create_coding(
@@ -480,7 +483,9 @@ def create_encounter_status(redcap_record: dict) -> str:
     if standardized_status in mapper.values():
         return standardized_status
     elif standardized_status not in mapper:
-        raise Exception(f"Unknown encounter status «{standardized_status}».")
+        raise Exception(f"Unknown encounter status «{standardized_status}» found in "
+                        f"REDCAP_URL: {REDCAP_URL} PROJECT_ID: {PROJECT_ID} barcode: "
+                        f"{redcap_record.get('barcode', 'UNKNOWN')}.")
 
     return mapper[standardized_status]
 
