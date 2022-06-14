@@ -276,4 +276,5 @@ from . import (
     redcap_det_uw_retrospectives,
     redcap_det_scan,
     redcap_det_uw_reopening,
+    redcap_det_fh_airs,
 )
