@@ -533,6 +533,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "218",
             "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
         },
+        "covid-19 pfizer mrna tris-sucrose 5-11 yrs old": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "218",
+            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
+        },
         "covid-19 pfizer mrna tris-sucrose gray cap": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "208",
