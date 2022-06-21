@@ -454,3 +454,7 @@ shipping/views [shipping/views@2022-05-23] 2022-05-25T21:37:08Z Dave Reinhart <d
 
 shipping/views [shipping/views@2022-05-25] 2022-06-01T19:26:57Z Dave Reinhart <davidrr@uw.edu> # Incorporate result timestamp into shipping.hcov19_presence_absence_result_v1
 @2022-06-01 2022-06-01T20:00:18Z Dave Reinhart <davidrr@uw.edu> # Schema as of 01 June 2022.
+
+shipping/views [shipping/views@2022-06-01] 2022-06-10T21:57:47Z Dave Reinhart <davidrr@uw.edu> # Add V2 shipping view for DOH linelists.
+roles/return-results-exporter/grants [roles/return-results-exporter/grants@2022-06-01] 2022-06-14T21:46:42Z Dave Reinhart <davidrr@uw.edu> # Update return-results-exporter/grants to include v2 of linelist shipping view
+@2022-06-10 2022-06-10T22:03:41Z Dave Reinhart <davidrr@uw.edu> # Schema as of 10 June 2022
