@@ -275,9 +275,11 @@ def parse_sch(sch_filename, manifest_format, output):
     clinical_records = clinical_records[columns_to_keep]
 
     # Convert dtypes
-    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
+    # Incoming `encountered` value is typically just date but is cast to datetime with timezone in postgres. Timezone is
+    # being specified here to ensure values are set to midnight local time instead of UTC.
+    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"]).dt.tz_localize('America/Los_Angeles')
 
-    # Reformat vaccination dates
+    # Reformat vaccination dates. Values are immediately stripped of time component, so don't need timezone specified.
     if manifest_format in ['year3', 'year4']:
         clinical_records["FluShotDate"] = pd.to_datetime(clinical_records["FluShotDate"]).dt.strftime('%Y-%m-%d')
         clinical_records["CovidShot1Date"] = pd.to_datetime(clinical_records["CovidShot1Date"]).dt.strftime('%Y-%m-%d')
@@ -387,7 +389,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
     clinical_records = clinical_records[column_map.values()]
 
     # Convert dtypes
-    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
+    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"]).dt.tz_localize('America/Los_Angeles')
 
     # Insert static value columns
     clinical_records["site"] = "KP"
@@ -491,8 +493,9 @@ def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geoc
     # localize encounter timestamps to pacific time
     clinical_records['encountered'] = clinical_records['collect_ts'].dt.tz_localize('America/Los_Angeles')
 
-    # calculate age based on sample collection date and birth day
-    clinical_records['birth_date'] = pd.to_datetime(clinical_records['birth_date'])
+    # calculate age based on sample collection date and birth day. Localize birth date datetime value to ensure accurate
+    # delta with local collection datetime.
+    clinical_records['birth_date'] = pd.to_datetime(clinical_records['birth_date']).dt.tz_localize('America/Los_Angeles')
     clinical_records['age'] = clinical_records.apply(
         lambda row: age_ceiling(
                 relativedelta(
