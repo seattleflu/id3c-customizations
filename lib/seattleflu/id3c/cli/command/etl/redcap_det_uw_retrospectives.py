@@ -439,6 +439,7 @@ def create_encounter_class(redcap_record: dict) -> dict:
         "observation" : "IMP",
         "field" : "FLD",
         "surgery overnight stay" : "IMP",
+        "surgery admit" : "IMP",
     }
 
     standardized_encounter_class = standardize_whitespace(encounter_class.lower())
