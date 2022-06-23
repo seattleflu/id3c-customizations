@@ -499,7 +499,7 @@ def parse_phskc(phskc_filename: str, phskc_specimen_manifest_filename: str, geoc
     clinical_records['age'] = clinical_records.apply(
         lambda row: age_ceiling(
                 relativedelta(
-                    row['collect_ts'],
+                    row['encountered'],
                     row['birth_date']
                 ).years
             ), axis=1
