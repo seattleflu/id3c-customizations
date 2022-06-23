@@ -514,6 +514,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
     ]
 
     vaccine_mapper = {
+        "covid-19 moderna mrna 18 yrs and older": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "207",
+            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
+        },
         "covid-19 moderna mrna lnp-s": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "207",
@@ -529,6 +534,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "208",
             "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
         },
+        "covid-19 pfizer mrna 12 yrs and older (purple cap)": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
         "covid-19 pfizer mrna tris-sucrose 5-11 years old": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "218",
@@ -540,6 +550,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
         },
         "covid-19 pfizer mrna tris-sucrose gray cap": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        "covid-19 pfizer mrna tris-sucrose 12 yrs and older (gray cap)": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "208",
             "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
