@@ -519,6 +519,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "207",
             "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
         },
+        "covid-19 moderna mrna 12 yrs and older": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "207",
+            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
+        },
         "covid-19 moderna mrna lnp-s": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "207",
