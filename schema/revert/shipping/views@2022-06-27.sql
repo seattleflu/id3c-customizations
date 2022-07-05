@@ -1023,8 +1023,7 @@ create or replace view shipping.phskc_encounter_details_v1 as
         phskc_encounters as (
             select encounter_id,
                 age,
-                sex,
-                encountered
+                sex
             from warehouse.encounter
               left join warehouse.individual using (individual_id)
             where site_id = 569
@@ -1064,7 +1063,6 @@ create or replace view shipping.phskc_encounter_details_v1 as
 
     select
         encounter_id,
-        encountered,
         age_in_years(age) as age,
         sex,
         race,
@@ -2668,7 +2666,6 @@ create or replace view shipping.genome_submission_metadata_v1 as
           when identifier_set.name in ('collections-uw-home', 'collections-uw-observed', 'collections-uw-tiny-swabs',
                                        'collections-uw-tiny-swabs-home', 'collections-uw-tiny-swabs-observed') then 'HCT'
           when identifier_set.name in ('collections-radxup-yakima-schools-home', 'collections-radxup-yakima-schools-observed') then 'Yakima Schools'
-          when identifier_set.name in ('collections-airs') then 'AIRS'
           else 'SFS'
         end as source,
         location.hierarchy -> 'puma' as puma,
@@ -2725,8 +2722,6 @@ create or replace view shipping.genome_submission_metadata_v1 as
           when identifier_set.name = 'collections-scan' and scan_study_arm != 'group_enroll_arm_4' and priority_code is null then true
           -- SCAN priority codes for shifting sampling frame to be more representative are baseline samples
           when priority_code in ('ACRS','JFS','OPENDOORS','PACISLWA','PICAWA-1','SCANCBO','SCANKIDS') then true
-          -- AIRS samples are considered baseline samples
-          when identifier_set.name = 'collections-airs' then true
           -- All other studies are longitudinal or cluster/outbreak investigations so not considered baseline
           else false
         end as baseline_surveillance
@@ -3031,14 +3026,22 @@ create or replace view shipping.return_results_v3 as
           when 'collections-uw-tiny-swabs-home' then false
           when 'collections-uw-tiny-swabs-observed' then true
           when 'collections-childcare' then false
+          when 'collections-adult-family-home-outbreak' then true
+          when 'collections-workplace-outbreak' then true
           when 'collections-apple-respiratory' then false
           when 'collections-school-testing-home' then false
           when 'collections-school-testing-observed' then true
           when 'collections-radxup-yakima-schools-home' then false
           when 'collections-radxup-yakima-schools-observed' then true
+          when 'collections-workplace-outbreak-tiny-swabs' then true
           else null
         end as staff_observed,
-        'IRB' as pre_analytical_specimen_collection
+        case when identifier_set.name in (
+          'collections-adult-family-home-outbreak',
+          'collections-workplace-outbreak',
+          'collections-workplace-outbreak-tiny-swabs'
+        ) then 'clinical' else 'IRB'
+        end as pre_analytical_specimen_collection
 
       from
         warehouse.identifier
@@ -3054,11 +3057,14 @@ create or replace view shipping.return_results_v3 as
           'collections-uw-tiny-swabs-home',
           'collections-uw-tiny-swabs-observed',
           'collections-childcare',
+          'collections-adult-family-home-outbreak',
+          'collections-workplace-outbreak',
           'collections-apple-respiratory',
           'collections-school-testing-home',
           'collections-school-testing-observed',
           'collections-radxup-yakima-schools-home',
-          'collections-radxup-yakima-schools-observed'
+          'collections-radxup-yakima-schools-observed',
+          'collections-workplace-outbreak-tiny-swabs'
         )
         -- Add a date cutoff so that we only return results from samples
         -- collected after the SCAN IRB study launched on 2020-06-10.
