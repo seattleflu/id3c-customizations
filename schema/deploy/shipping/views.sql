@@ -56,6 +56,7 @@ drop view if exists shipping.incidence_model_observation_v3;
 drop view if exists shipping.incidence_model_observation_v2;
 drop view if exists shipping.incidence_model_observation_v1;
 
+drop view if exists shipping.linelist_data_for_wa_doh_v2;
 drop view if exists shipping.linelist_data_for_wa_doh_v1;
 
 drop view if exists shipping.hcov19_observation_v1;
@@ -1022,7 +1023,8 @@ create or replace view shipping.phskc_encounter_details_v1 as
         phskc_encounters as (
             select encounter_id,
                 age,
-                sex
+                sex,
+                encountered
             from warehouse.encounter
               left join warehouse.individual using (individual_id)
             where site_id = 569
@@ -1062,6 +1064,7 @@ create or replace view shipping.phskc_encounter_details_v1 as
 
     select
         encounter_id,
+        encountered,
         age_in_years(age) as age,
         sex,
         race,

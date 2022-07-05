@@ -461,3 +461,6 @@ roles/return-results-exporter/grants [roles/return-results-exporter/grants@2022-
 
 warehouse/site/data [warehouse/site/data@2022-06-10] 2022-06-24T18:35:02Z Todd Seidelmann <seidelma@uw.edu> # Add site data for FH AIRS study
 @2022-06-24 2022-06-24T18:36:36Z Todd Seidelmann <seidelma@uw.edu> # Schema as of 6/24/2022
+
+shipping/views [shipping/views@2022-06-24] 2022-06-27T20:53:45Z Ben Capodanno <capodb@uw.edu> # Add encounter date to PHSKC shipping view.
+@2022-06-27 2022-06-27T20:56:50Z Ben Capodanno <capodb@uw.edu> # Schema as of 27 June 2022

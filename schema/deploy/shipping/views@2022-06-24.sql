@@ -56,7 +56,6 @@ drop view if exists shipping.incidence_model_observation_v3;
 drop view if exists shipping.incidence_model_observation_v2;
 drop view if exists shipping.incidence_model_observation_v1;
 
-drop view if exists shipping.linelist_data_for_wa_doh_v2;
 drop view if exists shipping.linelist_data_for_wa_doh_v1;
 
 drop view if exists shipping.hcov19_observation_v1;
