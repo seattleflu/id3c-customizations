@@ -27,7 +27,7 @@ class HuskyProject():
 
 
 REDCAP_URL  = 'https://hct.redcap.rit.uw.edu/' # REDCap server hostname
-REDCAP_PID  = 45                              # REDCap project ID
+REDCAP_PID  = 148                              # REDCap project ID
 REDCAP_LANG = 'en'                            # Survey language
 ETL_COMMAND = 'uw-reopening'                  # Run as 'id3c etl redcap-det <ETL_COMMAND>'
 
@@ -41,7 +41,6 @@ project.id: project.lang
 
 class CollectionMethod(Enum):
     SWAB_AND_SEND = 'swab_and_send'
-    KIOSK = 'kiosk'
     UW_DROPBOX = 'uw_dropbox'
 
 class EventType(Enum):
@@ -55,7 +54,7 @@ ENROLLMENT_EVENT_NAME = "enrollment_arm_1"
 ENCOUNTER_EVENT_NAME = "encounter_arm_1"
 SWAB_AND_SEND_SITE = 'UWReopeningSwabNSend'
 UW_DROPBOX_SITE = 'UWReopeningDropbox'
-STUDY_START_DATE = datetime(2021, 9, 9) # HCT Project 45 calculates instance numbers with Y2 Start Date 09-09-2021
+STUDY_START_DATE = datetime(2022, 7, 22) # HCT Project 148 calculates instance numbers with Y3 Start Date 07-22-2022
 
 REQUIRED_ENROLLMENT_INSTRUMENTS = [
     'eligibility_screening',
@@ -175,11 +174,9 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         elif redcap_record_instance.event_name == ENCOUNTER_EVENT_NAME:
             event_type = EventType.ENCOUNTER
-            if is_complete('kiosk_registration_4c7f', redcap_record_instance):
-                collection_method = CollectionMethod.KIOSK
-            elif is_complete('test_order_survey', redcap_record_instance):
+            if is_complete('test_order_survey', redcap_record_instance):
                 collection_method = CollectionMethod.SWAB_AND_SEND
-            elif is_complete('husky_test_kit_registration', redcap_record_instance):
+            elif is_complete('daily_attestation', redcap_record_instance) and redcap_record_instance["barcode_swabsend"]:
                 collection_method = CollectionMethod.UW_DROPBOX
         else:
             LOG.info(f"Skipping event: {redcap_record_instance.event_name!r} for record "
@@ -191,27 +188,14 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         # create an encounter.
         if event_type == EventType.ENCOUNTER:
             if not is_complete('daily_attestation', redcap_record_instance) \
-                and not collection_method  \
-                and not redcap_record_instance['testing_date']: # from the 'Testing Determination - Internal' instrument
+                and not collection_method:
                     LOG.debug("Skipping record instance with insufficient information to construct the initial encounter")
                     continue
 
         # site_reference refers to where the sample was collected
-        record_location = None
-        if collection_method == CollectionMethod.KIOSK:
-            record_location = redcap_record_instance.get('location_type')
-
-        location_site_map = {
-            'bothell':  'UWBothell',
-            'odegaard': 'UWOdegaardLibrary',
-            'slu':      'UWSouthLakeUnion',
-            'tacoma':   'UWTacoma',
-            'uw_club':  'UWClub'
-            }
-
         site_reference = create_site_reference(
-            location = record_location,
-            site_map = location_site_map,
+            location = None,
+            site_map = None,
             default_site = UW_DROPBOX_SITE if collection_method == CollectionMethod.UW_DROPBOX else SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
@@ -225,9 +209,7 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         if event_type == EventType.ENCOUNTER:
             symptom_onset_map = {
                 'daily_symptoms_covid_like': None,
-                'symptoms': redcap_record_instance['symptom_onset'],
-                'symptoms_kiosk': redcap_record_instance['symptom_duration_kiosk'],
-                'symptoms_swabsend': redcap_record_instance['symptom_duration_swabsend']
+                'symptoms': redcap_record_instance['symptom_onset']
             }
         elif event_type == EventType.ENROLLMENT:
             symptom_onset_map = {'symptoms_base': redcap_record_instance['symptom_onset_base']}
@@ -241,8 +223,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         collection_code = None
         if event_type == EventType.ENROLLMENT or collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
             collection_code = CollectionCode.HOME_HEALTH
-        elif collection_method == CollectionMethod.KIOSK:
-            collection_code = CollectionCode.FIELD
 
         encounter_date = get_encounter_date(redcap_record_instance, event_type)
 
@@ -276,16 +256,13 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         specimen_identifier = None
         specimen_received = (collection_method == CollectionMethod.SWAB_AND_SEND and \
             is_complete('post_collection_data_entry_qc', redcap_record_instance)) or \
-            (collection_method == CollectionMethod.KIOSK and \
-            is_complete('kiosk_registration_4c7f', redcap_record_instance)) or \
             (collection_method == CollectionMethod.UW_DROPBOX and \
-            is_complete('husky_test_kit_registration', redcap_record_instance) and \
+            is_complete('daily_attestation', redcap_record_instance) and \
             redcap_record_instance["barcode_swabsend"])
 
         if specimen_received:
             # Use barcode fields in this order.
             prioritized_barcodes = [
-                redcap_record_instance["collect_barcode_kiosk"],
                 redcap_record_instance["return_utm_barcode"],
                 redcap_record_instance["pre_scan_barcode"],
                 redcap_record_instance["barcode_swabsend"]]
@@ -333,7 +310,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
         computed_questionnaire_entry = None
         enrollment_questionnaire_entry = None
         daily_questionnaire_entry = None
-        testing_determination_internal_questionnaire_entry = None
         follow_up_encounter_entry = None
         follow_up_questionnaire_entry = None
         follow_up_computed_questionnaire_entry = None
@@ -346,10 +322,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             enrollment_questionnaire_entry = create_enrollment_questionnaire_response(
             enrollment, patient_reference, initial_encounter_reference)
         else:
-            testing_determination_internal_questionnaire_entry = \
-                create_testing_determination_internal_questionnaire_response(
-                redcap_record_instance, patient_reference, initial_encounter_reference)
-
             daily_questionnaire_entry = \
                 create_daily_questionnaire_response(
                 redcap_record_instance, patient_reference, initial_encounter_reference)
@@ -381,7 +353,6 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
             initial_encounter_entry,
             computed_questionnaire_entry,
             enrollment_questionnaire_entry,
-            testing_determination_internal_questionnaire_entry,
             daily_questionnaire_entry,
             specimen_entry,
             specimen_observation_entry,
@@ -402,8 +373,8 @@ def redcap_det_uw_reopening(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
 def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[str]:
     # First try the attestation_date
-    # from the daily attestation survey then try nasal_swab_timestamp from
-    # the kiosk registration and finally the swab-and-send order date.
+    # from the daily attestation survey then the swab-and-send order date and finally
+    # the kit registration date.
     # For all surveys, try the survey _timestamp field (which is in Pacific time)
     # before custom fields because the custom fields aren't always populated and when
     # they are populated they use the browser's time zone.
@@ -414,15 +385,9 @@ def get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[
     if event_type == EventType.ENCOUNTER:
         encounter_date = extract_date_from_survey_timestamp(record, 'daily_attestation') \
             or record.get('attestation_date') \
-            or extract_date_from_survey_timestamp(record, 'kiosk_registration_4c7f') \
-            or (record.get('nasal_swab_timestamp') and datetime.strptime(record.get('nasal_swab_timestamp'),
-                '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')) \
             or extract_date_from_survey_timestamp(record, 'test_order_survey') \
             or (record.get('time_test_order') and datetime.strptime(record.get('time_test_order'),
                 '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')) \
-            or extract_date_from_survey_timestamp(record, 'testing_determination_internal') \
-            or record.get('testing_date') \
-            or extract_date_from_survey_timestamp(record, 'husky_test_kit_registration') \
             or record.get('kit_reg_date')
 
         # We have seen cases when the `attestation_date` is not getting set
@@ -471,12 +436,9 @@ def get_collection_date(record: REDCapRecord, collection_method: CollectionMetho
     # they are populated they use the browser's time zone.
     collection_date = None
 
-    if collection_method == CollectionMethod.KIOSK:
-        collection_date = extract_date_from_survey_timestamp(record, "kiosk_registration_4c7f") or record.get("nasal_swab_q")
-
-    elif collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
+    if collection_method in [CollectionMethod.SWAB_AND_SEND, CollectionMethod.UW_DROPBOX]:
         collection_date = record.get("date_on_tube") \
-            or extract_date_from_survey_timestamp(record, "husky_test_kit_registration") \
+            or extract_date_from_survey_timestamp(record, "daily_attestation") \
             or record.get("kit_reg_date") \
             or extract_date_from_survey_timestamp(record, "test_fulfillment_form") \
             or record.get("back_end_scan_date")
@@ -492,11 +454,11 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     """
 
     # Do not include `core_age_years` because we calculate the age ourselves in the computed questionnaire.
-    integer_questions = [
-        'weight',
+    #integer_questions = [
+        #'weight',          # Deprecated as of 2021-09-09
         #'height_total',    # Deprecated as of 2021-09-09
         #'tier'             # Deprecated as of 2021-09-09
-    ]
+    #]
 
     string_questions = [
         'text_or_email',
@@ -508,7 +470,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'core_house_members',
         'core_education',
         'core_income',
-        'wfh_base',
+        #'wfh_base',                    # Deprecated as of 2022-07-22
         'core_housing_type',
         'core_health_risk',
         'core_tobacco_use',
@@ -534,8 +496,8 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'on_campus_freq',
         'vaccine_method',
         'vaccine_where',
-        'uw_housing_group',
-        'added_surveillance_groups',
+        #'uw_housing_group',            # Deprecated as of 2022-07-22
+        #'added_surveillance_groups',   # Deprecated as of 2022-07-22
     ]
 
     date_questions = [
@@ -547,8 +509,8 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     ]
 
     boolean_questions = [
-        'study_area',
-        'attend_uw',
+        #'study_area',                  # Deprecated as of 2022-07-22
+        #'attend_uw',                   # Deprecated as of 2022-07-22
         'english_speaking',
         'athlete',
         'uw_medicine_yesno',
@@ -559,14 +521,14 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
         'uw_apt_yesno',
         'core_pregnant',
         'core_latinx',
-        'mobility',
+        #'mobility',                    # Deprecated as of 2022-07-22
         'vaccine_hx',
         'hall_health',
         'prior_test_base',
         'travel_countries_phs_base',
         'travel_states_phs_base',
-        'swab_and_send_calc',
-        'kiosk_calc',
+        #'swab_and_send_calc',          # Deprecated as of 2022-07-22
+        #'kiosk_calc',                  # Deprecated as of 2022-07-22
         'covid_test_week_base',
         #'uw_housing_resident'          # Deprecated as of 2021-09-09
         #'on_campus_2x_week'            # Deprecated as of 2021-09-09
@@ -598,7 +560,7 @@ def create_enrollment_questionnaire_response(record: REDCapRecord, patient_refer
     question_categories = {
         'valueCoding': coding_questions,
         'valueBoolean': boolean_questions,
-        'valueInteger': integer_questions,
+        #'valueInteger': integer_questions,      # no integer questions currently
         'valueString': string_questions,
         'valueDate': date_questions,
         #'valueDecimal': decimal_questions      # no decimal questions currently
@@ -761,7 +723,7 @@ def create_follow_up_questionnaire_response(record: REDCapRecord, patient_refere
         encounter_reference = encounter_reference,
         system_identifier = INTERNAL_SYSTEM)
 
-
+'''
 def create_testing_determination_internal_questionnaire_response(record: REDCapRecord, patient_reference: dict,
     encounter_reference: dict) -> Optional[dict]:
     """
@@ -794,7 +756,7 @@ def create_testing_determination_internal_questionnaire_response(record: REDCapR
         patient_reference = patient_reference,
         encounter_reference = encounter_reference,
         system_identifier = INTERNAL_SYSTEM)
-
+'''
 
 def create_computed_questionnaire_response(record: REDCapRecord, patient_reference: dict,
     encounter_reference: dict, birthdate: datetime, encounter_date: datetime) -> Optional[dict]:
