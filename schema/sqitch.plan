@@ -464,3 +464,6 @@ warehouse/site/data [warehouse/site/data@2022-06-10] 2022-06-24T18:35:02Z Todd S
 
 shipping/views [shipping/views@2022-06-24] 2022-06-27T20:53:45Z Ben Capodanno <capodb@uw.edu> # Add encounter date to PHSKC shipping view.
 @2022-06-27 2022-06-27T20:56:50Z Ben Capodanno <capodb@uw.edu> # Schema as of 27 June 2022
+
+shipping/views [shipping/views@2022-06-27] 2022-07-05T22:35:02Z Dave Reinhart <davidrr@uw.edu> # Update baseline_surveillance value for AIRS study. Drop AFH/Workplace from return_results_v3 shipping view.
+@2022-07-06 2022-07-06T15:43:59Z Dave Reinhart <davidrr@uw.edu> # Schema as of 06 July 2022
