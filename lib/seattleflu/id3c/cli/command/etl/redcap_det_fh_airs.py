@@ -142,7 +142,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         return None
 
     patient_entry, patient_reference = airs_build_patient(enrollment)
-    
+
     if not patient_entry:
         LOG.warning(f"Skipping record {enrollment.get('subject_id')} with insufficient information to construct patient")
         return None
@@ -177,15 +177,6 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             f"{redcap_record_instance.get('subject_id')} because the event is not one "
             "that we process")
             continue
-
-        if event_type == EventType.ENCOUNTER:
-            if not is_complete('weekly', redcap_record_instance):
-                LOG.debug("Skipping record id: "
-                    f"{redcap_record_instance.get('subject_id')}, "
-                    " encounter: "
-                    f"{redcap_record_instance.get('event_name')}, "
-                    ": insufficient information to construct encounter")
-                continue
 
         site_reference = create_site_reference(
             location = None,
@@ -269,7 +260,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             redcap_record_instance,
             patient_reference,
             initial_encounter_reference,
-            birthdate, 
+            birthdate,
             parse_date_from_string(
                 initial_encounter_entry['resource']['period']['start'])
             )
@@ -334,7 +325,7 @@ def airs_get_encounter_date(record: REDCapRecord, event_type: EventType) -> Opti
         encounter_date = record.get('enr_date_complete') and \
             datetime.strptime(record.get('enr_date_complete'), '%Y-%m-%d').strftime('%Y-%m-%d')
     else:
-        # We should never get here, but we should also never have an 
+        # We should never get here, but we should also never have an
         #  if/elif without an else
         LOG.error(f"Invalid date: {record.event_name!r} for record "
                   f"{record.get('subject_id')} contains event_type {event_type}, "
@@ -514,7 +505,7 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
         'wk_diarrhea',
         'wk_nausea',
         'wk_stomach_pain',
-        'wk_vomiting',    
+        'wk_vomiting',
     ]
 
     boolean_questions = [
