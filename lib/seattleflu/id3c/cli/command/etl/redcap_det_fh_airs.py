@@ -251,10 +251,10 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
         computed_questionnaire_entry = None
         enrollment_questionnaire_entry = None
-        symptom_questionnaire_entry = None
-        weekly_encounter_entry = None
         weekly_questionnaire_entry = None
-        weekly_computed_questionnaire_entry = None
+        follow_up_encounter_entry = None
+        follow_up_questionnaire_entry = None
+        follow_up_computed_questionnaire_entry = None
 
         computed_questionnaire_entry = airs_create_computed_questionnaire_response(
             redcap_record_instance,
@@ -269,41 +269,45 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             enrollment_questionnaire_entry = airs_create_enrollment_questionnaire_response(
             enrollment, patient_reference, initial_encounter_reference)
         else:
-            symptom_questionnaire_entry = airs_create_symptom_questionnaire_response(
-                redcap_record_instance, patient_reference, initial_encounter_reference)
+            weekly_questionnaire_entry = airs_create_weekly_questionnaire_response(
+                    redcap_record_instance, patient_reference, initial_encounter_reference)
 
-            if is_complete('weekly', redcap_record_instance):
+            # For the AIRS study, the symptom instrument is being used as the follow-up encounter
+            # which is associated with back_end_mail_scans_2, airs_kit_activation_2, post_collection_data_entry_qc_2,
+            # and swab_results_2 instruments
+            if is_complete('symptom', redcap_record_instance):
                 # Don't set locations because the weekly survey doesn't ask for home address.
-                weekly_encounter_entry, weekly_encounter_reference = create_encounter(
+                follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
                     encounter_id = create_encounter_id(redcap_record_instance, True),
-                    encounter_date = extract_date_from_survey_timestamp(redcap_record_instance, 'weekly'),
+                    encounter_date = extract_date_from_survey_timestamp(redcap_record_instance, 'symptom'),
                     patient_reference = patient_reference,
                     site_reference = site_reference,
                     collection_code = CollectionCode.HOME_HEALTH,
                     parent_encounter_reference = initial_encounter_reference,
                     encounter_reason_code = follow_up_encounter_reason_code(),
-                    encounter_identifier_suffix = "_weekly",
+                    encounter_identifier_suffix = "_follow_up",
                     system_identifier = INTERNAL_SYSTEM,
                     record = redcap_record_instance)
 
-                weekly_questionnaire_entry = airs_create_weekly_questionnaire_response(
-                    redcap_record_instance, patient_reference, weekly_encounter_reference)
-                weekly_computed_questionnaire_entry = airs_create_computed_questionnaire_response(
-                    redcap_record_instance, patient_reference, weekly_encounter_reference,
-                    birthdate, parse_date_from_string(weekly_encounter_entry['resource']['period']['start']))
+                follow_up_questionnaire_entry = airs_create_follow_up_questionnaire_response(
+                    redcap_record_instance, patient_reference, follow_up_encounter_reference)
+                follow_up_computed_questionnaire_entry = airs_create_computed_questionnaire_response(
+                    redcap_record_instance, patient_reference, follow_up_encounter_reference,
+                    birthdate, parse_date_from_string(follow_up_encounter_entry['resource']['period']['start']))
+
 
         current_instance_entries = [
             initial_encounter_entry,
             computed_questionnaire_entry,
             enrollment_questionnaire_entry,
-            symptom_questionnaire_entry,
+            weekly_questionnaire_entry,
             specimen_entry,
             specimen_observation_entry,
             specimen_entry_v2,
             specimen_observation_entry_v2,
-            weekly_encounter_entry,
-            weekly_questionnaire_entry,
-            weekly_computed_questionnaire_entry
+            follow_up_encounter_entry,
+            follow_up_questionnaire_entry,
+            follow_up_computed_questionnaire_entry
         ]
 
         persisted_resource_entries.extend(list(filter(None, current_instance_entries)))
@@ -473,8 +477,7 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
 def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_reference: dict,
     encounter_reference: dict) -> Optional[dict]:
     """
-    Returns a FHIR Questionnaire Response resource entry for the
-    weekly follow-up encounter.
+    Returns a FHIR Questionnaire Response resource entry for the initial weekly encounter.
     """
     integer_questions = [
         'wk_congestion',
@@ -542,10 +545,10 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
         system_identifier = INTERNAL_SYSTEM)
 
 
-def airs_create_symptom_questionnaire_response(record: REDCapRecord, patient_reference: dict,
+def airs_create_follow_up_questionnaire_response(record: REDCapRecord, patient_reference: dict,
     encounter_reference: dict) -> Optional[dict]:
     """
-    Returns a FHIR Questionnaire Response resource entry for the AIRS Symptom instrument
+    Returns a FHIR Questionnaire Response resource entry for the weekly follow-up encounter
     """
 
     integer_questions = [
