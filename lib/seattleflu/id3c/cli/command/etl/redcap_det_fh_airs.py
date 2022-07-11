@@ -47,9 +47,18 @@ class EventType(Enum):
     ENROLLMENT = 'enrollment'
     ENCOUNTER = 'encounter'
 
+class EncounterType(Enum):
+    WEEKLY = 'weekly'
+    FOLLOW_UP = 'follow-up'
+
+class SwabKitInstrumentSet(Enum):
+    FIRST = 1
+    SECOND = 2
+
 REVISION = 1
 
 INTERNAL_SYSTEM = "https://seattleflu.org"
+SNOMED_CT_SYSTEM = "http://snomed.info/sct"
 ENROLLMENT_EVENT_NAME = "screening_and_enro_arm_1"
 ENCOUNTER_EVENT_NAMES = [
     "week_01_arm_1",
@@ -184,33 +193,18 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             default_site = SWAB_AND_SEND_SITE,
             system_identifier = INTERNAL_SYSTEM)
 
+        collection_code = CollectionCode.HOME_HEALTH
+
         # Handle various symptoms.
         contained: List[dict] = []
         diagnosis: List[dict] = []
 
-        # Map the various symptoms variables to their onset date.
         if event_type == EventType.ENCOUNTER:
-            symptom_onset_map = {
-                # sic--this misspelling is in the redcap form.
-                'symptoms': redcap_record_instance['ss_ealiest_date'],
-            }
-        # Irrelevant because no symptom questions are present in enrollment,
-        # but I'd like to keep the condition that event_type == ENROLLMENT
-        # separate in case that changes. It should also not be included in
-        # the same case that an invalid event_type is passed.
-        elif event_type == EventType.ENROLLMENT:
-            symptom_onset_map = {}
-        # Should never get here due to the event_type check at the top of the loop
-        else:
-            LOG.error(f"Invalid event_type {event_type} fell through")
-
-        contained, diagnosis = build_contained_and_diagnosis(
-            patient_reference = patient_reference,
-            record = redcap_record_instance,
-            symptom_onset_map = symptom_onset_map,
-            system_identifier = INTERNAL_SYSTEM)
-
-        collection_code = CollectionCode.HOME_HEALTH
+            contained, diagnosis = build_contained_and_diagnosis(
+                patient_reference = patient_reference,
+                record = redcap_record_instance,
+                encounter_type = EncounterType.WEEKLY,
+                system_identifier = SNOMED_CT_SYSTEM)
 
         encounter_date = airs_get_encounter_date(redcap_record_instance, event_type)
 
@@ -239,22 +233,14 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     f"{redcap_record_instance.get('event_type')}")
                 continue
 
-        (specimen_entry,
-         specimen_observation_entry,
-         specimen_entry_v2,
-         specimen_observation_entry_v2) = airs_build_specimens(
-            db,
-            patient_reference,
-            initial_encounter_reference,
-            redcap_record_instance
-        )
-
         computed_questionnaire_entry = None
         enrollment_questionnaire_entry = None
         weekly_questionnaire_entry = None
         follow_up_encounter_entry = None
         follow_up_questionnaire_entry = None
         follow_up_computed_questionnaire_entry = None
+        specimen_entry, specimen_observation_entry = None, None
+        specimen_entry_v2, specimen_observation_entry_v2 = None, None
 
         computed_questionnaire_entry = airs_create_computed_questionnaire_response(
             redcap_record_instance,
@@ -272,16 +258,34 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             weekly_questionnaire_entry = airs_create_weekly_questionnaire_response(
                     redcap_record_instance, patient_reference, initial_encounter_reference)
 
-            # For the AIRS study, the symptom instrument is being used as the follow-up encounter
-            # which is associated with back_end_mail_scans_2, airs_kit_activation_2, post_collection_data_entry_qc_2,
-            # and swab_results_2 instruments
+            # build specimen and observation entries if swab kit was triggered, sent, and received
+            if redcap_record_instance.get('wk_nasal_swab_needed') == "1" and \
+                is_complete('back_end_mail_scans', redcap_record_instance) and \
+                is_complete('post_collection_data_entry_qc', redcap_record_instance):
+                    (specimen_entry, specimen_observation_entry) = airs_build_specimens(
+                        db,
+                        patient_reference,
+                        initial_encounter_reference,
+                        redcap_record_instance,
+                        SwabKitInstrumentSet.FIRST,
+                    )
+
+            # For the AIRS study, the symptom instrument is being used for the follow-up encounter
             if is_complete('symptom', redcap_record_instance):
+                contained, diagnosis = build_contained_and_diagnosis(
+                    patient_reference = patient_reference,
+                    record = redcap_record_instance,
+                    encounter_type = EncounterType.FOLLOW_UP,
+                    system_identifier = SNOMED_CT_SYSTEM)
+
                 # Don't set locations because the weekly survey doesn't ask for home address.
                 follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
                     encounter_id = create_encounter_id(redcap_record_instance, True),
                     encounter_date = extract_date_from_survey_timestamp(redcap_record_instance, 'symptom'),
                     patient_reference = patient_reference,
                     site_reference = site_reference,
+                    diagnosis = diagnosis,
+                    contained = contained,
                     collection_code = CollectionCode.HOME_HEALTH,
                     parent_encounter_reference = initial_encounter_reference,
                     encounter_reason_code = follow_up_encounter_reason_code(),
@@ -294,6 +298,34 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 follow_up_computed_questionnaire_entry = airs_create_computed_questionnaire_response(
                     redcap_record_instance, patient_reference, follow_up_encounter_reference,
                     birthdate, parse_date_from_string(follow_up_encounter_entry['resource']['period']['start']))
+
+
+                # Generate specimen and observation entries for samples triggered by follow-up encounter
+                if redcap_record_instance.get('ss_nasal_swab_needed') == "1":
+
+                    # Determine which set of swab kit forms to use. If no kit was triggered by the initial weekly
+                    # encounter, the first set of swab kit forms is used by the follow-up encounter
+                    if redcap_record_instance.get('wk_nasal_swab_needed') == "1":
+                        swab_kit_instrument_set = SwabKitInstrumentSet.SECOND
+                    else:
+                        swab_kit_instrument_set = SwabKitInstrumentSet.FIRST
+
+                    if (swab_kit_instrument_set == SwabKitInstrumentSet.FIRST and \
+                            is_complete('back_end_mail_scans', redcap_record_instance) and \
+                            is_complete('post_collection_data_entry_qc', redcap_record_instance)) \
+                        or \
+                        (swab_kit_instrument_set == SwabKitInstrumentSet.SECOND and \
+                            is_complete('back_end_mail_scans_2', redcap_record_instance) and \
+                            is_complete('post_collection_data_entry_qc_2', redcap_record_instance)):
+
+                            (specimen_entry_v2, specimen_observation_entry_v2) = airs_build_specimens(
+                                db,
+                                patient_reference,
+                                follow_up_encounter_reference,
+                                redcap_record_instance,
+                                swab_kit_instrument_set,
+                            )
+
 
 
         current_instance_entries = [
@@ -320,20 +352,28 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
     )
 
 
-def airs_get_encounter_date(record: REDCapRecord, event_type: EventType) -> Optional[str]:
+def airs_get_encounter_date(record: REDCapRecord, event_type: EventType, follow_up: bool = False) -> Optional[str]:
     encounter_date = None
 
     if event_type == EventType.ENCOUNTER:
-        encounter_date = extract_date_from_survey_timestamp(record, 'weekly')
+        if follow_up:
+            encounter_date = extract_date_from_survey_timestamp(record, 'symptom') \
+                or record.get('ss_date')
+        else:
+            encounter_date = extract_date_from_survey_timestamp(record, 'weekly') \
+                or record.get('wk_date')
+
     elif event_type == EventType.ENROLLMENT:
-        encounter_date = record.get('enr_date_complete') and \
-            datetime.strptime(record.get('enr_date_complete'), '%Y-%m-%d').strftime('%Y-%m-%d')
+        encounter_date = extract_date_from_survey_timestamp(record, 'enrollment') \
+            or record.get('enr_date_complete')
+
     else:
         # We should never get here, but we should also never have an
         #  if/elif without an else
         LOG.error(f"Invalid date: {record.event_name!r} for record "
                   f"{record.get('subject_id')} contains event_type {event_type}, "
                   "but that is not one that we process.")
+
     return encounter_date
 
 
@@ -346,35 +386,41 @@ def create_encounter_id(record: REDCapRecord, is_followup_encounter: bool) -> st
     else:
         redcap_event_name = ''
 
-    if record.repeat_instance:
-        redcap_repeat_instance = str(record.repeat_instance)
-    else:
-        redcap_repeat_instance = ''
-
     if is_followup_encounter:
         encounter_identifier_suffix = "_follow_up"
     else:
         encounter_identifier_suffix = ''
 
     return f'{record.project.base_url}{record.project.id}/{record.id}/{redcap_event_name}/' + \
-        f'{redcap_repeat_instance}{encounter_identifier_suffix}'
+        f'{encounter_identifier_suffix}'
 
 
-def airs_get_collection_date(record: REDCapRecord) -> Optional[str]:
+def airs_get_collection_date(record: REDCapRecord, swab_kit_instrument_set: SwabKitInstrumentSet) -> Optional[str]:
     """
     Determine sample/specimen collection date from the given REDCap *record*.
     """
     # For all surveys, try the survey _timestamp field (which is in Pacific time)
     # before custom fields because the custom fields aren't always populated and when
     # they are populated they use the browser's time zone.
+
+    # The swab_kit_instrument_set argument is used to indicate which swab kit instruments to
+    # use. The AIRS REDCap project has two matching sets of instruments in each weekly event,
+    # with the second set used when two kits are triggered in the same week from the weekly
+    # and symptom instruments.
     collection_date = None
 
-    collection_date = record.get("kit_reg_date_v2") \
-        or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc_2") \
-        or record.get("back_end_scan_v2") \
-        or record.get("kit_reg_date") \
-        or extract_date_from_survey_timestamp(record, "post_collection_data_entry_qc") \
-        or record.get("back_end_scan")
+    if swab_kit_instrument_set == SwabKitInstrumentSet.SECOND:
+        collection_date = record.get("date_on_tube_v2") \
+            or extract_date_from_survey_timestamp(record, "airs_kit_activation_2") \
+            or record.get("kit_reg_date_v2") \
+            or extract_date_from_survey_timestamp(record, "back_end_mail_scans_2") \
+            or record.get("back_end_scan_date_v2")
+    else:
+        collection_date = record.get("date_on_tube") \
+            or extract_date_from_survey_timestamp(record, "airs_kit_activation") \
+            or record.get("kit_reg_date") \
+            or extract_date_from_survey_timestamp(record, "back_end_mail_scans") \
+            or record.get("back_end_scan_date")
 
     return collection_date
 
@@ -480,43 +526,43 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
     Returns a FHIR Questionnaire Response resource entry for the initial weekly encounter.
     """
     integer_questions = [
-        'wk_congestion',
-        'wk_nasal_drip',
-        'wk_runny_nose',
-        'wk_sinus_pain',
-        'wk_sneezing',
-        'wk_chest_pain',
-        'wk_cough',
-        'wk_sob',
-        'wk_sputum',
-        'wk_wheeze',
-        'wk_smell',
-        'wk_taste',
-        'wk_chill',
-        'wk_fatigue',
-        'wk_fever',
-        'wk_headache',
-        'wk_sleeping',
-        'wk_myalgia',
-        'wk_skin_rash',
-        'wk_sweats',
-        'wk_ear_congestion',
-        'wk_ear_pain',
-        'wk_eye_pain',
-        'wk_hoarse',
-        'wk_sore_throat',
-        'wk_diarrhea',
-        'wk_nausea',
-        'wk_stomach_pain',
-        'wk_vomiting',
+        # 'wk_congestion',
+        # 'wk_nasal_drip',
+        # 'wk_runny_nose',
+        # 'wk_sinus_pain',
+        # 'wk_sneezing',
+        # 'wk_chest_pain',
+        # 'wk_cough',
+        # 'wk_sob',
+        # 'wk_sputum',
+        # 'wk_wheeze',
+        # 'wk_smell',
+        # 'wk_taste',
+        # 'wk_chill',
+        # 'wk_fatigue',
+        # 'wk_fever',
+        # 'wk_headache',
+        # 'wk_sleeping',
+        # 'wk_myalgia',
+        # 'wk_skin_rash',
+        # 'wk_sweats',
+        # 'wk_ear_congestion',
+        # 'wk_ear_pain',
+        # 'wk_eye_pain',
+        # 'wk_hoarse',
+        # 'wk_sore_throat',
+        # 'wk_diarrhea',
+        # 'wk_nausea',
+        # 'wk_stomach_pain',
+        # 'wk_vomiting',
     ]
 
     boolean_questions = [
-        'wk_nasal',
-        'wk_chest_symptoms',
-        'wk_sensory_symptoms',
-        'wk_eye_ear_throat',
-        'wk_gi',
+        # 'wk_nasal',
+        # 'wk_chest_symptoms',
+        # 'wk_sensory_symptoms',
+        # 'wk_eye_ear_throat',
+        # 'wk_gi',
     ]
 
     date_questions = [
@@ -530,8 +576,8 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
     ]
 
     question_categories = {
-        'valueInteger': integer_questions,
-        'valueBoolean': boolean_questions,
+        #'valueInteger': integer_questions, ## none so far
+        #'valueBoolean': boolean_questions, ## none so far
         # 'valueString': string_questions, ## none so far
         'valueDate': date_questions,
         'valueCoding': coding_questions,
@@ -552,44 +598,44 @@ def airs_create_follow_up_questionnaire_response(record: REDCapRecord, patient_r
     """
 
     integer_questions = [
-        'ss_chest_pain',
-        'ss_chill',
-        'ss_congestion',
-        'ss_cough',
-        'ss_diarrhea',
-        'ss_ear_congestion',
-        'ss_ear_pain',
-        'ss_eye_pain',
-        'ss_fatigue',
-        'ss_fever',
-        'ss_gi',
-        'ss_headache',
-        'ss_hoarse',
-        'ss_myalgia',
-        'ss_nasal_drip',
-        'ss_nausea',
-        'ss_runny_nose',
-        'ss_sinus_pain',
-        'ss_skin_rash',
-        'ss_sleeping',
-        'ss_smell',
-        'ss_sneezing',
-        'ss_sob',
-        'ss_sore_throat',
-        'ss_sputum',
-        'ss_stomach_pain',
-        'ss_sweats',
-        'ss_taste',
-        'ss_vomiting',
-        'ss_wheeze',
+        # 'ss_chest_pain',
+        # 'ss_chill',
+        # 'ss_congestion',
+        # 'ss_cough',
+        # 'ss_diarrhea',
+        # 'ss_ear_congestion',
+        # 'ss_ear_pain',
+        # 'ss_eye_pain',
+        # 'ss_fatigue',
+        # 'ss_fever',
+        # 'ss_gi',
+        # 'ss_headache',
+        # 'ss_hoarse',
+        # 'ss_myalgia',
+        # 'ss_nasal_drip',
+        # 'ss_nausea',
+        # 'ss_runny_nose',
+        # 'ss_sinus_pain',
+        # 'ss_skin_rash',
+        # 'ss_sleeping',
+        # 'ss_smell',
+        # 'ss_sneezing',
+        # 'ss_sob',
+        # 'ss_sore_throat',
+        # 'ss_sputum',
+        # 'ss_stomach_pain',
+        # 'ss_sweats',
+        # 'ss_taste',
+        # 'ss_vomiting',
+        # 'ss_wheeze',
     ]
 
     boolean_questions = [
-        'ss_nasal',
-        'ss_chest_symptoms',
-        'ss_sensory_symptoms',
-        'ss_eye_ear_throat',
-        'ss_gi',
+        # 'ss_nasal',
+        # 'ss_chest_symptoms',
+        # 'ss_sensory_symptoms',
+        # 'ss_eye_ear_throat',
+        # 'ss_gi',
     ]
 
     date_questions = [
@@ -600,8 +646,8 @@ def airs_create_follow_up_questionnaire_response(record: REDCapRecord, patient_r
     ]
 
     question_categories = {
-        'valueInteger': integer_questions,
-        'valueBoolean': boolean_questions,
+        #'valueInteger': integer_questions, ## none so far
+        #'valueBoolean': boolean_questions, ## none so far
         # 'valueString': string_questions, ## none so far
         'valueDate': date_questions,
         # 'valueCoding': coding_questions, ## none so far
@@ -726,109 +772,267 @@ def airs_build_location_info(db: DatabaseSession, cache: TTLCache,
 
 def airs_build_specimens(db,
     patient_reference: dict,
-    initial_encounter_reference: dict,
-    redcap_record_instance: REDCapRecord) -> tuple:
+    encounter_reference: dict,
+    redcap_record_instance: REDCapRecord,
+    swab_kit_instrument_set: SwabKitInstrumentSet) -> tuple:
 
     specimen_entry = None
     specimen_observation_entry = None
     specimen_identifier = None
-    specimen_received = is_complete('post_collection_data_entry_qc', redcap_record_instance)
 
-    if specimen_received:
-        # Use barcode fields in this order.
+    if swab_kit_instrument_set == SwabKitInstrumentSet.FIRST:
         prioritized_barcodes = [
             redcap_record_instance["results_barcode"],
             redcap_record_instance["return_utm_barcode"],
             redcap_record_instance["pre_scan_barcode"],
         ]
-
-        # Check if specimen barcode is valid
-        specimen_barcode = None
-        for barcode in prioritized_barcodes:
-            specimen_barcode = barcode.strip()
-            if specimen_barcode:
-                # Disable logging when calling find_identifier here to suppess alerts
-                logging.disable(logging.WARNING)
-                specimen_identifier = find_identifier(db, specimen_barcode)
-                logging.disable(logging.NOTSET)
-
-                break
-
-        if specimen_identifier:
-            specimen_entry, specimen_reference = create_specimen(
-                prioritized_barcodes = prioritized_barcodes,
-                patient_reference = patient_reference,
-                collection_date = airs_get_collection_date(redcap_record_instance),
-                sample_received_time = redcap_record_instance['samp_process_date'],
-                able_to_test = redcap_record_instance['able_to_test'],
-                system_identifier = INTERNAL_SYSTEM)
-
-            specimen_observation_entry = create_specimen_observation_entry(
-                specimen_reference = specimen_reference,
-                patient_reference = patient_reference,
-                encounter_reference = initial_encounter_reference)
-        else:
-            LOG.debug(f"No identifier found for barcode «{specimen_barcode}»")
-            LOG.info("No identifier found for barcode. Creating encounter for record instance without sample")
-    else:
-        LOG.debug("Creating encounter for record instance without sample")
-
-    # Do not log warning for unrecognized barcodes, which are being tracked outside of ID3C.
-    if specimen_received and specimen_identifier and not specimen_entry:
-        LOG.warning("Skipping record instance. We think the specimen was received, "
-             "but we're unable to create the specimen_entry for record: "
-             f"{redcap_record_instance.get('record_id')}, instance: {redcap_record_instance.get('redcap_repeat_instance')}"
-        )
-
-    specimen_entry_v2 = None
-    specimen_observation_entry_v2 = None
-    specimen_identifier_v2 = None
-    specimen_received_v2 = is_complete('post_collection_data_entry_qc_2', redcap_record_instance)
-
-    if specimen_received_v2:
-        # Use barcode fields in this order.
-        prioritized_barcodes_v2 = [
+        sample_received_time = redcap_record_instance['samp_process_date']
+        able_to_test = redcap_record_instance['able_to_test']
+    elif swab_kit_instrument_set == SwabKitInstrumentSet.SECOND:
+        prioritized_barcodes = [
             redcap_record_instance["results_barcode_v2"],
             redcap_record_instance["return_utm_barcode_v2"],
             redcap_record_instance["pre_scan_barcode_v2"],
         ]
-
-        # Check if specimen barcode is valid
-        specimen_barcode_v2 = None
-        for barcode_v2 in prioritized_barcodes_v2:
-            specimen_barcode_v2 = barcode.strip()
-            if specimen_barcode_v2:
-                # Disable logging when calling find_identifier here to suppess alerts
-                logging.disable(logging.WARNING)
-                specimen_identifier_v2 = find_identifier(db, specimen_barcode_v2)
-                logging.disable(logging.NOTSET)
-
-                break
-
-        if specimen_identifier_v2:
-            specimen_entry_v2, specimen_reference_v2 = create_specimen(
-                prioritized_barcodes = prioritized_barcodes_v2,
-                patient_reference = patient_reference,
-                collection_date = airs_get_collection_date(redcap_record_instance),
-                sample_received_time = redcap_record_instance['samp_process_date_v2'],
-                able_to_test = redcap_record_instance['able_to_test_v2'],
-                system_identifier = INTERNAL_SYSTEM)
-
-            specimen_observation_entry_v2 = create_specimen_observation_entry(
-                specimen_reference = specimen_reference_v2,
-                patient_reference = patient_reference,
-                encounter_reference = initial_encounter_reference)
-        else:
-            LOG.debug(f"No identifier found for v2 barcode «{specimen_barcode_v2}»")
-            LOG.info("No identifier found for barcode. Creating v2 encounter for record instance without sample")
+        sample_received_time = redcap_record_instance['samp_process_date_v2']
+        able_to_test = redcap_record_instance['able_to_test_v2']
     else:
-        LOG.debug("Creating v2 encounter for record instance without sample")
+        raise Exception(f"Unknown encounter type (weekly or follow-up) for redcap record/event: {redcap_record_instance.get('subject_id')}/{redcap_record_instance.event_name}.")
+
+
+    # Check if specimen barcode is valid
+    specimen_barcode = None
+    for barcode in prioritized_barcodes:
+        specimen_barcode = barcode.strip()
+        if specimen_barcode:
+            # Disable logging when calling find_identifier here to suppess alerts
+            logging.disable(logging.WARNING)
+            specimen_identifier = find_identifier(db, specimen_barcode)
+            logging.disable(logging.NOTSET)
+
+            break
+
+    if specimen_identifier:
+        specimen_entry, specimen_reference = create_specimen(
+            prioritized_barcodes = prioritized_barcodes,
+            patient_reference = patient_reference,
+            collection_date = airs_get_collection_date(redcap_record_instance, swab_kit_instrument_set),
+            sample_received_time = sample_received_time,
+            able_to_test = able_to_test,
+            system_identifier = INTERNAL_SYSTEM)
+
+        specimen_observation_entry = create_specimen_observation_entry(
+            specimen_reference = specimen_reference,
+            patient_reference = patient_reference,
+            encounter_reference = encounter_reference)
+    else:
+        LOG.debug(f"No identifier found for barcode «{specimen_barcode}»")
+        LOG.info("No identifier found for barcode. Creating encounter for record instance without sample")
 
     # Do not log warning for unrecognized barcodes, which are being tracked outside of ID3C.
-    if specimen_received_v2 and specimen_identifier_v2 and not specimen_entry_v2:
-        LOG.warning("Skipping v2 record instance. We think the specimen was received, "
+    if specimen_identifier and not specimen_entry:
+        LOG.warning("Skipping record instance. We think the specimen was received, "
              "but we're unable to create the specimen_entry for record: "
-             f"{redcap_record_instance.get('record_id')}, instance: {redcap_record_instance.get('redcap_repeat_instance')}"
-             )
+             f"{redcap_record_instance.get('subject_id')}, event: {redcap_record_instance.event_name}"
+        )
 
-    return (specimen_entry, specimen_observation_entry, specimen_entry_v2, specimen_observation_entry_v2)
+    return (specimen_entry, specimen_observation_entry)
+
+
+
+def map_symptom_to_snomed(symptom_name: str) -> Optional[dict]:
+
+    snomed_symptoms = {
+        '68235000':     'Nasal congestion',
+        '64531003':     'Nasal discharge',
+        '75803007':     'Posterior rhinorrhea', # Postnasal drip (disorder)
+        '76067001':     'Sneezing',
+        '29857009':     'Chest pain',
+        '49727002':     'Cough',
+        '267036007':    'Dyspnea', # shortness of breath
+        '248595008':    'Sputum finding', # phlegm
+        '56018004':     'Wheezing',
+        '44169009':     'Loss of sense of smell',
+        '36955009':     'Loss of taste',
+        '43724002':     'Chill',
+        '84229001':     'Fatigue',
+        '103001002':    'Feels feverish',
+        '25064002':     'Headache',
+        '301345002':    'Difficulty sleeping',
+        '271807003':    'Eruption of skin', # rash (disorder)
+        '415690000':    'Sweating',
+        '103281005':    'Sensation of blocked ear', # ear congestion
+        '301354004':    'Pain of ear',
+        '41652007':     'Pain in eye',
+        '50219008':     'Hoarse',
+        '162397003':    'Pain in throat',
+        '62315008':     'Diarrhea',
+        '422587007':    'Nausea',
+        '271681002':    'Stomache ache',
+        '422400008':    'Vomiting',
+
+        # which to map `muscleOrBodyAches` to?
+        '68962001':     'Myalgia', # muscle pain
+        '82991003':     'Generalized aches and pains',
+
+        # which to map `sinus pain` to?
+        '301357006':    'Frontal sinus pain',
+        '301356002':    'Maxillary sinus pain',
+
+    }
+
+    airs_symptoms_to_snomed_map = {
+        'congestion':       '68235000',
+        'nasal_drip':       '75803007',
+        'runny_nose':       '64531003',
+        'sinus_pain':       '301357006', # mapped to "frontal sinus pain"
+        'sneezing':         '76067001',
+        'chest_pain':       '29857009',
+        'cough':            '49727002',
+        'sob':              '267036007',
+        'sputum':           '248595008',
+        'wheeze':           '56018004',
+        'smell':            '44169009',
+        'taste':            '36955009',
+        'chill':            '43724002',
+        'fatigue':          '84229001',
+        'fever':            '103001002',
+        'headache':         '25064002',
+        'sleeping':         '301345002',
+        'myalgia':          '68962001',
+        'skin_rash':        '271807003',
+        'sweats':           '415690000',
+        'ear_congestion':   '103281005',
+        'ear_pain':         '301354004',
+        'eye_pain':         '41652007',
+        'hoarse':           '50219008',
+        'sore_throat':      '162397003',
+        'diarrhea':         '62315008',
+        'nausea':           '422587007',
+        'stomach_pain':     '271681002',
+        'vomiting':         '422400008',
+    }
+
+    if symptom_name.lower() in airs_symptoms_to_snomed_map:
+        snomed_code = airs_symptoms_to_snomed_map[symptom_name.lower()]
+        return {
+            'system': SNOMED_CT_SYSTEM,
+            'code': snomed_code,
+            'display': snomed_symptoms[snomed_code]
+        }
+    else:
+        raise UnknownSymptomNameError(f"Unknown symptom name «{symptom_name}»")
+
+
+def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
+        encounter_type: EncounterType, system_identifier: str) -> Tuple[list, list]:
+
+    def map_severity_to_snomed(severity: str) -> Optional[str]:
+        snomed_severity_map = {
+            '1':    {'system': SNOMED_CT_SYSTEM, 'code': '255604002', 'display': 'mild'},
+            '2':    {'system': SNOMED_CT_SYSTEM, 'code': '6736007', 'display': 'moderate'},
+            '3':    {'system': SNOMED_CT_SYSTEM, 'code': '24484000', 'display': 'severe'},
+        }
+
+        if severity in snomed_severity_map:
+            return snomed_severity_map[severity]
+        else:
+            return None
+
+    def build_condition(patient_reference: dict, symptom_name: str, symptom_severity: str,
+        onset_date: str, system_identifier: str) -> Optional[dict]:
+        """ Returns a FHIR Condition resource. """
+        mapped_symptom_code = map_symptom_to_snomed(symptom_name)
+        mapped_severity_code = map_severity_to_snomed(symptom_severity)
+
+        if not mapped_symptom_code or not mapped_severity_code:
+            return None
+
+        # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
+        # 3.8.  Until then, there's no reasonable way to type this data structure
+        # better than Any.
+        #   -trs, 24 Oct 2019
+        condition: Any = {
+            "resourceType": "Condition",
+            "id": mapped_symptom_code['system'] + '/' + mapped_symptom_code['code'],
+            "code": {
+                "coding": [
+                    mapped_symptom_code
+                ]
+            },
+            "severity": {
+                "coding": [
+                    mapped_severity_code
+                ]
+            },
+            "subject": patient_reference
+        }
+
+        if onset_date:
+            condition["onsetDateTime"] = onset_date
+
+        return condition
+
+
+    def build_diagnosis(symptom: str) -> Optional[dict]:
+        mapped_symptom_code = map_symptom_to_snomed(symptom)
+        if not mapped_symptom_code:
+            return None
+
+        return { "condition": { "reference": f"#{mapped_symptom_code['system']}/{mapped_symptom_code['code']}" } }
+
+
+    if encounter_type == EncounterType.WEEKLY:
+        redcap_field_prefix = 'wk_'
+        onset_date = record['wk_symp_start_date']
+    elif encounter_type == EncounterType.FOLLOW_UP:
+        redcap_field_prefix = 'ss_'
+        # sic--this misspelling is in the redcap form.
+        onset_date = record['ss_ealiest_date']
+
+
+
+    contained = []
+    diagnosis = []
+
+    redcap_keys = [
+        'congestion',
+        'nasal_drip',
+        'runny_nose',
+        'sinus_pain',
+        'sneezing',
+        'chest_pain',
+        'cough',
+        'sob',
+        'sputum',
+        'wheeze',
+        'smell',
+        'taste',
+        'chill',
+        'fatigue',
+        'fever',
+        'headache',
+        'sleeping',
+        'myalgia',
+        'skin_rash',
+        'sweats',
+        'ear_congestion',
+        'ear_pain',
+        'eye_pain',
+        'hoarse',
+        'sore_throat',
+        'diarrhea',
+        'nausea',
+        'stomach_pain',
+        'vomiting',
+    ]
+
+
+    for k in redcap_keys:
+        redcap_field_name = redcap_field_prefix + k
+        symtom_severity = record.get(redcap_field_name)
+        if symtom_severity and symtom_severity != "0":
+            contained.append(build_condition(patient_reference, k, record[redcap_field_name], onset_date, system_identifier))
+            diagnosis.append(build_diagnosis(k))
+
+    return contained, diagnosis
