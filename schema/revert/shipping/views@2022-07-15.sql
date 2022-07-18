@@ -1483,11 +1483,7 @@ create or replace view shipping.hcov19_presence_absence_result_v1 as
         -- as the result date (result_ts). Prior to this, the presence_absence.modified date
         -- was used. Because this column is used in return of results, a date cutoff is being
         -- applied to avoid changing records that were processed before to this date. --drr
-        -- On 7/18/2022, we started to more accurately represent the correct timezone for these
-        -- timestamps.
         case
-          when pa.details ? 'result_timestamp' and pa.details ->> 'result_timestamp' > '2022-07-18' then
-            date((pa.details ->> 'result_timestamp')::timestamp at time zone 'UTC' at time zone 'America/Los_Angeles')
           when pa.details ? 'result_timestamp' and pa.details ->> 'result_timestamp' > '2022-06-09' then
             (pa.details ->> 'result_timestamp')::date
           else
@@ -2916,6 +2912,10 @@ create or replace view shipping.reportable_condition_v1 as
                                    ('collections-swab&send-asymptomatic'),
                                    ('collections-kiosks-asymptomatic'),
                                    ('collections-environmental'),
+                                   ('collections-uw-home'),
+                                   ('collections-uw-observed'),
+                                   ('collections-uw-tiny-swabs-home'),
+                                   ('collections-uw-tiny-swabs-observed'),
                                    ('collections-household-general'),
                                    ('collections-childcare'),
                                    ('collections-adult-family-home-outbreak'),
@@ -3025,7 +3025,11 @@ create or replace view shipping.return_results_v3 as
         --  Jover, 22 July 2020
         case identifier_set.name
           when 'collections-scan-kiosks' then true
+          when 'collections-uw-observed' then true
           when 'collections-scan' then false
+          when 'collections-uw-home' then false
+          when 'collections-uw-tiny-swabs-home' then false
+          when 'collections-uw-tiny-swabs-observed' then true
           when 'collections-childcare' then false
           when 'collections-apple-respiratory' then false
           when 'collections-school-testing-home' then false
@@ -3045,6 +3049,10 @@ create or replace view shipping.return_results_v3 as
         identifier_set.name in (
           'collections-scan',
           'collections-scan-kiosks',
+          'collections-uw-home',
+          'collections-uw-observed',
+          'collections-uw-tiny-swabs-home',
+          'collections-uw-tiny-swabs-observed',
           'collections-childcare',
           'collections-apple-respiratory',
           'collections-school-testing-home',

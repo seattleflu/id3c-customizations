@@ -470,3 +470,6 @@ shipping/views [shipping/views@2022-06-27] 2022-07-05T22:35:02Z Dave Reinhart <d
 
 shipping/views [shipping/views@2022-07-06] 2022-07-14T18:17:03Z Ben Capodanno <capodb@uw.edu> # Fix timezone in result date to more accurately reflect a samples result time
 @2022-07-15 2022-07-15T19:01:42Z Ben Capodanno <capodb@uw.edu> # Schema as of 15 July 2022
+
+shipping/views [shipping/views@2022-07-15] 2022-07-18T20:19:42Z Dave Reinhart <davidrr@uw.edu> # Drop HCT project from shipping views return_results_v3 and reportable_conditions_v1.
+@2022-07-18 2022-07-18T20:27:07Z Dave Reinhart <davidrr@uw.edu> # Schema as of 18 July 2022
