@@ -513,92 +513,75 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         }
     ]
 
-    vaccine_mapper = {
-        "covid-19 moderna mrna 18 yrs and older": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "207",
-            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
-        },
-        "covid-19 moderna mrna 12 yrs and older": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "207",
-            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
-        },
-        "covid-19 moderna mrna lnp-s": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "207",
-            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
-        },
-        "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "218",
-            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
-        },
-        "covid-19 pfizer mrna purple cap": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 pfizer mrna 12 yrs and older (purple cap)": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 pfizer mrna tris-sucrose 5-11 years old": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "218",
-            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
-        },
-        "covid-19 pfizer mrna tris-sucrose 5-11 yrs old": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "218",
-            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
-        },
-        "covid-19 pfizer mrna tris-sucrose gray cap": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 pfizer mrna tris-sucrose 12 yrs and older (gray cap)": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 pfizer mrna lnp-s (comirnaty)": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 pfizer mrna lnp-s": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "208",
-            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
-        },
-        "covid-19 astrazeneca vector-nr rs-chadox1": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "210",
-            "display": "COVID-19 vaccine, vector-nr, rS-ChAdOx1, PF, 0.5 mL"
-        },
-        "covid-19 novavax subunit rs-nanoparticle": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "211",
-            "display": "COVID-19 vaccine, Subunit, rS-nanoparticle+Matrix-M1 Adjuvant, PF, 0.5 mL",
-        },
-        "covid-19 janssen vector-nr rs-ad26": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "212",
-            "display": "COVID-19 vaccine, vector-nr, rS-Ad26, PF, 0.5 mL",
-        },
-        "covid-19, unspecified": {
-            "system": "http://hl7.org/fhir/sid/cvx",
-            "code": "213",
-            "display": "COVID-19 vaccine, UNSPECIFIED",
-        },
-        "flu unspecified": {
+    # COVID-19 vaccine CVX codes were sourced from here:
+    # https://www.cdc.gov/vaccines/programs/iis/COVID-19-related-codes.html
+    cvx_codes = {
+        88: {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "88",
             "display": "influenza, unspecified formulation",
         },
+        207: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "207",
+            "display": "COVID-19, mRNA, LNP-S, PF, 100 mcg or 50 mcg dose",
+        },
+        208: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "208",
+            "display": "COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose",
+        },
+        210: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "210",
+            "display": "COVID-19 vaccine, vector-nr, rS-ChAdOx1, PF, 0.5 mL"
+        },
+        211: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "211",
+            "display": "COVID-19 vaccine, Subunit, rS-nanoparticle+Matrix-M1 Adjuvant, PF, 0.5 mL",
+        },
+        212: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "212",
+            "display": "COVID-19 vaccine, vector-nr, rS-Ad26, PF, 0.5 mL",
+        },
+        213: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "213",
+            "display": "COVID-19 vaccine, UNSPECIFIED",
+        },
+        218: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "218",
+            "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
+        },
+        511: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "511",
+            "display": "COVID-19 IV Non-US Vaccine (CoronaVac, Sinovac)",
+        },
+    }
+
+    vaccine_mapper = {
+        "flu unspecified":                                                  88,
+        "covid-19 moderna mrna lnp-s":                                      207,
+        "covid-19 moderna mrna 12 yrs and older":                           207,
+        "covid-19 moderna mrna 18 yrs and older":                           207,
+        "covid-19 pfizer mrna lnp-s":                                       208,
+        "covid-19 pfizer mrna lnp-s (comirnaty)":                           208,
+        "covid-19 pfizer mrna purple cap":                                  208,
+        "covid-19 pfizer mrna 12 yrs and older (purple cap)":               208,
+        "covid-19 pfizer mrna tris-sucrose gray cap":                       208,
+        "covid-19 pfizer mrna tris-sucrose 12 yrs and older (gray cap)":    208,
+        "covid-19 astrazeneca vector-nr rs-chadox1":                        210,
+        "covid-19 novavax subunit rs-nanoparticle":                         211,
+        "covid-19 janssen vector-nr rs-ad26":                               212,
+        "covid-19, unspecified":                                            213,
+        "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old":           218,
+        "covid-19 pfizer mrna tris-sucrose 5-11 years old":                 218,
+        "covid-19 pfizer mrna tris-sucrose 5-11 yrs old":                   218,
+        "covid-19 sinovac inactivated, non-us (coronavac)":                 511,
         "": None
     }
 
@@ -617,7 +600,7 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         # Validate vaccine name and determine CVX code
         vaccine_code = None
         if vaccine_name in vaccine_mapper:
-            vaccine_code = vaccine_mapper[vaccine_name]
+            vaccine_code = cvx_codes[vaccine_mapper[vaccine_name]] if vaccine_mapper[vaccine_name] else None
         else:
             raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».")
 
