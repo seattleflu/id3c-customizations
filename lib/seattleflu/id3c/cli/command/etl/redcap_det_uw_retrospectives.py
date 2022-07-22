@@ -594,6 +594,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "213",
             "display": "COVID-19 vaccine, UNSPECIFIED",
         },
+        "covid-19 sinovac inactivated, non-us (coronavac)": {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "511",
+            "display": "COVID-19 IV Non-US Vaccine (CoronaVac, Sinovac)",
+        },
         "flu unspecified": {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "88",
