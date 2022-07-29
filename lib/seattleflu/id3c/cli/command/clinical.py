@@ -653,8 +653,10 @@ def encode_addresses(db: DatabaseSession, row: pd.Series) -> pd.Series:
     address, encodes that data into census tract information and hashes
     the address.
     """
-    if row['lat'] and row['lng']:
-        row['census_tract'] = location_lookup(db, (row['lat'], row['lng']), 'tract')[1]
+    location = location_lookup(db, (row.get('lat'), row.get('lng')), 'tract')
+
+    if location:
+        row['census_tract'] = location.identifier
     else:
         row['census_tract'] = None
 
