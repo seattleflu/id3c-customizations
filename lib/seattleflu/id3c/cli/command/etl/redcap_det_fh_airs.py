@@ -200,7 +200,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         diagnosis: List[dict] = []
 
         if event_type == EventType.ENCOUNTER:
-            contained, diagnosis = build_contained_and_diagnosis(
+            contained, diagnosis = airs_build_contained_and_diagnosis(
                 patient_reference = patient_reference,
                 record = redcap_record_instance,
                 encounter_type = EncounterType.WEEKLY,
@@ -272,7 +272,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
             # For the AIRS study, the symptom instrument is being used for the follow-up encounter
             if is_complete('symptom', redcap_record_instance):
-                contained, diagnosis = build_contained_and_diagnosis(
+                contained, diagnosis = airs_build_contained_and_diagnosis(
                     patient_reference = patient_reference,
                     record = redcap_record_instance,
                     encounter_type = EncounterType.FOLLOW_UP,
@@ -431,22 +431,106 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
     Returns a FHIR Questionnaire Response resource entry for the enrollment
     encounter (i.e. encounter of enrollment into the study)
     """
+    codebook_map = {
+        'enr_outside_hour': {
+            '1': 'less_than_10_hours',
+            '2': '10_to_less_than_20_hours',
+            '3': '20_to_less_than_30_hours',
+            '4': '30_to_less_than_40_hours',
+            '5': '40_hours_or_more',
+            '': None,
+        },
+        'enr_outside_mask': {
+            '1': 'always',
+            '2': 'mostly',
+            '3': 'sometimes',
+            '4': 'rarely',
+            '5': 'never',
+            '': None,
+        },
+        'enr_sex': {
+            '1': 'male',
+            '2': 'female',
+            '3': 'other',
+            '': None,
+        },
+        'enr_gender': {
+            '1': 'cisgender_man',
+            '2': 'cisgender_woman',
+            '3': 'genderqueer_non_binary',
+            '4': 'man',
+            '5': 'transgender_man',
+            '6': 'transgender_woman',
+            '7': 'woman',
+            '8': 'other',
+            '': None,
+        },
+        'enr_degree': {
+            '1': 'less_than_high_school',
+            '2': 'high_school_or_equivalent',
+            '3': 'ged_associate_or_technical_degree',
+            '4': 'bachelors_degree',
+            '5': 'graduate_degree',
+            '6': 'dont_say',
+            '': None,
+        },
+        'enr_ethnicity': {
+            '1': 'yes',
+            '2': 'no',
+            '3': 'dont_say',
+            '': None,
+        },
+        'enr_living_group': {
+            '1': 'dormitory_group',
+            '2': 'home',
+            '3': 'homeless_shelter',
+            '4': 'long_term_care_or_skilled_nursing_facility',
+            '5': 'other',
+            '': None,
+        },
+        'enr_indoor_no_mask': {
+            '1': 'less_than_5_people',
+            '2': '5_to_less_than_10_people',
+            '3': '10_to_less_than_15_people',
+            '4': '15_to_less_than_20_people',
+            '5': '20_to_less_than_30_people',
+            '6': '30_to_less_than_40_people',
+            '7': '40_to_less_than_50_people',
+            '8': '50_people_or_more',
+            '': None,
+        },
+        'enr_outdoor_no_mask': {
+            '1': 'less_than_5_people',
+            '2': '5_to_less_than_10_people',
+            '3': '10_to_less_than_15_people',
+            '4': '15_to_less_than_20_people',
+            '5': '20_to_less_than_30_people',
+            '6': '30_to_less_than_40_people',
+            '7': '40_to_less_than_50_people',
+            '8': '50_people_or_more',
+            '': None,
+        },
+        'scr_vacc_infl': {
+            '1': 'yes',
+            '2': 'no',
+            '3': 'unknown',
+            '': None
+        }
+    }
+
+    # transform integer to string values for the mapped fields
+    for fieldname in codebook_map.keys():
+        if fieldname not in record or record[fieldname] not in codebook_map[fieldname]:
+            raise Exception(f"Unexpected value for codebook mapping (fieldname: {fieldname}, value: {record[fieldname]})")
+        else:
+            record[fieldname] = codebook_map[fieldname][record[fieldname]]
+
 
     integer_questions = [
         'scr_age',
-        'scr_num_doses'
-        'scr_vacc_infl',
-        'enr_outside_hour',
-        'enr_outside_mask',
-        'enr_sex',
-        'enr_gender',
-        'enr_degree',
-        'enr_ethnicity',
-        'enr_living_group',
+        'scr_num_doses',        # covid vaccine
+        'scr_vacc_infl',        # flu vaccine
         'enr_living_population',
-        'enr_outside_mask',
-        'enr_indoor_no_mask',
-        'enr_outdoor_no_mask',
     ]
 
     string_questions = [
@@ -458,7 +542,9 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
         'scr_dose3_man_other',
         'enr_other_race',
         'enr_other_group',
+        'enr_mask_type',
     ]
+    string_questions += codebook_map.keys()
 
     date_questions = [
         'scr_dose1_date',
@@ -478,15 +564,14 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
     ]
 
     coding_questions = [
-        'enr_race'
-        'enr_mask_type'
+        'enr_race',
     ]
 
     # Do some pre-processing
     # Combine checkbox answers into one list
     checkbox_fields = [
         'enr_race',
-        'enr_mask_type'
+        'enr_mask_type',
     ]
 
     question_categories = {
@@ -499,25 +584,16 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
     }
 
     for field in checkbox_fields:
-        record[field] = combine_checkbox_answers(record, field)
-
-    if record.get('scr_num_doses') and int(record['scr_num_doses']) > 0:
-        vacc_covid = '1'
-    else:
-        vacc_covid = '0'
-    vacc_year = record.get('scr_dose1_date') and \
-        datetime.strptime(record['scr_dose1_date'], '%Y-%m-%d').strftime('%Y')
-    vacc_month = record.get('scr_dose1_date') and \
-        datetime.strptime(record['scr_dose1_date'], '%Y-%m-%d').strftime('%B')
-    vaccine_item = create_vaccine_item(vacc_covid, vacc_year, vacc_month, 'dont_know')
+        record[field] = airs_combine_checkbox_answers(record, field)
 
     return create_questionnaire_response(
         record = record,
         question_categories = question_categories,
         patient_reference = patient_reference,
         encounter_reference = encounter_reference,
-        system_identifier = INTERNAL_SYSTEM,
-        additional_items = [vaccine_item])
+        system_identifier = INTERNAL_SYSTEM )
+        #additional_items = [flu_vaccine_item])
+
 
 
 def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_reference: dict,
@@ -525,45 +601,6 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
     """
     Returns a FHIR Questionnaire Response resource entry for the initial weekly encounter.
     """
-    integer_questions = [
-        # 'wk_congestion',
-        # 'wk_nasal_drip',
-        # 'wk_runny_nose',
-        # 'wk_sinus_pain',
-        # 'wk_sneezing',
-        # 'wk_chest_pain',
-        # 'wk_cough',
-        # 'wk_sob',
-        # 'wk_sputum',
-        # 'wk_wheeze',
-        # 'wk_smell',
-        # 'wk_taste',
-        # 'wk_chill',
-        # 'wk_fatigue',
-        # 'wk_fever',
-        # 'wk_headache',
-        # 'wk_sleeping',
-        # 'wk_myalgia',
-        # 'wk_skin_rash',
-        # 'wk_sweats',
-        # 'wk_ear_congestion',
-        # 'wk_ear_pain',
-        # 'wk_eye_pain',
-        # 'wk_hoarse',
-        # 'wk_sore_throat',
-        # 'wk_diarrhea',
-        # 'wk_nausea',
-        # 'wk_stomach_pain',
-        # 'wk_vomiting',
-    ]
-
-    boolean_questions = [
-        # 'wk_nasal',
-        # 'wk_chest_symptoms',
-        # 'wk_sensory_symptoms',
-        # 'wk_eye_ear_throat',
-        # 'wk_gi',
-    ]
 
     date_questions = [
         'wk_date',
@@ -576,9 +613,6 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
     ]
 
     question_categories = {
-        #'valueInteger': integer_questions, ## none so far
-        #'valueBoolean': boolean_questions, ## none so far
-        # 'valueString': string_questions, ## none so far
         'valueDate': date_questions,
         'valueCoding': coding_questions,
     }
@@ -597,60 +631,12 @@ def airs_create_follow_up_questionnaire_response(record: REDCapRecord, patient_r
     Returns a FHIR Questionnaire Response resource entry for the weekly follow-up encounter
     """
 
-    integer_questions = [
-        # 'ss_chest_pain',
-        # 'ss_chill',
-        # 'ss_congestion',
-        # 'ss_cough',
-        # 'ss_diarrhea',
-        # 'ss_ear_congestion',
-        # 'ss_ear_pain',
-        # 'ss_eye_pain',
-        # 'ss_fatigue',
-        # 'ss_fever',
-        # 'ss_gi',
-        # 'ss_headache',
-        # 'ss_hoarse',
-        # 'ss_myalgia',
-        # 'ss_nasal_drip',
-        # 'ss_nausea',
-        # 'ss_runny_nose',
-        # 'ss_sinus_pain',
-        # 'ss_skin_rash',
-        # 'ss_sleeping',
-        # 'ss_smell',
-        # 'ss_sneezing',
-        # 'ss_sob',
-        # 'ss_sore_throat',
-        # 'ss_sputum',
-        # 'ss_stomach_pain',
-        # 'ss_sweats',
-        # 'ss_taste',
-        # 'ss_vomiting',
-        # 'ss_wheeze',
-    ]
-
-    boolean_questions = [
-        # 'ss_nasal',
-        # 'ss_chest_symptoms',
-        # 'ss_sensory_symptoms',
-        # 'ss_eye_ear_throat',
-        # 'ss_gi',
-    ]
-
     date_questions = [
         'ss_date',
     ]
 
-    coding_questions: List[str] = [
-    ]
-
     question_categories = {
-        #'valueInteger': integer_questions, ## none so far
-        #'valueBoolean': boolean_questions, ## none so far
-        # 'valueString': string_questions, ## none so far
         'valueDate': date_questions,
-        # 'valueCoding': coding_questions, ## none so far
     }
 
     return create_questionnaire_response(
@@ -924,10 +910,10 @@ def map_symptom_to_snomed(symptom_name: str) -> Optional[dict]:
         raise UnknownSymptomNameError(f"Unknown symptom name «{symptom_name}»")
 
 
-def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
+def airs_build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
         encounter_type: EncounterType, system_identifier: str) -> Tuple[list, list]:
 
-    def map_severity_to_snomed(severity: str) -> Optional[str]:
+    def map_severity_to_snomed(severity: str) -> Optional[dict]:
         snomed_severity_map = {
             '1':    {'system': SNOMED_CT_SYSTEM, 'code': '255604002', 'display': 'mild'},
             '2':    {'system': SNOMED_CT_SYSTEM, 'code': '6736007', 'display': 'moderate'},
@@ -1036,3 +1022,91 @@ def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
             diagnosis.append(build_diagnosis(k))
 
     return contained, diagnosis
+
+
+def airs_race(races: Optional[Any]) -> list:
+    """
+    Given one or more *races* values, returns the matching race identifier found in
+    Audere survey data.
+
+    Single values may be passed:
+
+    >>> airs_race("6")
+    ['other']
+
+    A list of values may also be passed:
+
+    >>> airs_race(["2", "3", "5"])
+    ['asian', 'blackOrAfricanAmerican', 'white']
+
+    >>> airs_race(None)
+    [None]
+
+    An Exception is raised when an unknown value is
+    encountered:
+
+    >>> airs_race("0")
+    Traceback (most recent call last):
+        ...
+    Exception: Unknown race value «0»
+    """
+
+    if races is None:
+        LOG.debug("No race response found.")
+        return [None]
+
+    race_map = {
+        "1": "americanIndianOrAlaskaNative",
+        "2": "asian",
+        "3": "blackOrAfricanAmerican",
+        "4": "nativeHawaiian",
+        "5": "white",
+        "6": "other",
+        "7": None,
+    }
+
+    def standardize_race(race):
+        try:
+            return race_map[race]
+        except KeyError:
+            raise Exception(f"Unknown race value «{race}»") from None
+
+    return list(map(standardize_race, races))
+
+
+def map_mask_type(mask_type: str) -> Optional[str]:
+
+    mask_type_map = {
+        '1':    'n95_or_kn95',
+        '2':    'face_sheild',
+        '3':    'cloth_or_paper',
+        '4':    'not_sure',
+        '':     None,
+    }
+
+    if mask_type not in mask_type_map:
+        raise Exception(f"Unknown mask type value «{mask_type}»")
+
+    return mask_type_map[mask_type]
+
+
+def airs_combine_checkbox_answers(record: dict, coded_question: str) -> Optional[List]:
+    """
+    Handles the combining "select all that apply"-type checkbox
+    responses into one list.
+
+    Uses AIRS specific mapping for race and mask type
+    """
+    regex = rf'{re.escape(coded_question)}___[\w]*$'
+    empty_value = '0'
+    answered_checkboxes = list(filter(lambda f: filter_fields(f, record[f], regex, empty_value), record))
+    # REDCap checkbox fields have format of {question}___{answer}
+    answers = list(map(lambda k: k.replace(f"{coded_question}___", ""), answered_checkboxes))
+
+    if coded_question == 'enr_race':
+        return airs_race(answers)
+
+    if coded_question == 'enr_mask_type':
+        return list(map(lambda a: map_mask_type(a), answers))
+
+    return answers
