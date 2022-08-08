@@ -473,3 +473,6 @@ shipping/views [shipping/views@2022-07-06] 2022-07-14T18:17:03Z Ben Capodanno <c
 
 shipping/views [shipping/views@2022-07-15] 2022-07-18T20:19:42Z Dave Reinhart <davidrr@uw.edu> # Drop HCT project from shipping views return_results_v3 and reportable_conditions_v1.
 @2022-07-18 2022-07-18T20:27:07Z Dave Reinhart <davidrr@uw.edu> # Schema as of 18 July 2022
+
+warehouse/target/data [warehouse/target/data@2022-07-18] 2022-08-08T19:45:51Z Ben Capodanno <capodb@uw.edu> # Change covid code from UK Snomed to international Snomed.
+@2022-08-08 2022-08-08T21:06:33Z Ben Capodanno <capodb@uw.edu> # Schema as of 08 August 2022
