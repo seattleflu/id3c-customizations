@@ -612,9 +612,53 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
         'wk_which_med',
     ]
 
+    string_questions = []
+
+    # sic--this misspelling is in the redcap form.
+    new_covid_dose = record.get('wk_does')
+    vacc_name_field, vacc_other_field = None, None
+
+    # weekly instrument only asks for date and manufacturer of the most recent dose if received in the past week
+    if new_covid_dose == '1':
+        date_questions.append('wk_vacc1_date')
+        vacc_name_field = 'wk_vacc_name'
+        vacc_other_field = 'wk_vacc_other'
+    elif new_covid_dose == '2':
+        date_questions.append('wk_vacc1_date_2')
+        vacc_name_field = 'wk_vacc_name_2'
+        vacc_other_field = 'wk_vacc_other_2'
+    elif new_covid_dose == '3':
+        date_questions.append('wk_vacc1_date_3')
+        vacc_name_field = 'wk_vacc_name_3'
+        vacc_other_field = 'wk_vacc_other_3'
+    elif new_covid_dose == '4':
+        date_questions.append('wk_vacc1_date_4')
+        vacc_name_field = 'wk_vacc_name_4'
+        vacc_other_field = 'wk_vacc_other_4'
+
+    # map vaccine manufacturer values in weekly instrument to match those used in screening instrument
+    vaccine_manufacturer_map = {
+        '1':    'moderna',
+        '2':    'novovax',
+        '3':    'astrazeneca',
+        '4':    'pfizer',
+        '5':    'other',
+        '6':    'dont_know',
+    }
+    # Replace vaccine manufacturer integers with str values to match screening instrument
+    if vacc_name_field and vacc_other_field:
+        if record[vacc_name_field] in vaccine_manufacturer_map:
+            record[vacc_name_field] = vaccine_manufacturer_map[record[vacc_name_field]]
+            string_questions.append(vacc_name_field)
+            if record[vacc_name_field] == 'other':
+                string_questions.append(vacc_other_field)
+        else:
+            raise Exception(f"Unknown vaccine manufacturer: {record[vacc_name_field]}; in record: {record.id}, event: {record.event_name}; field: {vacc_name_field}.")
+
     question_categories = {
         'valueDate': date_questions,
         'valueCoding': coding_questions,
+        'valueString': string_questions,
     }
 
     return create_questionnaire_response(
