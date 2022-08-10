@@ -576,6 +576,7 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "covid-19 pfizer mrna tris-sucrose 12 yrs and older (gray cap)":    208,
         "covid-19 astrazeneca vector-nr rs-chadox1":                        210,
         "covid-19 novavax subunit rs-nanoparticle":                         211,
+        "covid-19 novavax subunit adjuvanted":                              211,
         "covid-19 janssen vector-nr rs-ad26":                               212,
         "covid-19, unspecified":                                            213,
         "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old":           218,
