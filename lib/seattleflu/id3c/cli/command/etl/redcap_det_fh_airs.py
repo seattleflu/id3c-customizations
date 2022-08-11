@@ -174,11 +174,20 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
         elif redcap_record_instance.event_name in ENCOUNTER_EVENT_NAMES:
             if is_complete('weekly', redcap_record_instance):
                 event_type = EventType.ENCOUNTER
+
+                # check to make sure there are not more swab kits than expected
+                swab_kits_sent = [is_complete('back_end_mail_scans', redcap_record_instance),  is_complete('back_end_mail_scans_2', redcap_record_instance)].count(True)
+                swab_kits_triggered = [redcap_record_instance.get('ss_nasal_swab_needed'), redcap_record_instance.get('wk_nasal_swab_needed')].count("1")
+
+                if swab_kits_sent > swab_kits_triggered:
+                    LOG.warning(f"Skipping record id: {redcap_record_instance.id}, "
+                        f"encounter: {redcap_record_instance.event_name}; "
+                        f"{swab_kits_sent} sets of swab kit instruments detected, but only {swab_kits_triggered} triggered")
+
+                    continue
             else:
-                LOG.debug("Skipping record id: "
-                    f"{redcap_record_instance.get('subject_id')}, "
-                    "encounter: "
-                    f"{redcap_record_instance.get('event_name')}: "
+                LOG.debug(f"Skipping record id: {redcap_record_instance.id}, "
+                    f"encounter: {redcap_record_instance.event_name}; "
                     "insufficient information to construct encounter")
                 continue
         else:
