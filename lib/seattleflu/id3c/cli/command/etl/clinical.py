@@ -11,14 +11,6 @@ from id3c.db import find_identifier
 from id3c.db.session import DatabaseSession
 from id3c.db.datatypes import Json
 from id3c.cli.command.etl.redcap_det import insert_fhir_bundle
-from .redcap_det_uw_retrospectives import (
-    create_specimen,
-    find_sample_origin_by_barcode,
-    UnknownSampleOrigin,
-    UnknownTestResult,
-    create_encounter_class,
-    create_encounter_status,
-)
 
 from id3c.cli.command.etl import (
     etl,
@@ -44,9 +36,9 @@ from id3c.cli.command.etl import (
     UnknownAdmitICUResponseError,
 
 )
-from . import race, ethnicity, standardize_whitespace
+from . import race, ethnicity
 from .fhir import *
-from .redcap_map import map_sex
+from .clinical_retrospectives import *
 
 
 LOG = logging.getLogger(__name__)
@@ -164,50 +156,6 @@ def etl_clinical(*, db: DatabaseSession):
             LOG.info(f"Finished processing clinical record {record.id}")
 
 
-def create_patient(record: dict) -> Optional[tuple]:
-    """ Returns a FHIR Patient resource entry and reference. """
-    if not record["sex"] or not record["individual"]:
-        return None, None
-
-    gender = map_sex(record["sex"])
-
-    patient_identifier = create_identifier(f"{SFS}/individual", record["individual"])
-    patient_resource = create_patient_resource([patient_identifier], gender)
-
-    return create_entry_and_reference(patient_resource, "Patient")
-
-
-def create_encounter_location_references(db: DatabaseSession, record: dict, resident_locations: list = None) -> Optional[list]:
-    """ Returns FHIR Encounter location references """
-    sample_origin = find_sample_origin_by_barcode(db, record["barcode"])
-
-    if not sample_origin:
-        return None
-
-    origin_site_map = {
-        "phskc_retro":  "RetrospectivePHSKC",
-
-        # for future use
-        "sch_retro":    "RetrospectiveSCH",
-        "kp":           "KaiserPermanente",
-    }
-
-    if sample_origin not in origin_site_map:
-        raise UnknownSampleOrigin(f"Unknown sample_origin «{sample_origin}»")
-
-    encounter_site = origin_site_map[sample_origin]
-    site_identifier = create_identifier(f"{SFS}/site", encounter_site)
-    site_reference = create_reference(
-        reference_type = "Location",
-        identifier = site_identifier
-    )
-
-    location_references = resident_locations or []
-    location_references.append(site_reference)
-
-    return list(map(lambda ref: {"location": ref}, location_references))
-
-
 def create_encounter(db: DatabaseSession,
                      record: dict,
                      patient_reference: dict,
@@ -240,100 +188,6 @@ def create_encounter(db: DatabaseSession,
     )
 
     return create_entry_and_reference(encounter_resource, "Encounter")
-
-
-def create_resident_locations(record: dict) -> Optional[tuple]:
-    """
-    Returns FHIR Location resource entry and reference for resident address
-    and Location resource entry for Census tract.
-    """
-    if not record["address_hash"]:
-        LOG.debug("No address found in REDCap record")
-        return None, None
-
-    location_type_system = 'http://terminology.hl7.org/CodeSystem/v3-RoleCode'
-    location_type = create_codeable_concept(location_type_system, 'PTRES')
-    location_entries: List[dict] = []
-    location_references: List[dict] = []
-    address_partOf: Dict = None
-
-    tract_identifier = record["census_tract"]
-    if tract_identifier:
-        tract_identifier = create_identifier(f"{SFS}/location/tract", tract_identifier)
-        tract_location = create_location_resource([location_type], [tract_identifier])
-        tract_entry, tract_reference = create_entry_and_reference(tract_location, "Location")
-        # tract_reference is not used outside of address_partOf so does not
-        # not need to be appended to the list of location_references.
-        address_partOf = tract_reference
-        location_entries.append(tract_entry)
-
-    address_hash = record["address_hash"]
-    address_identifier = create_identifier(f"{SFS}/location/address", address_hash)
-    addres_location = create_location_resource([location_type], [address_identifier], address_partOf)
-    address_entry, address_reference = create_entry_and_reference(addres_location, "Location")
-
-    location_entries.append(address_entry)
-    location_references.append(address_reference)
-
-    return location_entries, location_references
-
-
-def create_clinical_result_observation_resource(record: dict) -> Optional[List[dict]]:
-    """
-    Determine the clinical results based on responses in *record* and
-    create observation resources for each result following the FHIR format
-    (http://www.hl7.org/implement/standards/fhir/observation.html)
-    """
-    cov19_snomed_code = {
-            'system': 'http://snomed.info/sct',
-            'code': '871562009',
-            'display': 'Detection of SARS-CoV-2',
-        }
-
-    result = virology_test_result(record)
-
-    clinical_observation = observation_resource('clinical')
-    clinical_observation['id'] = 'result-1'
-    clinical_observation['code']['coding'] = [cov19_snomed_code]
-    clinical_observation['valueBoolean'] = result
-
-    return [clinical_observation] or None
-
-
-def virology_test_result(record: dict) -> Optional[bool]:
-    """
-    Given a *record* with a UW Virology test result, returns
-    boolean indicating the result of the rest
-    """
-    result = standardize_whitespace(record['result_value']).lower()
-
-    if result == 'det':
-        return True
-    elif result == 'ndet':
-        return False
-    elif result == 'incon':
-        return None
-    else:
-        raise UnknownTestResult(result)
-
-
-def create_questionnaire_response(record: dict, patient_reference: dict, encounter_reference: dict) -> Optional[dict]:
-    """ Returns a FHIR Questionnaire Response resource entry """
-    response_items = determine_questionnaire_items(record)
-
-    if not response_items:
-        return None
-
-    questionnaire_response_resource = create_questionnaire_response_resource(
-        patient_reference   = patient_reference,
-        encounter_reference = encounter_reference,
-        items               = response_items
-    )
-
-    return create_resource_entry(
-        resource = questionnaire_response_resource,
-        full_url = generate_full_url_uuid()
-    )
 
 
 def determine_questionnaire_items(record: dict) -> List[dict]:
@@ -393,7 +247,7 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
         LOG.info("Skipping clinical data pull with insufficient information to construct encounter")
         return None
 
-    questionnaire_response_entry = create_questionnaire_response(record, patient_reference, encounter_reference)
+    questionnaire_response_entry = create_questionnaire_response(record, patient_reference, encounter_reference, determine_questionnaire_items)
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
