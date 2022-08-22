@@ -538,7 +538,6 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
     integer_questions = [
         'scr_age',
         'scr_num_doses',        # covid vaccine
-        'scr_vacc_infl',        # flu vaccine
         'enr_living_population',
     ]
 
@@ -559,7 +558,6 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
         'scr_dose1_date',
         'scr_dose2_date',
         'scr_dose3_date',
-        'scr_vacc_infl_date',
     ]
 
     boolean_questions = [
@@ -595,14 +593,33 @@ def airs_create_enrollment_questionnaire_response(record: REDCapRecord, patient_
     for field in checkbox_fields:
         record[field] = airs_combine_checkbox_answers(record, field)
 
+
+    flu_vaccine_item = create_flu_vaccine_item(record['scr_vacc_infl'], record['scr_vacc_infl_date'])
+
     return create_questionnaire_response(
         record = record,
         question_categories = question_categories,
         patient_reference = patient_reference,
         encounter_reference = encounter_reference,
-        system_identifier = INTERNAL_SYSTEM )
-        #additional_items = [flu_vaccine_item])
+        system_identifier = INTERNAL_SYSTEM,
+        additional_items = [flu_vaccine_item])
 
+
+def create_flu_vaccine_item(vaccine_status: str, vaccine_date: str) -> Optional[dict]:
+    """
+    Return a questionnaire response item with the flu vaccine response(s) encoded.
+    """
+
+    vaccine_status_bool = map_vaccine(vaccine_status)
+    if vaccine_status_bool is None:
+        return None
+
+    answers: List[Dict[str, Any]] = [{ 'valueBoolean': vaccine_status_bool }]
+
+    if vaccine_status_bool and vaccine_date:
+        answers.append({ 'valueDate': vaccine_date })
+
+    return create_questionnaire_response_item('scr_vacc_infl', answers)
 
 
 def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_reference: dict,
