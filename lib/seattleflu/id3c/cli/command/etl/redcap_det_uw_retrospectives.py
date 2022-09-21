@@ -395,8 +395,10 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         else:
             raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».")
 
-        # Standardize date format
+        # Standardize dates into ISO format. Possible formats are YYYY-MM-DD or MM/DD/YYYY
         immunization_date = record[column_map["date"]]
+        if '/' in immunization_date:
+            immunization_date = datetime.strptime(immunization_date, '%m/%d/%Y').strftime('%Y-%m-%d')
 
         if immunization_status == "y" and vaccine_code:
             immunization_identifier_hash = generate_hash(f"{record['mrn']}{vaccine_code['code']}{immunization_date}".lower())
