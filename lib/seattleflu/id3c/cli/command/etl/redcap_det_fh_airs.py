@@ -58,7 +58,6 @@ class SwabKitInstrumentSet(Enum):
 REVISION = 1
 
 INTERNAL_SYSTEM = "https://seattleflu.org"
-SNOMED_CT_SYSTEM = "http://snomed.info/sct"
 ENROLLMENT_EVENT_NAME = "screening_and_enro_arm_1"
 ENCOUNTER_EVENT_NAMES = [
     "week_01_arm_1",
@@ -213,7 +212,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
                 patient_reference = patient_reference,
                 record = redcap_record_instance,
                 encounter_type = EncounterType.WEEKLY,
-                system_identifier = SNOMED_CT_SYSTEM)
+                system_identifier = INTERNAL_SYSTEM)
 
         encounter_date = airs_get_encounter_date(redcap_record_instance, event_type)
 
@@ -285,7 +284,7 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
                     patient_reference = patient_reference,
                     record = redcap_record_instance,
                     encounter_type = EncounterType.FOLLOW_UP,
-                    system_identifier = SNOMED_CT_SYSTEM)
+                    system_identifier = INTERNAL_SYSTEM)
 
                 # Don't set locations because the weekly survey doesn't ask for home address.
                 follow_up_encounter_entry, follow_up_encounter_reference = create_encounter(
@@ -634,10 +633,6 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
         'wk_symp_stop_date',
     ]
 
-    coding_questions = [
-        'wk_which_med',
-    ]
-
     string_questions = []
 
     # sic--this misspelling is in the redcap form.
@@ -681,9 +676,53 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
         else:
             raise Exception(f"Unknown vaccine manufacturer: {record[vacc_name_field]}; in record: {record.id}, event: {record.event_name}; field: {vacc_name_field}.")
 
+    symptom_severity_map = {
+        '0':    'none',
+        '1':    'mild',
+        '2':    'moderate',
+        '3':    'severe',
+    }
+
+    wk_symptom_fields = {
+        'wk_congestion',
+        'wk_nasal_drip',
+        'wk_runny_nose',
+        'wk_sinus_pain',
+        'wk_sneezing',
+        'wk_chest_pain',
+        'wk_cough',
+        'wk_sob',
+        'wk_sputum',
+        'wk_wheeze',
+        'wk_smell',
+        'wk_taste',
+        'wk_chill',
+        'wk_fatigue',
+        'wk_fever',
+        'wk_headache',
+        'wk_sleeping',
+        'wk_myalgia',
+        'wk_skin_rash',
+        'wk_sweats',
+        'wk_ear_congestion',
+        'wk_ear_pain',
+        'wk_eye_pain',
+        'wk_hoarse',
+        'wk_sore_throat',
+        'wk_diarrhea',
+        'wk_nausea',
+        'wk_stomach_pain',
+        'wk_vomiting',
+    }
+
+    # Replace severity integer values with corresponding text before including as string questions
+    for symptom_field in wk_symptom_fields:
+        if record[symptom_field] in symptom_severity_map:
+            record[symptom_field] = symptom_severity_map[record[symptom_field]]
+            string_questions.append(symptom_field)
+
     question_categories = {
         'valueDate': date_questions,
-        'valueCoding': coding_questions,
         'valueString': string_questions,
     }
 
@@ -704,9 +743,56 @@ def airs_create_follow_up_questionnaire_response(record: REDCapRecord, patient_r
     date_questions = [
         'ss_date',
     ]
+    string_questions = []
+
+    symptom_severity_map = {
+        '0':    'none',
+        '1':    'mild',
+        '2':    'moderate',
+        '3':    'severe',
+    }
+
+    ss_symptom_fields = {
+        'ss_congestion',
+        'ss_nasal_drip',
+        'ss_runny_nose',
+        'ss_sinus_pain',
+        'ss_sneezing',
+        'ss_chest_pain',
+        'ss_cough',
+        'ss_sob',
+        'ss_sputum',
+        'ss_wheeze',
+        'ss_smell',
+        'ss_taste',
+        'ss_chill',
+        'ss_fatigue',
+        'ss_fever',
+        'ss_headache',
+        'ss_sleeping',
+        'ss_myalgia',
+        'ss_skin_rash',
+        'ss_sweats',
+        'ss_ear_congestion',
+        'ss_ear_pain',
+        'ss_eye_pain',
+        'ss_hoarse',
+        'ss_sore_throat',
+        'ss_diarrhea',
+        'ss_nausea',
+        'ss_stomach_pain',
+        'ss_vomiting',
+    }
+
+    # Replace severity integer values with corresponding text before including as string questions
+    for symptom_field in ss_symptom_fields:
+        if record[symptom_field] in symptom_severity_map:
+            record[symptom_field] = symptom_severity_map[record[symptom_field]]
+            string_questions.append(symptom_field)
 
     question_categories = {
         'valueDate': date_questions,
+        'valueString': string_questions,
     }
 
     return create_questionnaire_response(
@@ -895,114 +981,12 @@ def airs_build_specimens(db,
     return (specimen_entry, specimen_observation_entry)
 
 
-
-def map_symptom_to_snomed(symptom_name: str) -> Optional[dict]:
-
-    snomed_symptoms = {
-        '68235000':     'Nasal congestion',
-        '64531003':     'Nasal discharge',
-        '75803007':     'Posterior rhinorrhea', # Postnasal drip (disorder)
-        '76067001':     'Sneezing',
-        '29857009':     'Chest pain',
-        '49727002':     'Cough',
-        '267036007':    'Dyspnea', # shortness of breath
-        '248595008':    'Sputum finding', # phlegm
-        '56018004':     'Wheezing',
-        '44169009':     'Loss of sense of smell',
-        '36955009':     'Loss of taste',
-        '43724002':     'Chill',
-        '84229001':     'Fatigue',
-        '103001002':    'Feels feverish',
-        '25064002':     'Headache',
-        '301345002':    'Difficulty sleeping',
-        '271807003':    'Eruption of skin', # rash (disorder)
-        '415690000':    'Sweating',
-        '103281005':    'Sensation of blocked ear', # ear congestion
-        '301354004':    'Pain of ear',
-        '41652007':     'Pain in eye',
-        '50219008':     'Hoarse',
-        '162397003':    'Pain in throat',
-        '62315008':     'Diarrhea',
-        '422587007':    'Nausea',
-        '271681002':    'Stomache ache',
-        '422400008':    'Vomiting',
-
-        # which to map `muscleOrBodyAches` to?
-        '68962001':     'Myalgia', # muscle pain
-        '82991003':     'Generalized aches and pains',
-
-        # which to map `sinus pain` to?
-        '301357006':    'Frontal sinus pain',
-        '301356002':    'Maxillary sinus pain',
-
-    }
-
-    airs_symptoms_to_snomed_map = {
-        'congestion':       '68235000',
-        'nasal_drip':       '75803007',
-        'runny_nose':       '64531003',
-        'sinus_pain':       '301357006', # mapped to "frontal sinus pain"
-        'sneezing':         '76067001',
-        'chest_pain':       '29857009',
-        'cough':            '49727002',
-        'sob':              '267036007',
-        'sputum':           '248595008',
-        'wheeze':           '56018004',
-        'smell':            '44169009',
-        'taste':            '36955009',
-        'chill':            '43724002',
-        'fatigue':          '84229001',
-        'fever':            '103001002',
-        'headache':         '25064002',
-        'sleeping':         '301345002',
-        'myalgia':          '68962001',
-        'skin_rash':        '271807003',
-        'sweats':           '415690000',
-        'ear_congestion':   '103281005',
-        'ear_pain':         '301354004',
-        'eye_pain':         '41652007',
-        'hoarse':           '50219008',
-        'sore_throat':      '162397003',
-        'diarrhea':         '62315008',
-        'nausea':           '422587007',
-        'stomach_pain':     '271681002',
-        'vomiting':         '422400008',
-    }
-
-    if symptom_name.lower() in airs_symptoms_to_snomed_map:
-        snomed_code = airs_symptoms_to_snomed_map[symptom_name.lower()]
-        return {
-            'system': SNOMED_CT_SYSTEM,
-            'code': snomed_code,
-            'display': snomed_symptoms[snomed_code]
-        }
-    else:
-        raise UnknownSymptomNameError(f"Unknown symptom name «{symptom_name}»")
-
-
 def airs_build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
         encounter_type: EncounterType, system_identifier: str) -> Tuple[list, list]:
 
-    def map_severity_to_snomed(severity: str) -> Optional[dict]:
-        snomed_severity_map = {
-            '1':    {'system': SNOMED_CT_SYSTEM, 'code': '255604002', 'display': 'mild'},
-            '2':    {'system': SNOMED_CT_SYSTEM, 'code': '6736007', 'display': 'moderate'},
-            '3':    {'system': SNOMED_CT_SYSTEM, 'code': '24484000', 'display': 'severe'},
-        }
-
-        if severity in snomed_severity_map:
-            return snomed_severity_map[severity]
-        else:
-            return None
-
-    def build_condition(patient_reference: dict, symptom_name: str, symptom_severity: str,
+    def build_condition(patient_reference: dict, symptom_code: str,
         onset_date: str, system_identifier: str) -> Optional[dict]:
         """ Returns a FHIR Condition resource. """
-        mapped_symptom_code = map_symptom_to_snomed(symptom_name)
-        mapped_severity_code = map_severity_to_snomed(symptom_severity)
-
-        if not mapped_symptom_code or not mapped_severity_code:
-            return None
 
         # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
         # 3.8.  Until then, there's no reasonable way to type this data structure
@@ -1010,15 +994,13 @@ def airs_build_contained_and_diagnosis(patient_reference: dict, record: REDCapRe
         #   -trs, 24 Oct 2019
         condition: Any = {
             "resourceType": "Condition",
-            "id": mapped_symptom_code['system'] + '/' + mapped_symptom_code['code'],
+            "id": f'{symptom_code}',
             "code": {
                 "coding": [
-                    mapped_symptom_code
-                ]
-            },
-            "severity": {
-                "coding": [
-                    mapped_severity_code
+                    {
+                        "system": f"{system_identifier}/symptom",
+                        "code": symptom_code
+                    }
                 ]
             },
             "subject": patient_reference
@@ -1030,66 +1012,63 @@ def airs_build_contained_and_diagnosis(patient_reference: dict, record: REDCapRe
         return condition
 
 
-    def build_diagnosis(symptom: str) -> Optional[dict]:
-        mapped_symptom_code = map_symptom_to_snomed(symptom)
-        if not mapped_symptom_code:
-            return None
-
-        return { "condition": { "reference": f"#{mapped_symptom_code['system']}/{mapped_symptom_code['code']}" } }
+    def build_diagnosis(symptom_code: str) -> Optional[dict]:
+        #mapped_symptom_code = map_symptom_to_sfs(symptom)
+        #if not mapped_symptom_code:
+        #    return None
+        return { "condition": { "reference": f"#{symptom_code}" } }
 
 
     if encounter_type == EncounterType.WEEKLY:
         redcap_field_prefix = 'wk_'
         onset_date = record['wk_symp_start_date']
+        no_symptoms = record['wk_symp_curr'] != '1' and record['wk_symp_past_week'] != '1'
     elif encounter_type == EncounterType.FOLLOW_UP:
         redcap_field_prefix = 'ss_'
         # sic--this misspelling is in the redcap form.
         onset_date = record['ss_ealiest_date']
-
+        no_symptoms = record['ss_symptoms'] != '1'
+    else:
+        raise ValueError(f"Unknown EncounterType: {encounter_type}")
 
 
     contained = []
     diagnosis = []
 
-    redcap_keys = [
-        'congestion',
-        'nasal_drip',
-        'runny_nose',
-        'sinus_pain',
-        'sneezing',
-        'chest_pain',
-        'cough',
-        'sob',
-        'sputum',
-        'wheeze',
-        'smell',
-        'taste',
-        'chill',
-        'fatigue',
-        'fever',
-        'headache',
-        'sleeping',
-        'myalgia',
-        'skin_rash',
-        'sweats',
-        'ear_congestion',
-        'ear_pain',
-        'eye_pain',
-        'hoarse',
-        'sore_throat',
-        'diarrhea',
-        'nausea',
-        'stomach_pain',
-        'vomiting',
-    ]
+    # Symptom map with ID3C standard symptom codes as keys, and list of associated REDCap fields as values. If any of the
+    # listed REDCap fields has a value greater than '0' (None), Condition/Diagnosis entries are created using the
+    # standard code.
+    symptom_map = {
+        'runnyOrStuffyNose':            ['congestion', 'nasal_drip', 'runny_nose', 'sinus_pain', 'sneezing'],
+        'feelingFeverish':              ['fever'],
+        'headaches':                    ['headache'],
+        'cough':                        ['cough'],
+        'chillsOrShivering':            ['chill'],
+        'sweats':                       ['sweats'],
+        'soreThroat':                   ['sore_throat'],
+        'nauseaOrVomiting':             ['nausea', 'vomiting'],
+        'fatigue':                      ['fatigue'],
+        'muscleOrBodyAches':            ['myalgia'],
+        'diarrhea':                     ['diarrhea'],
+        'earPainOrDischarge':           ['ear_pain'],
+        'rash':                         ['skin_rash'],
+        'increasedTroubleBreathing':    ['sob', 'wheeze'],
+        'eyePain':                      ['eye_pain'],
+        'lossOfSmellOrTaste':           ['smell', 'taste'],
+        'other':                        ['chest_pain', 'sputum', 'sleeping', 'ear_congestion', 'hoarse', 'stomach_pain']
+    }
 
-
-    for k in redcap_keys:
-        redcap_field_name = redcap_field_prefix + k
-        symtom_severity = record.get(redcap_field_name)
-        if symtom_severity and symtom_severity != "0":
-            contained.append(build_condition(patient_reference, k, record[redcap_field_name], onset_date, system_identifier))
-            diagnosis.append(build_diagnosis(k))
+    if no_symptoms:
+        contained.append(build_condition(patient_reference, 'none', None, system_identifier))
+        diagnosis.append(build_diagnosis('none'))
+    else:
+        for k,v in symptom_map.items():
+            for redcap_field_name in v:
+                # if any of the associated REDCap fields has value > '0', then create the entry
+                if record[redcap_field_prefix + redcap_field_name] > '0':
+                    contained.append(build_condition(patient_reference, k, onset_date, system_identifier))
+                    diagnosis.append(build_diagnosis(k))
+                    break
 
     return contained, diagnosis
 
