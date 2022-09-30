@@ -39,6 +39,7 @@ def map_vaccine(vaccine_response: str) -> Optional[bool]:
         'yes': True,
         'no': False,
         'do not know': None,
+        'unknown': None,
         '': None,
     }
 

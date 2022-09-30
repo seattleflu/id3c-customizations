@@ -55,7 +55,7 @@ class SwabKitInstrumentSet(Enum):
     FIRST = 1
     SECOND = 2
 
-REVISION = 1
+REVISION = 2
 
 INTERNAL_SYSTEM = "https://seattleflu.org"
 ENROLLMENT_EVENT_NAME = "screening_and_enro_arm_1"
@@ -658,6 +658,7 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
         vacc_other_field = 'wk_vacc_other_4'
 
     # map vaccine manufacturer values in weekly instrument to match those used in screening instrument
+    # plus moderna and pfizer bivalent which were added later to the weekly instrument
     vaccine_manufacturer_map = {
         '1':    'moderna',
         '2':    'novovax',
@@ -665,6 +666,8 @@ def airs_create_weekly_questionnaire_response(record: REDCapRecord, patient_refe
         '4':    'pfizer',
         '5':    'other',
         '6':    'dont_know',
+        '7':    'moderna_bivalent',
+        '8':    'pfizer_bivalent',
     }
     # Replace vaccine manufacturer integers with str values to match screening instrument
     if vacc_name_field and vacc_other_field:
