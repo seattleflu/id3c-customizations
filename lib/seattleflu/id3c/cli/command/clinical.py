@@ -230,7 +230,11 @@ def parse_sch(sch_filename, manifest_format, output):
                 "covid_vx_manu3": "CovidShot3Manu",
                 "covid_vx_d3": "CovidShot3",
                 "cov_d3_date": "CovidShot3Date",
+                "covid_vx_manu4": "CovidShot4Manu",
+                "covid_vx_d4": "CovidShot4",
+                "cov_d4_date": "CovidShot4Date",
             })
+
     else:
         # Don't fall through silently
         LOG.warning(f"Invalid manifest_format {manifest_format}")
@@ -272,7 +276,7 @@ def parse_sch(sch_filename, manifest_format, output):
         'ICD10',
     ]
 
-    clinical_records = clinical_records[columns_to_keep]
+    clinical_records = clinical_records[clinical_records.columns.intersection(columns_to_keep)]
 
     # Convert dtypes
     # Incoming `encountered` value is typically just date but is cast to datetime with timezone in postgres. Timezone is
@@ -286,6 +290,8 @@ def parse_sch(sch_filename, manifest_format, output):
         clinical_records["CovidShot2Date"] = pd.to_datetime(clinical_records["CovidShot2Date"]).dt.strftime('%Y-%m-%d')
     if manifest_format == 'year4':
         clinical_records["CovidShot3Date"] = pd.to_datetime(clinical_records["CovidShot3Date"]).dt.strftime('%Y-%m-%d')
+        if 'CovidShot4Date' in clinical_records.columns:
+            clinical_records["CovidShot4Date"] = pd.to_datetime(clinical_records["CovidShot4Date"]).dt.strftime('%Y-%m-%d')
 
     # Insert static value columns
     clinical_records["site"] = "SCH"

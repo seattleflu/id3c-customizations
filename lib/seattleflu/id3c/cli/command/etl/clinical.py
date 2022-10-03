@@ -393,19 +393,19 @@ def encounter_details(document: dict) -> dict:
     if "CovidScreen" in document:
         details["responses"]["CovidScreen"] = covid_screen(document.get("CovidScreen"))
 
-    for k in ["CovidShot1", "CovidShot2", "CovidShot3"]:
+    for k in ["CovidShot1", "CovidShot2", "CovidShot3", "CovidShot4"]:
         if k in document:
             details["responses"][k] = covid_shot(document[k])
 
     if "CovidShotManufacturer" in document:
         details["responses"]["CovidShotManufacturer"] = covid_shot_maunufacturer(document.get("CovidShotManufacturer"))
 
-    for k in ["CovidShot1Manu", "CovidShot2Manu", "CovidShot3Manu"]:
+    for k in ["CovidShot1Manu", "CovidShot2Manu", "CovidShot3Manu", "CovidShot4Manu"]:
         if k in document:
             details["responses"][k] = covid_shot_maunufacturer(document[k])
 
     # include vaccine date fields if present and not empty
-    for k in ["FluShotDate", "CovidShot1Date", "CovidShot2Date", "CovidShot3Date"]:
+    for k in ["FluShotDate", "CovidShot1Date", "CovidShot2Date", "CovidShot3Date", "CovidShot4Date"]:
         if document.get(k):
             details["responses"][k] = [document[k]]
 
