@@ -5,8 +5,6 @@ begin;
 
 insert into warehouse.site(identifier, details)
     values
-        ('AIRSSwabNSend',                           '{"category": "community",  "type": "swab-n-send",
-            "sample_origin": "airs"}'),
         ('Apple',                                   '{"category": "community",  "type": "apple-study", 
             "sample_origin": "apple"}'),
         ('AvalonFederalWayCareCenter',              '{"category": "community",  "type": "skilledNursingFacility", 
