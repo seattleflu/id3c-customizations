@@ -36,17 +36,16 @@ def map_vaccine(vaccine_response: str) -> Optional[bool]:
     (https://www.hl7.org/fhir/valueset-immunization-status.html)
     """
     vaccine_map = {
-        'yes': True,
-        'no': False,
-        'do not know': None,
-        'unknown': None,
+        'Yes': True,
+        'No': False,
+        'Do not know': None,
         '': None,
     }
 
-    if vaccine_response.lower().strip() not in vaccine_map:
+    if vaccine_response not in vaccine_map:
         raise UnknownVaccineResponseError(f"Unknown vaccine response «{vaccine_response}»")
 
-    return vaccine_map[vaccine_response.lower().strip()]
+    return vaccine_map[vaccine_response]
 
 
 def map_symptom(symptom_name: str) -> Optional[str]:

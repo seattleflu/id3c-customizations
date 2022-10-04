@@ -11,7 +11,7 @@ from id3c.cli.redcap import is_complete, Record as REDCapRecord
 from id3c.db import find_identifier
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap import *
-from .redcap_map import *
+from .redcap_map import UnknownSexError
 
 LOG = logging.getLogger(__name__)
 
