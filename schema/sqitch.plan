@@ -482,3 +482,6 @@ warehouse/target/data [warehouse/target/data@2022-08-08] 2022-08-19T00:45:52Z Be
 
 warehouse/site/data [warehouse/site/data@2022-08-18] 2022-09-27T21:16:06Z Ben Capodanno <capodb@uw.edu> # Add 6 New Dropbox Sites for HCT
 @2022-09-27 2022-09-27T23:23:02Z Ben Capodanno <capodb@uw.edu> # Schema as of 27 September 2022
+
+shipping/views [shipping/views@2022-09-27] 2022-10-07T15:34:53Z Dave Reinhart <davidrr@uw.edu> # Update HCT shipping views to include new project id.
+@2022-10-07 2022-10-07T17:19:01Z Dave Reinhart <davidrr@uw.edu> # Schema as of 07 October 2022
