@@ -177,16 +177,6 @@ select 1/(count(*) = 1)::int
 select 1/(count(*) = 1)::int
   from information_schema.views
  where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.uw_reopening_encounters_hct_data_pulls');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
-     = pg_catalog.parse_ident('shipping.uw_reopening_results_hct_data_pulls');
-
-select 1/(count(*) = 1)::int
-  from information_schema.views
- where array[table_schema, table_name]::text[]
      = pg_catalog.parse_ident('shipping.__uw_priority_queue_v1');
 
 select 1/(count(*) = 1)::int
