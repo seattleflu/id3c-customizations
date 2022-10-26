@@ -931,17 +931,17 @@ def airs_build_specimens(db,
 
     if swab_kit_instrument_set == SwabKitInstrumentSet.FIRST:
         prioritized_barcodes = [
+            redcap_record_instance["pre_scan_barcode"],
             redcap_record_instance["results_barcode"],
             redcap_record_instance["return_utm_barcode"],
-            redcap_record_instance["pre_scan_barcode"],
         ]
         sample_received_time = redcap_record_instance['samp_process_date']
         able_to_test = redcap_record_instance['able_to_test']
     elif swab_kit_instrument_set == SwabKitInstrumentSet.SECOND:
         prioritized_barcodes = [
+            redcap_record_instance["pre_scan_barcode_v2"],
             redcap_record_instance["results_barcode_v2"],
             redcap_record_instance["return_utm_barcode_v2"],
-            redcap_record_instance["pre_scan_barcode_v2"],
         ]
         sample_received_time = redcap_record_instance['samp_process_date_v2']
         able_to_test = redcap_record_instance['able_to_test_v2']
