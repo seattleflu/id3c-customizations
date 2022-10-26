@@ -269,7 +269,9 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             # build specimen and observation entries if swab kit was triggered, sent, and received
             if redcap_record_instance.get('wk_nasal_swab_needed') == "1" and \
                 is_complete('back_end_mail_scans', redcap_record_instance) and \
-                is_complete('post_collection_data_entry_qc', redcap_record_instance):
+                (is_complete('post_collection_data_entry_qc', redcap_record_instance) or \
+                    is_complete('swab_results', redcap_record_instance)):
+
                     (specimen_entry, specimen_observation_entry) = airs_build_specimens(
                         db,
                         patient_reference,
@@ -320,11 +322,13 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
                     if (swab_kit_instrument_set == SwabKitInstrumentSet.FIRST and \
                             is_complete('back_end_mail_scans', redcap_record_instance) and \
-                            is_complete('post_collection_data_entry_qc', redcap_record_instance)) \
+                            (is_complete('post_collection_data_entry_qc', redcap_record_instance) or \
+                                is_complete('swab_results', redcap_record_instance))) \
                         or \
                         (swab_kit_instrument_set == SwabKitInstrumentSet.SECOND and \
                             is_complete('back_end_mail_scans_2', redcap_record_instance) and \
-                            is_complete('post_collection_data_entry_qc_2', redcap_record_instance)):
+                            (is_complete('post_collection_data_entry_qc_2', redcap_record_instance) or \
+                                is_complete('swab_results_2', redcap_record_instance))):
 
                             (specimen_entry_v2, specimen_observation_entry_v2) = airs_build_specimens(
                                 db,
