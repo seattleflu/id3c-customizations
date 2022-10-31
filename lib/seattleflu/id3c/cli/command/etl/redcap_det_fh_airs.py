@@ -269,7 +269,9 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
             # build specimen and observation entries if swab kit was triggered, sent, and received
             if redcap_record_instance.get('wk_nasal_swab_needed') == "1" and \
                 is_complete('back_end_mail_scans', redcap_record_instance) and \
-                is_complete('post_collection_data_entry_qc', redcap_record_instance):
+                (is_complete('post_collection_data_entry_qc', redcap_record_instance) or \
+                    is_complete('swab_results', redcap_record_instance)):
+
                     (specimen_entry, specimen_observation_entry) = airs_build_specimens(
                         db,
                         patient_reference,
@@ -320,11 +322,13 @@ def redcap_det_fh_airs(*, db: DatabaseSession, cache: TTLCache, det: dict,
 
                     if (swab_kit_instrument_set == SwabKitInstrumentSet.FIRST and \
                             is_complete('back_end_mail_scans', redcap_record_instance) and \
-                            is_complete('post_collection_data_entry_qc', redcap_record_instance)) \
+                            (is_complete('post_collection_data_entry_qc', redcap_record_instance) or \
+                                is_complete('swab_results', redcap_record_instance))) \
                         or \
                         (swab_kit_instrument_set == SwabKitInstrumentSet.SECOND and \
                             is_complete('back_end_mail_scans_2', redcap_record_instance) and \
-                            is_complete('post_collection_data_entry_qc_2', redcap_record_instance)):
+                            (is_complete('post_collection_data_entry_qc_2', redcap_record_instance) or \
+                                is_complete('swab_results_2', redcap_record_instance))):
 
                             (specimen_entry_v2, specimen_observation_entry_v2) = airs_build_specimens(
                                 db,
@@ -927,17 +931,17 @@ def airs_build_specimens(db,
 
     if swab_kit_instrument_set == SwabKitInstrumentSet.FIRST:
         prioritized_barcodes = [
+            redcap_record_instance["pre_scan_barcode"],
             redcap_record_instance["results_barcode"],
             redcap_record_instance["return_utm_barcode"],
-            redcap_record_instance["pre_scan_barcode"],
         ]
         sample_received_time = redcap_record_instance['samp_process_date']
         able_to_test = redcap_record_instance['able_to_test']
     elif swab_kit_instrument_set == SwabKitInstrumentSet.SECOND:
         prioritized_barcodes = [
+            redcap_record_instance["pre_scan_barcode_v2"],
             redcap_record_instance["results_barcode_v2"],
             redcap_record_instance["return_utm_barcode_v2"],
-            redcap_record_instance["pre_scan_barcode_v2"],
         ]
         sample_received_time = redcap_record_instance['samp_process_date_v2']
         able_to_test = redcap_record_instance['able_to_test_v2']
