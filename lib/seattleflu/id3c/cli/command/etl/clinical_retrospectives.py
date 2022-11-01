@@ -114,6 +114,7 @@ def create_encounter_class(record: dict) -> dict:
         "field" : "FLD",
         "surgery overnight stay" : "IMP",
         "surgery admit": "IMP",
+        "freestanding": "IMP",
     }
 
     standardized_encounter_class = standardize_whitespace(encounter_class.lower())
