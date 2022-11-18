@@ -1,4 +1,6 @@
 """
+Deprecated, data collection ended
+
 Process longitudinal documents into the relational warehouse.
 """
 import click

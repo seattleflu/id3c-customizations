@@ -1,4 +1,6 @@
 """
+Deprecated, data collection ended
+
 Process REDCap DET documents into the relational warehouse.
 
 Contains some hard-coded logic for which project ID correlates to which project
