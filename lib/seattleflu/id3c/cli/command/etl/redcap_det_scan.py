@@ -1,4 +1,6 @@
 """
+Deprecated, data collection ended
+
 Process DETs for the greater Seattle Coronavirus Assessment Network (SCAN) REDCap projects.
 """
 import re
