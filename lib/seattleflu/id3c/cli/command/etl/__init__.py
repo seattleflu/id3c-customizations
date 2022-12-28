@@ -82,6 +82,7 @@ def race(races: Optional[Any]) -> list:
     # Keys must be lowercase for case-insensitive lookup
     race_map = {
         "americanindianoralaskanative": "americanIndianOrAlaskaNative",
+        "american indian or native alaskan": "americanIndianOrAlaskaNative",
         "american indian": "americanIndianOrAlaskaNative",
         "american indian and alaska native": "americanIndianOrAlaskaNative",
         "american indian or alaska native": "americanIndianOrAlaskaNative",
@@ -96,12 +97,15 @@ def race(races: Optional[Any]) -> list:
         "blackorafricanamerican": "blackOrAfricanAmerican",
         "black or african american": "blackOrAfricanAmerican",
         "black": "blackOrAfricanAmerican",
+        "black or african-american": "blackOrAfricanAmerican",
 
         "nativehawaiian": "nativeHawaiian",
         "native hawaiian and other pacific islander" : "nativeHawaiian",
         "native hawaiian or other pacific islander": "nativeHawaiian",
         "native hawaiian or other pacific islande": "nativeHawaiian",
+        "native hawaiian or pacific islander": "nativeHawaiian",
         "hawaiian-pacislander": "nativeHawaiian",
+        "pacific islander": "nativeHawaiian",
         "nativehi": "nativeHawaiian",
         "native_hawaiian": "nativeHawaiian",
         "ha_pi": "nativeHawaiian",
@@ -174,11 +178,15 @@ def ethnicity(ethnicity: str) -> Optional[bool]:
     #not_hispanic_or_latino = create_coding("http://hl7.org/fhir/v3/Ethnicity", "2186-5", "not hispanic or latino")
 
     mapper = {
-        "hispanic or latino":               True,           # hispanic_or_latino,
-        "not hispanic or latino":           False,          # not_hispanic_or_latino,
-        "unavailable or unknown":           None,
-        "null":                             None,
-        "declined to answer":               None,
+        "hispanic or latino":                 True,           # hispanic_or_latino,
+        "hispanic or latino/a or latinx":     True,           # hispanic_or_latino,
+        "not hispanic or latino":             False,          # not_hispanic_or_latino,
+        "non-hispanic or latino/a or latinx": False,          # not_hispanic_or_latino,
+        "unavailable or unknown":             None,
+        "unknown to patient":                 None,
+        "patient declined to respond":        None,
+        "null":                               None,
+        "declined to answer":                 None,
     }
 
     if ethnicity not in mapper:
