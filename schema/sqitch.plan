@@ -485,3 +485,6 @@ warehouse/site/data [warehouse/site/data@2022-08-18] 2022-09-27T21:16:06Z Ben Ca
 
 shipping/views [shipping/views@2022-09-27] 2022-10-07T15:34:53Z Dave Reinhart <davidrr@uw.edu> # Update HCT shipping views to include new project id.
 @2022-10-07 2022-10-07T17:19:01Z Dave Reinhart <davidrr@uw.edu> # Schema as of 07 October 2022
+
+shipping/views [shipping/views@2022-10-07] 2022-12-02T10:51:05Z Ben Capodanno <capodb@uw.edu> # Add a new shipping view for chu lab data pulls
+@2022-12-02 2022-12-02T11:37:40Z Ben Capodanno <capodb@uw.edu> # Schema as of 02 December 2022

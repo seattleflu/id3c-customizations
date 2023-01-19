@@ -30,6 +30,21 @@ __2. Within ID3C customizations__:
 \* Note: using the `--log-only` option tells sqitch to log changes without
 dropping the views that were [moved from ID3C core to ID3C customizations](https://github.com/seattleflu/id3c/pull/96).
 
+## API
+
+You can also run the customizations portion of the ID3C API from this repository.
+For local testing, start the API with:
+```
+pipenv run python -m id3c.api FLASK_DEBUG=1
+```
+and visit http://127.0.0.1:5000/v1/documentation/customizations for documentation on
+the endpoints contained within this directory.
+
+If you'd like to see how the files get packaged and what is included, simply run
+```
+pipenv run python setup.py sdist
+```
+
 ## Tests
 
 Run all tests with:

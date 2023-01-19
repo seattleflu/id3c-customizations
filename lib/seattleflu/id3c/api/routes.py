@@ -200,6 +200,32 @@ def get_latest_results(session):
     return Response((row[0] + '\n' for row in latest_results), mimetype="application/x-ndjson")
 
 
+@api_v1.route("/shipping/hct-tableau-results", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_hct_tableau_results(session):
+    """
+    Export HCT results needed for tableau dashboards
+    """
+    LOG.debug("Exporting HCT results for Tableau dashboard backing data")
+
+    hct_tableau_results = datastore.fetch_rows_from_table(session, ("shipping", "uw_reopening_results_hct_data_pulls"))
+
+    return Response((row[0] + '\n' for row in hct_tableau_results), mimetype="application/x-ndjson")
+
+
+@api_v1.route("/shipping/hct-tableau-encounters", methods = ['GET'])
+@authenticated_datastore_session_required
+def get_hct_tableau_encounters(session):
+    """
+    Export HCT encounters needed for tableau dashboards
+    """
+    LOG.debug("Exporting HCT encounters for Tableau dashboard backing data")
+
+    hct_tableau_encounters = datastore.fetch_rows_from_table(session, ("shipping", "uw_reopening_encounters_hct_data_pulls"))
+
+    return Response((row[0] + '\n' for row in hct_tableau_encounters), mimetype="application/x-ndjson")
+
+
 @api_v1.route("/operations/deliverables-log", methods = ['GET'])
 @authenticated_datastore_session_required
 def get_deliverables_log(session):
