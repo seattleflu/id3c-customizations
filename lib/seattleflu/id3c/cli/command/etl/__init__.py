@@ -91,6 +91,7 @@ def race(races: Optional[Any]) -> list:
         "native_american": "americanIndianOrAlaskaNative",
         "indian": "americanIndianOrAlaskaNative",
         "native": "americanIndianOrAlaskaNative",
+        "alaska native": "americanIndianOrAlaskaNative",
 
         "asian": "asian",
 
