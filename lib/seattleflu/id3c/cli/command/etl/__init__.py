@@ -118,6 +118,7 @@ def race(races: Optional[Any]) -> list:
         "other race": "other",
         "multiple races": "other",
         "more than one race": "other",
+        "another race": "other",
 
         "refused": None,
         "patient refused": None,
