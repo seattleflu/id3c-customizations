@@ -612,6 +612,14 @@ def add_phskc_manifest_data(df: pd.DataFrame, manifest_filename: str) -> pd.Data
         LOG.warning(f'Dropping {duplicated_cids.sum()} rows with duplicated CID(s) from PHSKC manifest data')
         manifest_data = manifest_data[~duplicated_cids]
 
+    # ensure all of our comparison columns are uppercase so barcodes can be compared
+    df[['main_cid', 'all_cids', 'phskc_barcode']] = df[['main_cid', 'all_cids', 'phskc_barcode']].apply(
+        lambda col: col.str.upper().str.strip()
+    )
+    manifest_data[['merge_col', 'barcode']] = manifest_data[['merge_col', 'barcode']].apply(
+        lambda col: col.str.upper().str.strip()
+    )
+
     # Since we get two CIDs with each PHSKC record and they aren't guaranteed
     # to be the same, we should try both if they are not the same (note: they
     # are almost always the same). If main_cid is in the AQ sheet, we will give
