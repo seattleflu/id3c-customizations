@@ -346,10 +346,20 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "218",
             "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
         },
+        228: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "228",
+            "display": "COVID-19, mRNA, LNP-S, PF, pediatric 25 mcg/0.25 mL dose",
+        },
         300: {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "300",
             "display": "COVID-19, mRNA, LNP-S, bivalent booster, PF, 30 mcg/0.3 mL dose",
+        },
+        301: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "301",
+            "display": "COVID-19, mRNA, LNP-S, bivalent booster, PF, 10 mcg/0.2 mL dose"
         },
         511: {
             "system": "http://hl7.org/fhir/sid/cvx",
@@ -377,7 +387,9 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old":           218,
         "covid-19 pfizer mrna tris-sucrose 5-11 years old":                 218,
         "covid-19 pfizer mrna tris-sucrose 5-11 yrs old":                   218,
+        "covid-19 moderna mrna 6 mos-5 yrs old":                            228,
         "covid-19 pfizer mrna bivalent booster 12 yrs and older":           300,
+        "covid-19 pfizer mrna bivalent booster 5-11 yrs old":               301,
         "covid-19 sinovac inactivated, non-us (coronavac)":                 511,
         "": None
     }
