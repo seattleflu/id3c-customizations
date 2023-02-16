@@ -143,7 +143,7 @@ def race(races: Optional[Any]) -> list:
     return list(map(standardize_race, races))
 
 
-def ethnicity(ethnicity: str) -> Optional[bool]:
+def ethnicity(ethnicity: Optional[str]) -> Optional[bool]:
     """
     Returns a standardized boolean value for the given *ethnicity*
 
@@ -164,10 +164,11 @@ def ethnicity(ethnicity: str) -> Optional[bool]:
     seattleflu.id3c.cli.command.etl.UnknownEthnicityError: Unknown ethnicity value «foobarbaz»
     """
 
-    if not ethnicity:
-        return None
-    else:
+    if isinstance(ethnicity, str):
         ethnicity = standardize_whitespace(ethnicity.lower())
+
+    if ethnicity is None or ethnicity == "":
+        return None
 
     # Leaving this code here to be implemented later. My original approach was to use FHIR
     # coding for ethnicity, which would be preffered, but for consistency with other ETLs
