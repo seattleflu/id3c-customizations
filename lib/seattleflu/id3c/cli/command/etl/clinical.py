@@ -456,12 +456,13 @@ def flu_shot(flu_shot_response: Optional[Any]) -> list:
     id3c.cli.command.etl.UnknownFluShotResponseError: Unknown flu shot response «maybe»
 
     """
-    if flu_shot_response is None:
-        LOG.debug("No flu shot response found.")
-        return [None]
 
     if isinstance(flu_shot_response, str):
         flu_shot_response = flu_shot_response.lower()
+
+    if flu_shot_response is None or flu_shot_response == "":
+        LOG.debug("No flu shot response found.")
+        return [None]
 
     flu_shot_map = {
         0.0 : "no",
@@ -492,12 +493,13 @@ def admit_encounter(admit_encounter_response: Optional[Any]) -> list:
     id3c.cli.command.etl.UnknownAdmitEncounterResponseError: Unknown admit during encounter response «maybe»
 
     """
-    if admit_encounter_response is None:
-        LOG.debug("No admit during this encounter response found.")
-        return [None]
 
     if isinstance(admit_encounter_response, str):
         admit_encounter_response = admit_encounter_response.lower()
+
+    if admit_encounter_response is None or admit_encounter_response == "":
+        LOG.debug("No admit during this encounter response found.")
+        return [None]
 
     admit_encounter_map = {
         0.0 : "no",
@@ -529,12 +531,13 @@ def admit_icu(admit_icu_response: Optional[Any]) -> list:
     id3c.cli.command.etl.UnknownAdmitICUResponseError: Unknown admit to ICU response «maybe»
 
     """
-    if admit_icu_response is None:
-        LOG.debug("No admit to icu response found.")
-        return [None]
 
     if isinstance(admit_icu_response, str):
         admit_icu_response = admit_icu_response.lower()
+
+    if admit_icu_response is None or admit_icu_response == "":
+        LOG.debug("No admit to icu response found.")
+        return [None]
 
     admit_icu_map = {
         0.0 : "no",
@@ -565,12 +568,13 @@ def covid_shot(covid_shot_response: Optional[Any]) -> list:
     id3c.cli.command.etl.UnknownCovidShotResponseError: Unknown COVID shot response «maybe»
 
     """
-    if covid_shot_response is None:
-        LOG.debug("No COVID shot response found.")
-        return [None]
 
     if isinstance(covid_shot_response, str):
         covid_shot_response = covid_shot_response.lower()
+
+    if covid_shot_response is None or covid_shot_response == "":
+        LOG.debug("No COVID shot response found.")
+        return [None]
 
     covid_shot_map = {
         0.0 : "no",
@@ -605,12 +609,13 @@ def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> lis
     id3c.cli.command.etl.UnknownCovidShotManufacturerError: Unknown COVID shot manufacturer «somecompany»
 
     """
-    if covid_shot_manufacturer_name is None:
-        LOG.debug("No COVID shot manufacturer name found.")
-        return [None]
 
     if isinstance(covid_shot_manufacturer_name, str):
         covid_shot_manufacturer_name = covid_shot_manufacturer_name.lower().strip()
+
+    if covid_shot_manufacturer_name is None or covid_shot_manufacturer_name == "":
+        LOG.debug("No COVID shot manufacturer name found.")
+        return [None]
 
     valid_covid_manufacturers = [
         "pfizer",
@@ -641,12 +646,13 @@ def covid_screen(is_covid_screen: Optional[Any]) -> list:
     id3c.cli.command.etl.UnknownCovidScreenError: Unknown COVID screen «maybe»
 
     """
-    if is_covid_screen is None:
-        LOG.debug("No COVID screen value found.")
-        return [None]
 
     if isinstance(is_covid_screen, str):
         is_covid_screen = is_covid_screen.lower()
+
+    if is_covid_screen is None or is_covid_screen == "":
+        LOG.debug("No COVID screen value found.")
+        return [None]
 
     covid_screen_map = {
         "false": "no",
@@ -735,12 +741,12 @@ def if_symptoms_how_long(if_symptoms_how_long_response: Optional[Any]) -> Option
 
     """
 
-    if if_symptoms_how_long_response is None:
+    if isinstance(if_symptoms_how_long_response, str):
+        if_symptoms_how_long_response = if_symptoms_how_long_response.strip().lower()
+
+    if if_symptoms_how_long_response is None or if_symptoms_how_long_response == "":
         LOG.debug("No if_symptoms_how_long response found.")
         return None
-
-    if isinstance(if_symptoms_how_long_response, str):
-        if_symptoms_how_long_response = if_symptoms_how_long_response.lower().strip()
 
     symptoms_duration_map = {
         "1 day": "1_day",
@@ -779,12 +785,12 @@ def covid_vaccination_status(covid_vaccination_status_response: Optional[Any]) -
 
     """
 
-    if covid_vaccination_status_response is None:
-        LOG.debug("No covid_vaccination_status_response response found.")
-        return None
-
     if isinstance(covid_vaccination_status_response, str):
         covid_vaccination_status_response = covid_vaccination_status_response.lower().strip()
+
+    if covid_vaccination_status_response is None or covid_vaccination_status_response == "":
+        LOG.debug("No covid_vaccination_status_response response found.")
+        return None
 
     covid_vaccination_status_map = {
         "yes i am fully vaccinated.":                                                   "fully_vaccinated",
@@ -818,12 +824,13 @@ def inferred_symptomatic(inferred_symptomatic_response: Optional[Any]) -> Option
     Exception: Unknown inferred_symptomatic_response «maybe»
 
     """
-    if inferred_symptomatic_response is None:
-        LOG.debug("No inferred_symptomatic response found.")
-        return None
 
     if isinstance(inferred_symptomatic_response, str):
         inferred_symptomatic_response = inferred_symptomatic_response.lower().strip()
+
+    if inferred_symptomatic_response is None or inferred_symptomatic_response == "":
+        LOG.debug("No inferred_symptomatic response found.")
+        return None
 
     inferred_symptomatic_map = {
         "false": False,
@@ -853,12 +860,13 @@ def survey_have_symptoms_now(survey_have_symptoms_now_response: Optional[Any]) -
     Exception: Unknown survey_have_symptoms_now_response «maybe»
 
     """
-    if survey_have_symptoms_now_response is None:
-        LOG.debug("No survey_have_symptoms_now response found.")
-        return None
 
     if isinstance(survey_have_symptoms_now_response, str):
         survey_have_symptoms_now_response = survey_have_symptoms_now_response.lower().strip()
+
+    if survey_have_symptoms_now_response is None or survey_have_symptoms_now_response == "":
+        LOG.debug("No survey_have_symptoms_now response found.")
+        return None
 
     survey_have_symptoms_now_map = {
         "yes": True,
@@ -889,12 +897,12 @@ def survey_testing_because_exposed(survey_testing_because_exposed_response: Opti
 
     """
 
-    if survey_testing_because_exposed_response is None:
-        LOG.debug("No survey_testing_because_exposed response found.")
-        return None
-
     if isinstance(survey_testing_because_exposed_response, str):
         survey_testing_because_exposed_response = survey_testing_because_exposed_response.lower().strip()
+
+    if survey_testing_because_exposed_response is None or survey_testing_because_exposed_response == "":
+        LOG.debug("No survey_testing_because_exposed response found.")
+        return None
 
     survey_testing_because_exposed_map = {
         "no":                                                                       "no",
