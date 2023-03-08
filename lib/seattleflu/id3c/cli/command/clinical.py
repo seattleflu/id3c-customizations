@@ -13,6 +13,13 @@ import os
 import re
 import pandas as pd
 import id3c.db as db
+import time
+import requests
+import hmac
+import base64
+import json
+import glob
+from datetime import datetime, timezone
 from functools import partial
 from math import ceil
 from id3c.db.session import DatabaseSession
@@ -787,3 +794,114 @@ def upload(clinical_file):
         LOG.info("Rolling back all changes; the database will not be modified")
         db.rollback()
         raise
+
+
+def prepare_lims_request(
+        verb: str,
+        path: str,
+        body: List[dict] = None,
+        lims_server: Optional[str] = None,
+        lims_key: Optional[str] = None,
+        lims_secret: Optional[str] = None
+    ) -> requests.PreparedRequest:
+    """
+    Prepares a LIMS API request so that it is ready to be sent. Creates the
+    request object and signs it using HMAC. Requires the environment values
+    `LIMS_API_KEY_ID` and `LIMS_API_KEY_SECRET` if these are not passed directly.
+    """
+    if lims_server is None and 'LIMS_API_URL' in os.environ:
+        lims_server = os.environ['LIMS_API_URL']
+    else:
+        raise ValueError('`LIMS_API_URL` was not found in the environment, and not provided to LIMS auth builder.')
+
+    if lims_key is None and 'LIMS_API_KEY_ID' in os.environ:
+        lims_key = os.environ['LIMS_API_KEY_ID']
+    else:
+        raise ValueError('`LIMS_API_KEY_ID` was not found in the environment, and not provided to LIMS auth builder.')
+
+    if lims_secret is None and 'LIMS_API_KEY_SECRET' in os.environ:
+        lims_secret = os.environ['LIMS_API_KEY_SECRET']
+    else:
+        raise ValueError('`LIMS_API_KEY_SECRET` was not found in the environment, and not provided to LIMS auth builder.')
+
+    # The LIMS server expects the nonce to be a UNIX timestamp. This value prevents replay attacks to the LIMS.
+    unix_timestamp_seconds_utc = int(datetime.now(timezone.utc).replace(tzinfo=timezone.utc).timestamp() * 1000)
+    nonce = str(unix_timestamp_seconds_utc)
+
+    # The secret provided by the LIMS application is base64-encoded, with the final "==" stripped off.
+    hmac_signer = hmac.new(base64.b64decode(lims_secret + '=='), digestmod=hashlib.sha512)
+
+    request = requests.Request(
+        verb,
+        f'{lims_server}{path}',
+        data=json.dumps(body),
+        headers={
+            'hmac-key-id': lims_key,
+            'content-type': 'application/json'
+        }
+    )
+    prepared_request = request.prepare()
+
+    # Append the nonce, HTTP verb, API path, and a hash digest of the body (if it exists) to the data to be HMAC-signed.
+    hmac_signer.update(nonce.encode() + verb.encode() + path.encode())
+    if body is not None:
+        body_hash = hashlib.md5(str(prepared_request.body).encode()).hexdigest().encode()
+        hmac_signer.update(body_hash)
+
+    # Generate the signature and add it to the authorization header.
+    signature = hmac_signer.hexdigest()
+    prepared_request.headers['Authorization'] = f'HMAC {nonce}:{signature}'
+
+    return prepared_request
+
+
+def match_lims_identifiers(clinical_records: pd.DataFrame, lims_identifiers: Dict[str, str]) -> Dict[str, str]:
+    """
+    Fetch internal SFS sample identifiers from the LIMS and match them
+    on the desired identifier value.
+    """
+    lims_search_results = []
+    session = requests.Session()
+    for clinical_term, lims_term in lims_identifiers.items():
+        LOG.debug(f"Trying to match clinical term `{clinical_term}` with lims term `{lims_term}`")
+
+        clinical_ids = clinical_records[clinical_term].tolist()
+        lims_query_terms = [{lims_term: identifier} for identifier in clinical_ids if identifier]
+        if len(lims_query_terms) > 0:
+            LOG.debug(f"Fetching matches for {len(lims_query_terms)} {lims_term} identifiers from the LIMS")
+
+            # perform requests with exponential backoff and batching, since
+            # these can be a bit intense for the LIMS server if there are lots
+            # of records to search on.
+            lims_request = prepare_lims_request(
+                'POST',
+                '/api/v1/sfs-specimens/find-specimen-identifiers',
+                lims_query_terms
+            )
+            response = session.send(lims_request)
+            LOG.info(f"{response.status_code} {response.reason} response for content=specimen-identifiers from {response.url}")
+            response.raise_for_status()
+
+            # grab the identifiers section from each valid LIMS specimen result
+            if response.content is not None:
+                search_results = [
+                    result.get('ids', None) for result in json.loads(response.content) if result is not None and 'error' not in result
+                ]
+
+        else:
+            LOG.debug(f"Skipping LIMS query with {len(lims_query_terms)} identifiers to search for")
+            search_results = []
+
+        LOG.debug(f"Received {len(search_results)} `{clinical_term}` identifiers matching lims identifier `{lims_term}`")
+        lims_search_results.extend(search_results)
+
+    # if a term that we are searching for exists within our search results,
+    # add it to our matched identifiers dictionary and associate it with the
+    # sample id of the queried record.
+    matched_identifiers = {}
+    for identifiers in lims_search_results:
+        for term in set(lims_identifiers.values()):
+            if identifiers and term in identifiers:
+                matched_identifiers[identifiers[term]] = identifiers['matrixId']
+
+    return matched_identifiers
