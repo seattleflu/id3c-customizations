@@ -549,7 +549,9 @@ def parse_phskc(phskc_manifest_filename: str, file_pattern: str, geocoding_cache
 @clinical.command("deduplicate-phskc")
 @click.argument("phskc_manifest_filename", metavar = "<PHSKC Clinical Manifest Data filename>",
             type = click.Path(exists=True, dir_okay=False))
-def deduplicate_phskc(phskc_manifest_filename: str) -> None:
+@click.argument("phskc_manifest_skips_filename", metavar = "<PHSKC Clinical Manifest Data filename>",
+            type = click.Path(exists=True, dir_okay=False))
+def deduplicate_phskc(phskc_manifest_filename: str, phskc_manifest_skips_filename: str) -> None:
     """
     Deduplicate parsed clinical data from PHSKC
 
@@ -579,15 +581,126 @@ def deduplicate_phskc(phskc_manifest_filename: str) -> None:
     parsed_clinical_records = parsed_clinical_records.loc[~id_duplicates, :]
     LOG.debug(f"Dropped {len(id_duplicated_records)} records with duplicated identifiers. {len(parsed_clinical_records)} remain.")
 
+    all_duplicates = [fully_duplicated_records, id_duplicated_records]
     # remove all single identifier duplicates
     for identifier in PHSKC_IDENTIFIERS.keys():
         single_duplicates = parsed_clinical_records.duplicated(subset=identifier, keep=False)
-        single_duplicated_records = parsed_clinical_records.loc[single_duplicates, :]
+        all_duplicates.append(parsed_clinical_records.loc[single_duplicates, :].copy())
         parsed_clinical_records = parsed_clinical_records.loc[~single_duplicates, :]
-        LOG.debug(f"Dropped {len(single_duplicated_records)} records with a duplicated {identifier} column. {len(parsed_clinical_records)} remain.")
+        LOG.debug(f"Dropped {len(all_duplicates[-1])} records with a duplicated {identifier} column. {len(parsed_clinical_records)} remain.")
+
+    dropped_records = pd.concat(all_duplicates)
+    dropped_records.to_json(phskc_manifest_skips_filename, orient='records', lines=True)
+    LOG.info(f"Skipped a total of {len(dropped_records)} duplicated records")
 
     LOG.info(f"A total of {len(parsed_clinical_records)} parsed PHSKC records exist after deduplication")
     dump_ndjson(parsed_clinical_records)
+
+
+@clinical.command("match-phskc")
+@click.argument("phskc_manifest_new_filename", metavar = "<PHSKC Clinical Manifest Newly Parsed Data filename>",
+                type = click.Path(exists= True, dir_okay=False))
+@click.argument("phskc_manifest_unmatched_filename", metavar = "<PHSKC Clinical Manifest Un-Matched Data filename>",
+                type = click.Path(exists=True, dir_okay=False))
+@click.argument("phskc_manifest_matched_filename", metavar = "<PHSKC Clinical Manifest Matched Data filename>",
+                type = click.Path(exists=True, dir_okay=False))
+
+def match_phskc(phskc_manifest_new_filename: str, phskc_manifest_unmatched_filename: str, phskc_manifest_matched_filename: str) -> None:
+    """
+    Match clinical data from PHSKC with identifiers from the LIMS.
+
+    Given a <PHSKC Clinical Manifest Un-Matched Data filename> of manifest
+    data not yet matched to a LIMS identifiers, a <PHSKC Clinical Manifest
+    Matched Data filename> of records already matched to LIMS data, and a
+    <PHSKC Clinical Manifest Newly Parsed Data Filename> of data that was newly
+    parsed and should be matched to LIMS data, attempt to match any unmatched
+    barcodes or newly parsed data with LIMS data and add them to the match file.
+    Remove any matches from the unmatched file.
+
+    PII is removed by this function. The unmatched data input file may be modified
+    by this command.
+
+    All matched clinical records (both previously and newly matched records) are output
+    to stdout as newline-delimited JSON records.  You will likely want to redirect stdout
+    to a file.
+    """
+    new_clinical_records = pd.read_json(phskc_manifest_new_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
+    unmatched_clinical_records = pd.read_json(phskc_manifest_unmatched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
+    matched_clinical_records = pd.read_json(phskc_manifest_matched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
+    LOG.info(f"Currently have {len(matched_clinical_records)}/{len(unmatched_clinical_records) + len(matched_clinical_records)} matched.")
+
+    # if a file appears in our diff, it means we just re-parsed it. therefore all records in our unmatched
+    # dataset from that file will be stale. remove them here and replace them with freshly parsed records.
+    LOG.info(f"Received {len(new_clinical_records)} newly parsed records")
+    if not new_clinical_records.empty:
+        for file in new_clinical_records._provenance.str['filename'].unique():
+            LOG.debug(f"Rematching all records from newly parsed file {file}")
+
+            # find any currently unmatched clinical records from this file in our
+            # dataset and drop them.
+            if not unmatched_clinical_records.empty:
+                stale_records = unmatched_clinical_records.loc[
+                    unmatched_clinical_records._provenance.str['filename'] == file, :
+                ]
+                unmatched_clinical_records = unmatched_clinical_records.drop(stale_records.index)
+                LOG.debug(f"Dropped {len(stale_records)} stale unmatched records")
+
+            # get all the freshly parsed records from this file and add them to the records we must match
+            fresh_records = new_clinical_records.loc[
+                new_clinical_records._provenance.str['filename'] == file, :
+            ]
+            unmatched_clinical_records = pd.concat([unmatched_clinical_records, fresh_records]).reset_index(drop=True)
+            LOG.debug(f"Received {len(fresh_records)} fresh unmatched records")
+    else:
+        LOG.debug(f"Didn't receive any newly parsed records. Trying to match {len(unmatched_clinical_records)} previously unmatched data")
+
+    LOG.info(f"Attempting to match {len(unmatched_clinical_records)} unmatched identifiers to LIMS data")
+    identifier_pairs = match_lims_identifiers(unmatched_clinical_records, PHSKC_IDENTIFIERS)
+
+    # try to find a barcode match for each possible identifier if we haven't already matched this row
+    unmatched_clinical_records['barcode'] = pd.NA
+    for identifier in PHSKC_IDENTIFIERS.keys():
+        unmatched_clinical_records['barcode'] = unmatched_clinical_records.apply(
+            lambda row: identifier_pairs.get(row[identifier], pd.NA) if pd.isna(row['barcode']) else row['barcode'],
+            axis=1
+        )
+
+    newly_matched_clinical_records = unmatched_clinical_records.loc[~unmatched_clinical_records['barcode'].isna()]
+    unmatched_clinical_records = unmatched_clinical_records[unmatched_clinical_records['barcode'].isna()]
+
+    # drop any PII and parse metadata
+    newly_matched_clinical_records = newly_matched_clinical_records.drop(
+        columns=list(PHSKC_IDENTIFIERS.keys()) + ['last_parsed']
+    )
+
+    # newly matched barcodes shouldn't be in our previously matched data.
+    # any barcodes that show up in a previous parse might contain refreshed data,
+    # so we should keep the newly matched data and drop the old match. If there is
+    # no difference, our diff won't pull this into ID3C.
+    if newly_matched_clinical_records.empty:
+        LOG.debug(f"No new records were matched to LIMS data")
+    elif matched_clinical_records.empty:
+        LOG.debug(f"{len(newly_matched_clinical_records)} were matched. No previously matched data to consolidate")
+    else:
+        LOG.debug(f"{len(newly_matched_clinical_records)} were matched. Refreshing all previously matched data")
+
+        refreshed_old_records = matched_clinical_records.barcode.isin(newly_matched_clinical_records.barcode)
+        refreshed_new_records = newly_matched_clinical_records.barcode.isin(matched_clinical_records.barcode)
+        matched_clinical_records = matched_clinical_records.loc[~refreshed_old_records, :]
+        LOG.debug(f"{len(matched_clinical_records)} previously matched records remain after dropping potentially refreshed records")
+
+        newly_refreshed_clinical_records = newly_matched_clinical_records.loc[refreshed_new_records, :]
+        newly_paired_clinical_records = newly_matched_clinical_records.loc[~refreshed_new_records, :]
+        LOG.debug(f"{len(newly_paired_clinical_records)} had not been previously matched. {len(newly_refreshed_clinical_records)} had been previously matched and were refreshed")
+
+        newly_matched_clinical_records = pd.concat([newly_paired_clinical_records, newly_refreshed_clinical_records]).reset_index(drop=True)
+
+    matched_clinical_records = pd.concat([matched_clinical_records, newly_matched_clinical_records]).reset_index(drop=True)
+    LOG.info(f"A total of {len(matched_clinical_records)} records are matched to LIMS data with {len(unmatched_clinical_records)} still unmatched.")
+
+    unmatched_clinical_records.to_json(phskc_manifest_unmatched_filename, orient='records', lines=True)
+    if not matched_clinical_records.empty:
+        dump_ndjson(matched_clinical_records)
 
 
 def format_phskc_data(clinical_records: pd.DataFrame, geocoding_cache_file: str) -> pd.DataFrame:
