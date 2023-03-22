@@ -567,7 +567,7 @@ def deduplicate_phskc(phskc_manifest_filename: str, phskc_manifest_skips_filenam
     else:
         parsed_clinical_records.columns = parsed_clinical_records.columns.str.lower()
 
-    LOG.info(f"Read {len(parsed_clinical_records)} parsed PHSKC records from manifest file")
+    LOG.debug(f"Read {len(parsed_clinical_records)} parsed PHSKC records from manifest file")
 
     # remove final full duplicates
     full_duplicates = parsed_clinical_records.duplicated(subset=parsed_clinical_records.columns.difference(["_provenance", "last_parsed"]), keep='last')
@@ -627,7 +627,7 @@ def match_phskc(phskc_manifest_new_filename: str, phskc_manifest_unmatched_filen
     new_clinical_records = pd.read_json(phskc_manifest_new_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
     unmatched_clinical_records = pd.read_json(phskc_manifest_unmatched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
     matched_clinical_records = pd.read_json(phskc_manifest_matched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
-    LOG.info(f"Currently have {len(matched_clinical_records)}/{len(unmatched_clinical_records) + len(matched_clinical_records)} matched.")
+    LOG.info(f"A total of {len(matched_clinical_records)} records are matched to LIMS data with {len(unmatched_clinical_records)} still unmatched.")
 
     # if a file appears in our diff, it means we just re-parsed it. therefore all records in our unmatched
     # dataset from that file will be stale. remove them here and replace them with freshly parsed records.
@@ -1041,11 +1041,12 @@ def match_lims_identifiers(clinical_records: pd.DataFrame, lims_identifiers: Dic
 
     # if a term that we are searching for exists within our search results,
     # add it to our matched identifiers dictionary and associate it with the
-    # sample id of the queried record.r
+    # sample id of the queried record.
     matched_identifiers = {}
     for identifiers in lims_search_results:
         for term in set(lims_identifiers.values()):
             if identifiers and term in identifiers:
                 matched_identifiers[identifiers[term]] = identifiers['matrixId']
 
+    LOG.debug(f"Found an identifier match for {len(matched_identifiers)} identifiers")
     return matched_identifiers
