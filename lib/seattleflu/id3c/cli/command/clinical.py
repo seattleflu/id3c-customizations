@@ -582,9 +582,10 @@ def deduplicate_phskc(phskc_manifest_filename: str, phskc_manifest_skips_filenam
     LOG.debug(f"Dropped {len(id_duplicated_records)} records with duplicated identifiers. {len(parsed_clinical_records)} remain.")
 
     all_duplicates = [fully_duplicated_records, id_duplicated_records]
-    # remove all single identifier duplicates
+    # remove all single identifier duplicates. ensure we don't treat NAs as dups
     for identifier in PHSKC_IDENTIFIERS.keys():
         single_duplicates = parsed_clinical_records.duplicated(subset=identifier, keep=False)
+        single_duplicates[parsed_clinical_records[identifier].isnull()] = False
         all_duplicates.append(parsed_clinical_records.loc[single_duplicates, :].copy())
         parsed_clinical_records = parsed_clinical_records.loc[~single_duplicates, :]
         LOG.debug(f"Dropped {len(all_duplicates[-1])} records with a duplicated {identifier} column. {len(parsed_clinical_records)} remain.")
