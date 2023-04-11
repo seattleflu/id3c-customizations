@@ -492,7 +492,7 @@ def parse_phskc(phskc_manifest_filename: str, file_pattern: str, geocoding_cache
     All clinical records (both newly and previously parsed data) are output to stdout
     as newline-delimited JSON records. You will likely want to redirect stdout to a file.
     """
-    parsed_clinical_records = pd.read_json(phskc_manifest_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
+    parsed_clinical_records = pd.read_json(phskc_manifest_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'string', 'age': 'int64'}, lines=True)
     if not parsed_clinical_records.empty:
         parsed_clinical_records.columns = parsed_clinical_records.columns.str.lower()
 
@@ -561,7 +561,7 @@ def deduplicate_phskc(phskc_manifest_filename: str, phskc_manifest_skips_filenam
 
     PII is not removed by this function.
     """
-    parsed_clinical_records = pd.read_json(phskc_manifest_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
+    parsed_clinical_records = pd.read_json(phskc_manifest_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'string', 'age': 'int64'}, lines=True)
     if parsed_clinical_records.empty:
         return
     else:
@@ -582,9 +582,10 @@ def deduplicate_phskc(phskc_manifest_filename: str, phskc_manifest_skips_filenam
     LOG.debug(f"Dropped {len(id_duplicated_records)} records with duplicated identifiers. {len(parsed_clinical_records)} remain.")
 
     all_duplicates = [fully_duplicated_records, id_duplicated_records]
-    # remove all single identifier duplicates
+    # remove all single identifier duplicates. ensure we don't treat NAs as dups
     for identifier in PHSKC_IDENTIFIERS.keys():
         single_duplicates = parsed_clinical_records.duplicated(subset=identifier, keep=False)
+        single_duplicates[parsed_clinical_records[identifier].isnull()] = False
         all_duplicates.append(parsed_clinical_records.loc[single_duplicates, :].copy())
         parsed_clinical_records = parsed_clinical_records.loc[~single_duplicates, :]
         LOG.debug(f"Dropped {len(all_duplicates[-1])} records with a duplicated {identifier} column. {len(parsed_clinical_records)} remain.")
@@ -624,9 +625,9 @@ def match_phskc(phskc_manifest_new_filename: str, phskc_manifest_unmatched_filen
     to stdout as newline-delimited JSON records.  You will likely want to redirect stdout
     to a file.
     """
-    new_clinical_records = pd.read_json(phskc_manifest_new_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
-    unmatched_clinical_records = pd.read_json(phskc_manifest_unmatched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
-    matched_clinical_records = pd.read_json(phskc_manifest_matched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'int64', 'age': 'int64'}, lines=True)
+    new_clinical_records = pd.read_json(phskc_manifest_new_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'string', 'age': 'int64'}, lines=True)
+    unmatched_clinical_records = pd.read_json(phskc_manifest_unmatched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'string', 'age': 'int64'}, lines=True)
+    matched_clinical_records = pd.read_json(phskc_manifest_matched_filename, orient='records', dtype={'inferred_symptomatic': 'string', 'census_tract': 'string', 'age': 'int64'}, lines=True)
     LOG.info(f"A total of {len(matched_clinical_records)} records are matched to LIMS data with {len(unmatched_clinical_records)} still unmatched.")
 
     # if a file appears in our diff, it means we just re-parsed it. therefore all records in our unmatched
