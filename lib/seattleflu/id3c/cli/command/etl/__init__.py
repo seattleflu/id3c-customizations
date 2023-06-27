@@ -101,6 +101,7 @@ def race(races: Optional[Any]) -> list:
         "black or african-american": "blackOrAfricanAmerican",
 
         "nativehawaiian": "nativeHawaiian",
+        "native hawaiian": "nativeHawaiian",
         "native hawaiian and other pacific islander" : "nativeHawaiian",
         "native hawaiian or other pacific islander": "nativeHawaiian",
         "native hawaiian or other pacific islande": "nativeHawaiian",
