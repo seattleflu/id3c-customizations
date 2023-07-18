@@ -377,6 +377,7 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "flu unspecified":                                                  88,
         "covid-19 moderna mrna lnp-s":                                      207,
         "covid-19 moderna mrna 12 yrs and older":                           207,
+        "covid-19 moderna mrna monovalent 12 yrs and older":                207,
         "covid-19 moderna mrna 18 yrs and older":                           207,
         "covid-19 pfizer mrna lnp-s":                                       208,
         "covid-19 pfizer mrna lnp-s (comirnaty)":                           208,
