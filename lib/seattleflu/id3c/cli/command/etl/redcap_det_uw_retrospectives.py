@@ -383,6 +383,7 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "covid-19 pfizer mrna lnp-s (comirnaty)":                           208,
         "covid-19 pfizer mrna purple cap":                                  208,
         "covid-19 pfizer mrna 12 yrs and older (purple cap)":               208,
+        "covid-19 pfizer mrna monovalent 12 yrs and older (purple cap)":    208,
         "covid-19 pfizer mrna tris-sucrose gray cap":                       208,
         "covid-19 pfizer mrna tris-sucrose 12 yrs and older (gray cap)":    208,
         "covid-19 astrazeneca vector-nr rs-chadox1":                        210,
