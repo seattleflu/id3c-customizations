@@ -192,6 +192,7 @@ def ethnicity(ethnicity: Optional[str]) -> Optional[bool]:
         "patient declined to respond":        None,
         "null":                               None,
         "declined to answer":                 None,
+        "unable to collect":                  None,
     }
 
     if ethnicity not in mapper:

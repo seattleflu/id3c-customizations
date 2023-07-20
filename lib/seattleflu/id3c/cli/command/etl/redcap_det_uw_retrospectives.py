@@ -341,10 +341,20 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "213",
             "display": "COVID-19 vaccine, UNSPECIFIED",
         },
+        217: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "217",
+            "display": "COVID-19 vaccine, mRNA, LNP-S, PF, 30 mcg/0.3 mL dose, tris-sucrose",
+        },
         218: {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "218",
             "display": "COVID-19, mRNA, LNP-S, PF, 10 mcg/0.2 mL dose, tris-sucrose",
+        },
+        219: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "219",
+            "display": "COVID-19, mRNA, LNP-S, PF, 3 mcg/0.2 mL dose, tris-sucrose",
         },
         228: {
             "system": "http://hl7.org/fhir/sid/cvx",
@@ -355,6 +365,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "229",
             "display": "COVID-19, mRNA, LNP-S, bivalent booster, PF, 50 mcg/0.5 mL or 25mcg/0.25mL dose",
+        },
+        230: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "230",
+            "display": "COVID-19, mRNA, LNP-S, bivalent, PF, 10 mcg/0.2 mL",
         },
         300: {
             "system": "http://hl7.org/fhir/sid/cvx",
@@ -384,8 +399,9 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "covid-19 pfizer mrna purple cap":                                  208,
         "covid-19 pfizer mrna 12 yrs and older (purple cap)":               208,
         "covid-19 pfizer mrna monovalent 12 yrs and older (purple cap)":    208,
-        "covid-19 pfizer mrna tris-sucrose gray cap":                       208,
-        "covid-19 pfizer mrna tris-sucrose 12 yrs and older (gray cap)":    208,
+        "covid-19 pfizer mrna tris-sucrose gray cap":                       217,
+        "covid-19 pfizer mrna tris-sucrose 12 yrs and older (gray cap)":    217,
+        "covid-19 pfizer mrna monovalent tris-sucrose 12 yrs and older (gray cap)": 217,
         "covid-19 astrazeneca vector-nr rs-chadox1":                        210,
         "covid-19 novavax subunit rs-nanoparticle":                         211,
         "covid-19 novavax subunit adjuvanted":                              211,
@@ -394,10 +410,17 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "covid-19 pfizer mrna lnp-s tris-sucrose 5-11 years old":           218,
         "covid-19 pfizer mrna tris-sucrose 5-11 years old":                 218,
         "covid-19 pfizer mrna tris-sucrose 5-11 yrs old":                   218,
+        "covid-19 pfizer mrna monovalent 5-11 yrs old":                     218,
+        "covid-19 pfizer mrna monovalent 6 mos-4 yrs old":                  219,
         "covid-19 moderna mrna 6 mos-5 yrs old":                            228,
+        "covid-19 moderna mrna monovalent 6 mos-5 yrs old":                 228,
         "covid-19 moderna mrna bivalent booster 6 yrs and older":           229,
+        "covid-19 moderna mrna bivalent 6 mos and older, 0.25 or 0.5 ml dose": 229,
+        "covid-19 moderna mrna bivalent 6 mos-5 yrs old, 0.2 ml dose":      230,
         "covid-19 pfizer mrna bivalent booster 12 yrs and older":           300,
+        "covid-19 pfizer mrna bivalent 12 yrs and older":                   300,
         "covid-19 pfizer mrna bivalent booster 5-11 yrs old":               301,
+        "covid-19 pfizer mrna bivalent 5-11 yrs old":                       301,
         "covid-19 sinovac inactivated, non-us (coronavac)":                 511,
         "": None
     }
