@@ -285,10 +285,5 @@ class UnknownEthnicityError(ValueError):
 
 from . import (
     clinical,
-    longitudinal,
-    redcap_det_swab_n_send,
     redcap_det_uw_retrospectives,
-    redcap_det_scan,
-    redcap_det_uw_reopening,
-    redcap_det_fh_airs,
 )
