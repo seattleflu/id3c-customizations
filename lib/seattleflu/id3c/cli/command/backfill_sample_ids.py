@@ -27,7 +27,7 @@ def backfill_sample_ids(*, db: DatabaseSession, action: DatabaseSessionAction):
             where identifier is null and
             identifier_set.name in ('collections-uw-tiny-swabs-home', 'collections-uw-tiny-swabs-observed',
                 'collections-scan-tiny-swabs', 'collections-adult-family-home-outbreak-tiny-swabs', 'collections-workplace-outbreak-tiny-swabs',
-                'collections-cascadia-tiny-swabs-home')
+                'collections-cascadia-tiny-swabs-home', 'collections-viral-evolution')
             order by sample.sample_id
             """)
 
