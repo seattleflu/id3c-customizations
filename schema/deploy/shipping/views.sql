@@ -29,6 +29,7 @@ drop view if exists shipping.__uw_priority_queue_v1;
 drop materialized view if exists shipping.__uw_encounters;
 drop view if exists shipping.uw_reopening_ehs_reporting_v1;
 drop view if exists shipping.uw_reopening_encounters_v1;
+drop view if exists shipping.uw_reopening_encounters_hct_data_pulls;
 drop view if exists shipping.uw_reopening_enrollment_fhir_encounter_details_v1;
 
 drop view if exists shipping.scan_return_results_v1;
@@ -70,7 +71,7 @@ drop view if exists shipping.sample_with_best_available_encounter_data_v1;
 
 
 /******************** VIEWS FOR INTERNAL USE ********************/
-create or replace view shipping.sample_with_best_available_encounter_data_v1 as
+create or replace view shipping.sample_with_best_available_encounter_data_v1 with (security_invoker = true) as
 
     with site_details as (
       select site_1.site_id,
@@ -208,7 +209,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.fhir_encounter_details_v1 as
+create or replace view shipping.fhir_encounter_details_v1 with (security_invoker = true) as
 
     with
         symptoms as (
@@ -296,7 +297,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.fhir_encounter_details_v2 as
+create or replace view shipping.fhir_encounter_details_v2 with (security_invoker = true) as
 
     with
         symptoms as (
@@ -1017,7 +1018,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.phskc_encounter_details_v1 as
+create or replace view shipping.phskc_encounter_details_v1 with (security_invoker = true) as
 
     with
         phskc_encounters as (
@@ -1088,7 +1089,7 @@ comment on view shipping.phskc_encounter_details_v1 is
 
 
 /******************** VIEWS FOR IDM MODELERS ********************/
-create or replace view shipping.incidence_model_observation_v1 as
+create or replace view shipping.incidence_model_observation_v1 with (security_invoker = true) as
 
     select encounter.identifier as encounter,
 
@@ -1186,7 +1187,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.incidence_model_observation_v2 as
+create or replace view shipping.incidence_model_observation_v2 with (security_invoker = true) as
 
     select encounter.identifier as encounter,
 
@@ -1281,7 +1282,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.incidence_model_observation_v3 as
+create or replace view shipping.incidence_model_observation_v3 with (security_invoker = true) as
 
     select encounter.identifier as encounter,
 
@@ -1356,7 +1357,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.incidence_model_observation_v4 as
+create or replace view shipping.incidence_model_observation_v4 with (security_invoker = true) as
 
     select encounter.identifier as encounter,
 
@@ -1442,7 +1443,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.observation_with_presence_absence_result_v1 as
+create or replace view shipping.observation_with_presence_absence_result_v1 with (security_invoker = true) as
 
     select target,
            present,
@@ -1457,7 +1458,7 @@ comment on view shipping.observation_with_presence_absence_result_v1 is
   'Joined view of shipping.incidence_model_observation_v2 and shipping.presence_absence_result_v1';
 
 
-create or replace view shipping.observation_with_presence_absence_result_v2 as
+create or replace view shipping.observation_with_presence_absence_result_v2 with (security_invoker = true) as
 
     select target,
            present,
@@ -1472,7 +1473,7 @@ comment on view shipping.observation_with_presence_absence_result_v2 is
   'Joined view of shipping.incidence_model_observation_v3 and shipping.presence_absence_result_v1';
 
 
-create or replace view shipping.hcov19_presence_absence_result_v1 as
+create or replace view shipping.hcov19_presence_absence_result_v1 with (security_invoker = true) as
 
     -- Collapse potentially multiple hCoV-19 results
     select distinct on (sample_id)
@@ -1534,7 +1535,7 @@ comment on view shipping.hcov19_presence_absence_result_v1 is
   'Custom view of hCoV-19 samples with non-clinical presence-absence results';
 
 
-create or replace view shipping.hcov19_observation_v1 as
+create or replace view shipping.hcov19_observation_v1 with (security_invoker = true) as
     -- TODO figure out if it's possible to refactor the nested query inside this
     -- CTE to query shipping.hcov19_presence_absence_result_v1. I could not
     -- figure out how to do it without dropping some rows.  -- kfay
@@ -1681,7 +1682,7 @@ comment on view shipping.hcov19_observation_v1 is
   'Custom view of hCoV-19 samples with presence-absence results and best available encounter data';
 
 
-create or replace view shipping.observation_with_presence_absence_result_v3 as
+create or replace view shipping.observation_with_presence_absence_result_v3 with (security_invoker = true) as
     with hcov19_pa as (
       select
         sample.identifier as sample,
@@ -1907,7 +1908,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.scan_follow_up_encounters_v1 as
+create or replace view shipping.scan_follow_up_encounters_v1 with (security_invoker = true) as
 
     with
         fu_illness as (
@@ -2415,7 +2416,7 @@ grant select
   to "incidence-modeler";
 
 
-create or replace view shipping.scan_encounters_with_best_available_vaccination_data_v1 as
+create or replace view shipping.scan_encounters_with_best_available_vaccination_data_v1 with (security_invoker = true) as
 
     with vac_1_most_frequent_valid_date as (
       select distinct on (individual)
@@ -2606,7 +2607,7 @@ create or replace view shipping.scan_encounters_with_best_available_vaccination_
 
 
 /******************** VIEWS FOR GENOMIC DATA ********************/
-create or replace view shipping.flu_assembly_jobs_v1 as
+create or replace view shipping.flu_assembly_jobs_v1 with (security_invoker = true) as
 
     select sample.identifier as sfs_uuid,
            sample.details ->> 'nwgc_id' as nwgc_id,
@@ -2640,7 +2641,7 @@ comment on view shipping.flu_assembly_jobs_v1 is
     'View of flu jobs that still need to be run through the assembly pipeline';
 
 
-create or replace view shipping.genome_submission_metadata_v1 as
+create or replace view shipping.genome_submission_metadata_v1 with (security_invoker = true) as
 
     select
         sample.identifier as sfs_sample_identifier,
@@ -2756,7 +2757,7 @@ grant select
   to "assembly-exporter";
 
 
-create or replace view shipping.genomic_sequences_for_augur_build_v1 as
+create or replace view shipping.genomic_sequences_for_augur_build_v1 with (security_invoker = true) as
 
     select distinct on (sample.identifier, organism.lineage, segment)
            sample.identifier as sample,
@@ -2783,7 +2784,7 @@ grant select
   to "augur-build-exporter";
 
 
-create or replace view shipping.metadata_for_augur_build_v2 as
+create or replace view shipping.metadata_for_augur_build_v2 with (security_invoker = true) as
 
     select sample as strain,
             cast(encountered as date) as date,
@@ -2819,7 +2820,7 @@ grant select
   to "augur-build-exporter";
 
 
-create or replace view shipping.metadata_for_augur_build_v3 as
+create or replace view shipping.metadata_for_augur_build_v3 with (security_invoker = true) as
 
     select sample.identifier as strain,
             coalesce(
@@ -2862,7 +2863,7 @@ grant select
 
 
 /******************** VIEWS FOR REPORTING RESULTS ********************/
-create or replace view shipping.reportable_condition_v1 as
+create or replace view shipping.reportable_condition_v1 with (security_invoker = true) as
 
     with reportable as (
         select array_agg(lineage) as lineages
@@ -2936,7 +2937,7 @@ grant select
    to "reportable-condition-notifier";
 
 
-create or replace view shipping.return_results_v1 as
+create or replace view shipping.return_results_v1 with (security_invoker = true) as
 
     select barcode,
            case
@@ -2972,7 +2973,7 @@ comment on view shipping.return_results_v1 is
     'View of barcodes and presence/absence results for return of results on website';
 
 
-create or replace view shipping.return_results_v2 as
+create or replace view shipping.return_results_v2 with (security_invoker = true) as
 
     select barcode,
            case
@@ -3006,7 +3007,7 @@ comment on view shipping.return_results_v2 is
     'Version 2 of view of barcodes and presence/absence results for return of results on website';
 
 
-create or replace view shipping.return_results_v3 as
+create or replace view shipping.return_results_v3 with (security_invoker = true) as
 
     with samples as (
       select
@@ -3093,7 +3094,7 @@ grant select
     to "return-results-exporter";
 
 
-create or replace view shipping.scan_return_results_v1 as
+create or replace view shipping.scan_return_results_v1 with (security_invoker = true) as
 
     with scan_samples as (
       select
@@ -3155,7 +3156,7 @@ comment on view shipping.scan_return_results_v1 is
 
 
 /******************** VIEWS FOR POWER BI DASHBOARDS ********************/
-create or replace view shipping.scan_demographics_v1 as
+create or replace view shipping.scan_demographics_v1 with (security_invoker = true) as
 
     select
         encountered_week,
@@ -3182,7 +3183,7 @@ grant select
     to "scan-dashboard-exporter";
 
 
-create or replace view shipping.scan_demographics_v2 as
+create or replace view shipping.scan_demographics_v2 with (security_invoker = true) as
 
     with hcov19_presence_absence as (
         select
@@ -3247,7 +3248,7 @@ grant select
     to "scan-dashboard-exporter";
 
 
-create or replace view shipping.scan_hcov19_result_counts_v1 as
+create or replace view shipping.scan_hcov19_result_counts_v1 with (security_invoker = true) as
 
     with scan_hcov19_results as (
       select
@@ -3302,7 +3303,7 @@ grant select
     to "scan-dashboard-exporter";
 
 
-create or replace view shipping.scan_hcov19_result_counts_v2 as
+create or replace view shipping.scan_hcov19_result_counts_v2 with (security_invoker = true) as
 
     with scan_hcov19_results as (
       select
@@ -3361,7 +3362,7 @@ grant select
     to "scan-dashboard-exporter";
 
 
-create or replace view shipping.scan_enrollments_v1 as
+create or replace view shipping.scan_enrollments_v1 with (security_invoker = true) as
 
     with location_names as (
         select
@@ -3402,7 +3403,7 @@ grant select
     to "scan-dashboard-exporter";
 
 
-create or replace view shipping.scan_redcap_enrollments_v1 as
+create or replace view shipping.scan_redcap_enrollments_v1 with (security_invoker = true) as
 
     select
         illness_questionnaire_date,
@@ -3428,7 +3429,7 @@ grant select
 /******************** VIEWS FOR UW REOPENING ********************/
 
 -- Not linebreaking this wide text in order to make reading and reviewing easier.
-create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v1 as
+create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v1 with (security_invoker = true) as
 
     select
         encounter_id,
@@ -3536,7 +3537,7 @@ grant select
    to "incidence-modeler";
 
 
-create or replace view shipping.uw_reopening_encounters_v1 as
+create or replace view shipping.uw_reopening_encounters_v1 with (security_invoker = true) as
 (
   with enrollments as
   (
@@ -3695,7 +3696,7 @@ grant select
   to "incidence-modeler";
 
 
-create or replace view shipping.uw_reopening_results_hct_data_pulls as
+create or replace view shipping.uw_reopening_results_hct_data_pulls with (security_invoker = true) as
 (
   with encounters as
       (
@@ -3738,7 +3739,7 @@ grant select
   on shipping.uw_reopening_results_hct_data_pulls
   to "incidence-modeler";
 
-create or replace view shipping.uw_reopening_encounters_hct_data_pulls as
+create or replace view shipping.uw_reopening_encounters_hct_data_pulls with (security_invoker = true) as
 (
   with enrollments as
   (
@@ -3800,7 +3801,7 @@ grant select
   to "incidence-modeler";
 
 
-create or replace view shipping.uw_reopening_ehs_reporting_v1 as
+create or replace view shipping.uw_reopening_ehs_reporting_v1 with (security_invoker = true) as
 (
   with encounters as
   (
@@ -3910,7 +3911,7 @@ comment on materialized view shipping.__uw_encounters is
   'Pull records from the encounter arm of the UW Reopening project. Include key questionnaire values.';
 
 
-create or replace view shipping.__uw_priority_queue_v1 as (
+create or replace view shipping.__uw_priority_queue_v1 with (security_invoker = true) as (
     with uw_individual_summaries as (
 	    select
 		    individual,
@@ -4209,7 +4210,7 @@ comment on view shipping.__uw_priority_queue_v1 is
   'Identify all encounter instances which indicate need for testing by UW reopening study (contains duplicate individuals)';
 
 
-create or replace view shipping.uw_priority_queue_v1 as (
+create or replace view shipping.uw_priority_queue_v1 with (security_invoker = true) as (
     with distinct_individuals as (
         select distinct on (individual)
             redcap_url,
@@ -4252,7 +4253,7 @@ grant select
 
 
 
-create or replace view shipping.linelist_data_for_wa_doh_v1 as (
+create or replace view shipping.linelist_data_for_wa_doh_v1 with (security_invoker = true) as (
     select distinct on (sample_id)
           -- The naming scheme of these columns is an artefact of how we
           -- originally submitted data to WaDoH from REDCap reports. Now they
@@ -4319,7 +4320,7 @@ grant select
 
 
 
-create or replace view shipping.linelist_data_for_wa_doh_v2 as (
+create or replace view shipping.linelist_data_for_wa_doh_v2 with (security_invoker = true) as (
     select distinct on (sample_id)
           -- The naming scheme of these columns is an artefact of how we
           -- originally submitted data to WaDoH from REDCap reports. Now they

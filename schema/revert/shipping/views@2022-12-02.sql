@@ -28,6 +28,8 @@ drop view if exists shipping.uw_priority_queue_v1;
 drop view if exists shipping.__uw_priority_queue_v1;
 drop materialized view if exists shipping.__uw_encounters;
 drop view if exists shipping.uw_reopening_ehs_reporting_v1;
+drop view if exists shipping.uw_reopening_encounters_hct_data_pulls;
+drop view if exists shipping.uw_reopening_results_hct_data_pulls;
 drop view if exists shipping.uw_reopening_encounters_v1;
 drop view if exists shipping.uw_reopening_enrollment_fhir_encounter_details_v1;
 
@@ -3520,7 +3522,7 @@ create or replace view shipping.uw_reopening_enrollment_fhir_encounter_details_v
     from
       shipping.fhir_questionnaire_responses_v1 responses
     join warehouse.encounter using (encounter_id)
-    where identifier ~~ 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'::text
+    where identifier ~~ 'https://hct.redcap.rit.uw.edu/148/%/enrollment_arm_1/'::text
     group by encounter_id
 ;
 
@@ -3544,7 +3546,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   , individual_id as enrollment_individual_id
   from warehouse.encounter
   where
-      encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
+      encounter.identifier like 'https://hct.redcap.rit.uw.edu/148/%/enrollment_arm_1/'
   ),
 
   encounters as
@@ -3558,6 +3560,7 @@ create or replace view shipping.uw_reopening_encounters_v1 as
   from warehouse.encounter
   where
       encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%'
+      or encounter.identifier like 'https://hct.redcap.rit.uw.edu/148/%/encounter_arm_1/%'
   )
 
   select
@@ -3792,6 +3795,8 @@ create materialized view shipping.__uw_encounters as (
 	left join shipping.fhir_questionnaire_responses_v1 q_prior_test_positive_date on q_prior_test_positive_date.encounter_id = encounter.encounter_id and q_prior_test_positive_date.link_id = 'prior_test_positive_date'
 	where
             encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%'
+    or
+            encounter.identifier like 'https://hct.redcap.rit.uw.edu/148/%/encounter_arm_1/%'
 )
 ;
 
@@ -3839,7 +3844,7 @@ create or replace view shipping.__uw_priority_queue_v1 as (
         join warehouse.individual using (individual_id)
         join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 using (encounter_id)
         left join uw_individual_summaries on uw_individual_summaries.individual = individual.identifier
-        where encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/enrollment_arm_1/'
+        where encounter.identifier like 'https://hct.redcap.rit.uw.edu/148/%/enrollment_arm_1/'
     ),
 
     -- Select encounters for testing based on positive daily attestations
