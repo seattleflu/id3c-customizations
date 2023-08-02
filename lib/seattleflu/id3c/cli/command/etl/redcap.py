@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from math import isfinite
 import re
-from typing import Dict, List, Mapping, Match, Optional, Tuple, Union
+from typing import Dict, List, Mapping, Match, Optional, Tuple, Union, Any
 
 from cachetools import TTLCache
 
@@ -345,17 +345,13 @@ def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
 
 
     def build_condition(patient_reference: dict, symptom_name: str, onset_date: str,
-        system_identifier: str) -> Optional[dict]:
+        system_identifier: str) -> Optional[Condition]:
         """ Returns a FHIR Condition resource. """
         mapped_symptom_name = map_symptom(symptom_name)
         if not mapped_symptom_name:
             return None
 
-        # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
-        # 3.8.  Until then, there's no reasonable way to type this data structure
-        # better than Any.
-        #   -trs, 24 Oct 2019
-        condition: Any = {
+        condition: Condition = {
             "resourceType": "Condition",
             "id": f'{mapped_symptom_name}',
             "code": {

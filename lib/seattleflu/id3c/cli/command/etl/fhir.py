@@ -5,7 +5,8 @@ import logging
 import regex
 import json
 from itertools import filterfalse
-from typing import Iterable, NamedTuple, Optional, List, Any, Callable
+from typing import Iterable, NamedTuple, Optional, List, Callable, Union
+from typing_extensions import NotRequired, TypedDict
 from uuid import uuid4
 from datetime import datetime
 from urllib.parse import quote
@@ -16,6 +17,22 @@ from id3c.cli.command.de_identify import generate_hash
 LOG = logging.getLogger(__name__)
 
 SFS = "https://seattleflu.org"
+
+class Resource(TypedDict):
+    resourceType: str
+    id: str
+    code: dict
+
+class Condition(Resource):
+    subject: dict
+    onsetDateTime: NotRequired[str]
+    severity: NotRequired[dict]
+    encounter: NotRequired[dict]
+
+class Observation(Resource):
+    status: str
+    valueBoolean: Optional[bool]
+    device: dict
 
 # CREATE FHIR RESOURCES
 def create_reference(reference_type: str = None,
@@ -137,12 +154,12 @@ def create_condition_resource(condition_id: str,
                               onset_datetime: str,
                               condition_code: dict,
                               encounter_reference = None,
-                              severity = None) -> dict:
+                              severity = None) -> Condition:
     """
     Create condition resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/condition.html)
     """
-    condition_resource = {
+    condition_resource: Condition = {
         "resourceType": "Condition",
         "id": condition_id,
         "subject": patient_reference,
@@ -213,7 +230,7 @@ def create_encounter_resource(encounter_source: str,
                               patient_reference: dict,
                               location_references: List[dict],
                               diagnosis: List[dict] = None,
-                              contained: List[dict] = None,
+                              contained: List[Condition] = None,
                               encounter_status = 'finished',
                               hospitalization: dict = None,
                               reason_code: List[dict] = None,
@@ -417,7 +434,7 @@ def create_bundle_resource(bundle_id: str,
     })
 
 
-def create_resource_entry(resource: dict, full_url: str) -> Optional[dict]:
+def create_resource_entry(resource: Union[dict, Condition, Observation], full_url: str) -> Optional[dict]:
     """
     Create bundle entry that contains a *resource* and a *full_url*.
     """
@@ -562,11 +579,7 @@ def canonicalize_name(*parts: Iterable[str]) -> str:
     return " ".join(map(canonicalize, parts))
 
 
-# XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
-# 3.8.  Until then, there's no reasonable way to type this data structure
-# better than Any.
-#   -trs, 24 Oct 2019
-def observation_resource(device: str) -> Any:
+def observation_resource(device: str) -> Observation:
     """
     Returns a minimally-filled FHIR Observation Resource with a given
     *device* value.

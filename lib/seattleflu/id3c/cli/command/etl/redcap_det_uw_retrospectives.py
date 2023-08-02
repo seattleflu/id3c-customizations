@@ -99,7 +99,7 @@ def redcap_det_uw_retrospectives(*,
     )
 
 
-def create_conditions(record:dict, patient_reference: dict, encounter_reference: dict) -> list:
+def create_conditions(record:dict, patient_reference: dict, encounter_reference: dict) -> List[dict]:
     """
     Create condition resource following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/condition.html)
