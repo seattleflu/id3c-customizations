@@ -489,3 +489,4 @@ shipping/views [shipping/views@2022-09-27] 2022-10-07T15:34:53Z Dave Reinhart <d
 shipping/views [shipping/views@2022-10-07] 2022-12-02T10:51:05Z Ben Capodanno <capodb@uw.edu> # Add a new shipping view for chu lab data pulls
 @2022-12-02 2022-12-02T11:37:40Z Ben Capodanno <capodb@uw.edu> # Schema as of 02 December 2022
 shipping/views [shipping/views@2022-12-02] 2023-07-28T16:23:19Z Dave Reinhart <davidrr@uw.edu> # Add security invoker to shipping views to enable row-level security
+@2032-08-14 2023-08-14T21:52:22Z Dave Reinhart <davidrr@uw.edu> # Schema as of 14 August 2023
