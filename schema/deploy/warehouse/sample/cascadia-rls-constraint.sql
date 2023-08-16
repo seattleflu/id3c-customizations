@@ -5,8 +5,11 @@ begin;
 
 alter table warehouse.sample
     add constraint cascadia_rls check(
-        (lower(details ->> 'sample_origin') != 'cascadia') or
-        (details ->> 'sample_origin' = 'cascadia' AND access_role::text = 'cascadia'::text)
+        not (details ? 'sample_origin') or
+        (
+            (lower(details ->> 'sample_origin') != 'cascadia' and access_role::text != 'cascadia'::text) or
+            (lower(details ->> 'sample_origin') = 'cascadia' and access_role::text = 'cascadia'::text)
+        )
     );
 
 commit;

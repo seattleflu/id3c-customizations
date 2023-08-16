@@ -6,8 +6,8 @@ do $$
 declare
     sample_number int;
 begin
-    insert into warehouse.sample (identifier, access_role)
-        values (uuid_generate_v4(), 'cascadia') returning sample_id into sample_number;
+    insert into warehouse.sample (identifier, details, access_role)
+        values (uuid_generate_v4(), '{"sample_origin": "cascadia"}'::jsonb, 'cascadia') returning sample_id into sample_number;
 
     set local role reporter;
 
