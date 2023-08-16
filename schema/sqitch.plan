@@ -489,4 +489,8 @@ shipping/views [shipping/views@2022-09-27] 2022-10-07T15:34:53Z Dave Reinhart <d
 shipping/views [shipping/views@2022-10-07] 2022-12-02T10:51:05Z Ben Capodanno <capodb@uw.edu> # Add a new shipping view for chu lab data pulls
 @2022-12-02 2022-12-02T11:37:40Z Ben Capodanno <capodb@uw.edu> # Schema as of 02 December 2022
 shipping/views [shipping/views@2022-12-02] 2023-07-28T16:23:19Z Dave Reinhart <davidrr@uw.edu> # Add security invoker to shipping views to enable row-level security
-@2032-08-14 2023-08-14T21:52:22Z Dave Reinhart <davidrr@uw.edu> # Schema as of 14 August 2023
+@2023-08-14 2023-08-14T21:52:22Z Dave Reinhart <davidrr@uw.edu> # Schema as of 14 August 2023
+
+roles/cascadia/create 2023-08-16T18:36:25Z Dave Reinhart <davidrr@uw.edu> # Add cascadia role for row-level access.
+warehouse/sample/cascadia-rls-constraint 2023-08-16T21:22:54Z Dave Reinhart <davidrr@uw.edu> # Add constraint to ensure row-level security on Cascadia samples.
+@2023-08-16 2023-08-16T21:33:13Z Dave Reinhart <davidrr@uw.edu> # Schema as of 16 August 2023
