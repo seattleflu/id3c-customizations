@@ -39,6 +39,7 @@ from id3c.cli.command.etl import (
 from . import race, ethnicity
 from .fhir import *
 from .clinical_retrospectives import *
+from .redcap_map import map_symptom
 
 
 LOG = logging.getLogger(__name__)
@@ -108,11 +109,11 @@ def etl_clinical(*, db: DatabaseSession):
                 details    = {"type": "retrospective"})
 
 
-            # PHSKC will be handled differently that other clinical records, converted
+            # PHSKC and KP2023 will be handled differently that other clinical records, converted
             # to FHIR format and inserted into receiving.fhir table to be processed
             # by the FHIR ETL. When time allows, SCH and KP should follow suit.
-            if site.identifier == 'RetrospectivePHSKC':
-                fhir_bundle = generate_fhir_bundle(db, record.document)
+            if site.identifier in ('RetrospectivePHSKC', 'KaiserPermanente2023'):
+                fhir_bundle = generate_fhir_bundle(db, record.document, site.identifier)
                 insert_fhir_bundle(db, fhir_bundle)
 
             else:
@@ -194,30 +195,30 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
     """ Returns a list of FHIR Questionnaire Response answer items """
     items: Dict[str, Any] = {}
 
-    if record["age"]:
+    if record.get("age", None):
         items["age"] = [{ 'valueInteger': (int(record["age"]))}]
 
-    if record["race"]:
+    if record.get("race", None):
         items["race"] = []
         for code in race(record["race"]):
             items["race"].append({ 'valueCoding': create_coding(f"{SFS}/race", code)})
 
-    if record["ethnicity"]:
+    if record.get("ethnicity", None):
         items["ethnicity"] = [{ 'valueBoolean': ethnicity(record["ethnicity"]) }]
 
-    if record["if_symptoms_how_long"]:
+    if record.get("if_symptoms_how_long", None):
         items["if_symptoms_how_long"] = [{ 'valueString': if_symptoms_how_long(record["if_symptoms_how_long"])}]
 
-    if record["vaccine_status"]:
+    if record.get("vaccine_status", None):
         items["vaccine_status"] = [{ 'valueString': covid_vaccination_status(record["vaccine_status"])}]
 
-    if record["inferred_symptomatic"]:
+    if record.get("inferred_symptomatic", None):
         items["inferred_symptomatic"] = [{ 'valueBoolean': inferred_symptomatic(record["inferred_symptomatic"])}]
 
-    if record["survey_have_symptoms_now"]:
+    if record.get("survey_have_symptoms_now", None):
         items["survey_have_symptoms_now"] = [{ 'valueBoolean': survey_have_symptoms_now(record["survey_have_symptoms_now"])}]
 
-    if record["survey_testing_because_exposed"]:
+    if record.get("survey_testing_because_exposed", None):
         items["survey_testing_because_exposed"] = [{ 'valueString': survey_testing_because_exposed(record["survey_testing_because_exposed"])}]
 
 
@@ -231,7 +232,7 @@ def determine_questionnaire_items(record: dict) -> List[dict]:
     return questionnaire_items
 
 
-def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
+def generate_fhir_bundle(db: DatabaseSession, record: dict, site_id: str) -> Optional[dict]:
 
     patient_entry, patient_reference = create_patient(record)
 
@@ -240,7 +241,18 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
         return None
 
     specimen_entry, specimen_reference = create_specimen(record, patient_reference)
-    location_entries, location_references = create_resident_locations(record)
+    
+    # PHSKC metadata include address information, while KP2023 metadata only include census tract information
+    # function create_resident_locations will only return a resource if address information is present,
+    # so use create_location_tract_only to process KP2023 location metadata
+    # ideally would not require site id for this, since it makes it more difficult to incorporate future projects
+    if site_id == 'RetrospectivePHSKC':
+        location_entries, location_references = create_resident_locations(record)
+    elif site_id == 'KaiserPermanente2023':
+        location_entries, location_references = create_location_tract_only(record)
+    else:
+        LOG.warning(f'Function generate_fhir_bundle does not currently create location resource entries for site {site_id}')
+
     encounter_entry, encounter_reference = create_encounter(db, record, patient_reference, location_references)
 
     if not encounter_entry:
@@ -251,18 +263,26 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
 
     specimen_observation_entry = create_specimen_observation_entry(specimen_reference, patient_reference, encounter_reference)
 
-    diagnostic_code = create_codeable_concept(
-        system = f'{SFS}/presence-absence-panel',
-        code = test_coding(record['site'])
-    )
+    # for now, only run these for PHSKC, because otherwise an UnknownSiteError will be raised when test_coding is run.
+    # it would be better to use information from the record to decide whether to run these steps though.
+    # create_diagnostic_report returns None if there is no clinical result information, so it doesn't really need
+    # to be run inside the if statement, but the diagnostic_code parameter is not type annotated as Optional,
+    # and I don't know whether to require diagnostic_code to run create_diagnostic_report, even if it will return None?
+    if site_id == 'RetrospectivePHSKC':
+        diagnostic_code = create_codeable_concept(
+            system = f'{SFS}/presence-absence-panel',
+            code = test_coding(record['site'])
+        )
 
-    diagnostic_report_resource_entry = create_diagnostic_report(
-        record,
-        patient_reference,
-        specimen_reference,
-        diagnostic_code,
-        create_clinical_result_observation_resource,
-    )
+        diagnostic_report_resource_entry = create_diagnostic_report(
+            record,
+            patient_reference,
+            specimen_reference,
+            diagnostic_code,
+            create_clinical_result_observation_resource,
+        )
+    else:
+        diagnostic_report_resource_entry = None
 
     resource_entries = [
         patient_entry,
@@ -278,12 +298,763 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict) -> Optional[dict]:
     if diagnostic_report_resource_entry:
         resource_entries.append(diagnostic_report_resource_entry)
 
+    if site_id == 'KaiserPermanente2023':
+        # KP2023 includes some types of metadata that PHSKC does not
+        icd10_condition_entries = create_icd10_conditions_kp2023(record, patient_reference)
+        symptom_condition_entries = create_symptom_conditions(record, patient_reference, encounter_reference)
+        immunization_entries = create_immunization_kp2023(record, patient_reference)
+        resource_entries.extend(icd10_condition_entries + symptom_condition_entries + immunization_entries)
+
     return create_bundle_resource(
         bundle_id = str(uuid4()),
         timestamp = datetime.now().astimezone().isoformat(),
         source = f"{record['_provenance']['filename']},row:{record['_provenance']['row']}" ,
         entries = list(filter(None, resource_entries))
     )
+
+
+def create_location_tract_only(record: dict) -> Optional[tuple]:
+    """
+    Returns a location entry and location reference for a record containing census tract information
+    If the record contains address information beyond a census tract, use function create_resident_locations instead
+    """
+    location_type_system = 'http://terminology.hl7.org/CodeSystem/v3-RoleCode'
+    location_type = create_codeable_concept(location_type_system, 'PTRES')
+    tract_identifier = record["census_tract"]
+    
+    if tract_identifier:
+        tract_id = create_identifier(f"{SFS}/location/tract", tract_identifier)
+        tract_location = create_location_resource([location_type], [tract_id])
+        tract_entry, tract_reference = create_entry_and_reference(tract_location, "Location")
+        
+        # return entry and reference as lists of dicts for consistency with function create_resident_locations
+        return [tract_entry], [tract_reference]
+    else:
+        return None, None
+
+
+def create_immunization_kp2023(record: dict, patient_reference: dict) -> list:
+    """ Returns a FHIR Immunization resource entry for each immunization recorded """
+    immunization_entries = []
+
+    immunization_columns = [
+        {
+            "date": "date_flu_1",
+            "name": "flu_type_1"
+        },
+        {
+            "date": "date_flu_2",
+            "name": "flu_type_2"
+        },
+        {
+            "date": "date_covid_1",
+            "name": None
+        },
+        {
+            "date": "date_covid_2",
+            "name": None
+        },
+        {
+            "date": "date_covid_3",
+            "name": None
+        },
+        {
+            "date": "date_covid_4",
+            "name": None
+        },
+        {
+            "date": "date_covid_5",
+            "name": None
+        },
+        {
+            "date": "date_covid_6",
+            "name": None
+        }
+    ]
+
+    # CVX codes were sourced from here:
+    # https://www2a.cdc.gov/vaccines/iis/iisstandards/vaccines.asp?rpt=cvx
+    # and here:
+    # https://www2a.cdc.gov/vaccines/iis/iisstandards/vaccines.asp?rpt=tradename
+    cvx_codes = {
+        88: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "88",
+            "display": "influenza, unspecified formulation",
+        },
+        158: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "158",
+            "display": "influenza, injectable, quadrivalent, contains preservative"
+        },
+        205: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "205",
+            "display": "influenza, seasonal vaccine, quadrivalent, adjuvanted, 0.5mL dose, preservative free"
+        },
+        150: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "150",
+            "display": "influenza, injectable, quadrivalent, preservative free"
+        },
+        185: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "185",
+            "display": "seasonal, quadrivalent, recombinant, injectable influenza vaccine, preservative free"
+        },
+        149: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "149",
+            "display": "influenza, live, intranasal, quadrivalent"
+        },
+        197: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "197",
+            "display": "influenza, high-dose seasonal, quadrivalent, 0.7mL dose, preservative free"
+        },
+        213: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "213",
+            "display": "sars-cov-2 (covid-19) vaccine, unspecified"
+        },
+    }
+
+    flu_vaccine_mapper = {
+        "unknown":                          88,
+        "afluria quadrivalent":             158,
+        "fluad quadrivalent":               205,
+        "fluarix quadrivalent":             150,
+        "flublok quadrivalent":             185,
+        # "flucelvax quadrivalent" - not known whether with or without preservative
+        # "flulaval quadrivalent" - not known whether with or without preservative
+        "flumist quadrivalent":             149,
+        "fluzone high-dose quadrivlanet":   197, #assuming not the southern hemisphere?
+        # "fluzone quadrivalent" - not known whether with or without preservative, or whether pediatric
+    }
+
+    for column_map in immunization_columns:
+        # if there is no date, do not create a resource entry
+        # is this a good assumption? what if there is a flu vaccine name but no date?
+        if not record[column_map['date']]:
+            continue
+
+        # assign date. should be in ISO format after id3c clinical parse-kp2023
+        immunization_date = record[column_map['date']]
+
+        # assign name and code for flu vaccines
+        if 'flu' in column_map['date']:
+            if record[column_map['name']]:
+                # assign and format vaccine name
+                vaccine_name = record[column_map['name']].lower()
+            else:
+                # if there is a date but no vaccine name, assign the name as 'unknown' which will map to unspecified flu vaccine
+                vaccine_name = 'unknown' # should we throw a warning here?
+
+            # Validate vaccine name and determine CVX code
+            vaccine_code = None
+            if vaccine_name in flu_vaccine_mapper:
+                vaccine_code = cvx_codes[flu_vaccine_mapper[vaccine_name]] if flu_vaccine_mapper[vaccine_name] else None
+            else:
+                raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».") # we already standardize vaccine names in parse-kp2023, so this is just for extra safety
+
+        # assign name and code for covid vaccines
+        elif 'covid' in column_map['date']:
+            vaccine_code = cvx_codes[213] # covid vaccines are not specified in this study, so assign code for unspecified covid-19 vaccine
+
+        if vaccine_code:
+            immunization_identifier_hash = generate_hash(f"{record['mrn']}{vaccine_code['code']}{immunization_date}".lower())
+            immunization_identifier = create_identifier(f"{SFS}/immunization", immunization_identifier_hash)
+
+            immunization_resource = create_immunization_resource(
+                patient_reference = patient_reference,
+                immunization_identifier = [immunization_identifier],
+                immunization_date = immunization_date,
+                immunization_status = "completed",
+                vaccine_code = vaccine_code,
+            )
+
+            immunization_entries.append(create_resource_entry(
+                resource = immunization_resource,
+                full_url = generate_full_url_uuid()
+            ))
+
+    return immunization_entries
+
+
+def create_symptom_conditions(record: dict, patient_reference: dict, encounter_reference: dict) -> list:
+    """ Returns a FHIR Condition resource for each symptom present in a record """
+
+    condition_entries = []
+
+    for symptom in record['symptom']:
+        mapped_symptom_name = map_symptom(symptom)
+        onset_date = record['date_symptom_onset']
+        symptom_code = {
+            "system": f"{SFS}/symptom",
+            "code": mapped_symptom_name
+        }
+
+        condition_resource = create_condition_resource(mapped_symptom_name,
+                                patient_reference,
+                                onset_date,
+                                symptom_code,
+                                encounter_reference
+                            )
+
+        condition_entries.append(create_resource_entry(
+            resource = condition_resource,
+            full_url = generate_full_url_uuid()
+        ))
+
+    return condition_entries
+
+
+def create_icd10_conditions_kp2023(record:dict, patient_reference: dict) -> list:
+    """
+    Create a condition resource for each ICD-10 code, following the FHIR format
+    (http://www.hl7.org/implement/standards/fhir/condition.html)
+    """
+    # todo: raise unknown icd10 error if icd10 code not in mapper
+
+    condition_entries = []
+
+    icd10_codes = {
+        "I25": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "I25",
+            "display": "chronic ischemic heart disease"
+        },
+        "I50": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "I50",
+            "display": "heart failure"
+        },
+        "J41": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "J41",
+            "display": "simple and mucopurulent chronic bronchitis"
+        },
+        "J42": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "J42",
+            "display": "unspecified chronic bronchitis"
+        },
+        "J44": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "J44",
+            "display": "other chronic obstructive pulmonary disease"
+        },
+        "J45": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "J45",
+            "display": "asthma"
+        },
+        "J47": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "J47",
+            "display": "bronchiectasis"
+        },
+        "J80": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "J80",
+            "display": "acute respiratory distress syndrome"
+        },
+        "E11": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "E11",
+            "display": "type 2 diabetes mellitus"
+        },
+        "Z51.1": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "Z51.1",
+            "display": "encounter for antineoplastic chemotherapy and immunotherapy"
+        },
+        "Z94": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "Z94",
+            "display": "transplanted organ and tissue status"
+        },
+        "B18": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "B18",
+            "display": "chronic viral hepatitis"
+        },
+        "K70": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "K70",
+            "display": "alcoholic liver disease"
+        },
+        "C00": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C00",
+            "display": "malignant neoplasm of lip"
+        },
+        "C01": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C01",
+            "display": "malignant neoplasm of base of tongue"
+        },
+        "C02": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C02",
+            "display": "malignant neoplasm of other and unspecified parts of tongue"
+        },
+        "C03": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C03",
+            "display": "malignant neoplasm of gum"
+        },
+        "C04": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C04",
+            "display": "malignant neoplasm of floor of mouth"
+        },
+        "C05": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C05",
+            "display": "malignant neoplasm of palate"
+        },
+        "C06": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C06",
+            "display": "malignant neoplasm of other and unspecified parts of mouth"
+        },
+        "C07": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C07",
+            "display": "malignant neoplasm of parotid gland"
+        },
+        "C08": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C08",
+            "display": "malignant neoplasm of other and unspecified major salivary glands"
+        },
+        "C09": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C09",
+            "display": "malignant neoplasm of tonsil"
+        },
+        "C10": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C10",
+            "display": "malignant neoplasm of oropharynx"
+        },
+        "C11": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C11",
+            "display": "malignant neoplasm of nasopharynx"
+        },
+        "C12": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C12",
+            "display": "malignant neoplasm of pyriform sinus"
+        },
+        "C13": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C13",
+            "display": "malignant neoplasm of hypopharynx"
+        },
+        "C14": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C14",
+            "display": "malignant neoplasm of other and ill-defined sites in the lip, oral cavity and pharynx"
+        },
+        "C15": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C15",
+            "display": "malignant neoplasm of esophagus"
+        },
+        "C16": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C16",
+            "display": "malignant neoplasm of stomach"
+        },
+        "C17": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C17",
+            "display": "malignant neoplasm of small intestine"
+        },
+        "C18": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C18",
+            "display": "malignant neoplasm of colon"
+        },
+        "C19": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C19",
+            "display": "malignant neoplasm of rectosigmoid junction"
+        },
+        "C20": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C20",
+            "display": "malignant neoplasm of rectum"
+        },
+        "C21": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C21",
+            "display": "malignant neoplasm of anus and anal canal"
+        },
+        "C22": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C22",
+            "display": "malignant neoplasm of liver and intrahepatic bile ducts"
+        },
+        "C23": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C23",
+            "display": "malignant neoplasm of gallbladder"
+        },
+        "C24": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C24",
+            "display": "malignant neoplasm of other and unspecified parts of biliary tract"
+        },
+        "C25": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C25",
+            "display": "malignant neoplasm of pancreas"
+        },
+        "C26": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C26",
+            "display": "malignant neoplasm of other and ill-defined digestive organs"
+        },
+        "C30": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C30",
+            "display": "malignant neoplasm of nasal cavity and middle ear"
+        },
+        "C31": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C31",
+            "display": "malignant neoplasm of accessory sinuses"
+        },
+        "C32": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C32",
+            "display": "malignant neoplasm of larynx"
+        },
+        "C33": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C33",
+            "display": "malignant neoplasm of trachea"
+        },
+        "C34": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C34",
+            "display": "malignant neoplasm of bronchus and lung"
+        },
+        "C37": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C37",
+            "display": "malignant neoplasm of thymus"
+        },
+        "C38": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C38",
+            "display": "malignant neoplasm of heart, mediastinum and pleura"
+        },
+        "C39": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C39",
+            "display": "malignant neoplasm of other and ill-defined sites in the respiratory system and intrathoracic organs"
+        },
+        "C40": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C40",
+            "display": "malignant neoplasm of bone and articular cartilage of limbs"
+        },
+        "C41": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C41",
+            "display": "malignant neoplasm of bone and articular cartilage of other and unspecified sites"
+        },
+        "C43": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C43",
+            "display": "malignant melanoma of skin"
+        },
+        "C44": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C44",
+            "display": "other and unspecified malignant neoplasm of skin"
+        },
+        "C45": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C45",
+            "display": "mesothelioma"
+        },
+        "C46": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C46",
+            "display": "kaposi's sarcoma"
+        },
+        "C47": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C47",
+            "display": "malignant neoplasm of peripheral nerves and autonomic nervous system"
+        },
+        "C48": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C48",
+            "display": "malignant neoplasm of retroperitoneum and peritoneum"
+        },
+        "C49": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C49",
+            "display": "malignant neoplasm of other connective and soft tissue"
+        },
+        "C4A": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C4A",
+            "display": "merkel cell carcinoma"
+        },
+        "C50": {
+            "system": "http://hl7.org/fhir/sid/icd-10",            
+            "code": "C50",
+            "display": "malignant neoplasms of breast"
+        },
+        "C51": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C51",
+            "display": "malignant neoplasm of vulva"
+        },
+        "C52": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C52",
+            "display": "malignant neoplasm of vagina"
+        },
+        "C53": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C53",
+            "display": "malignant neoplasm of cervix uteri"
+        },
+        "C54": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C54",
+            "display": "malignant neoplasm of corpus uteri"
+        },
+        "C55": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C55",
+            "display": "malignant neoplasm of uterus, part unspecified"
+        },
+        "C56": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C56",
+            "display": "malignant neoplasm of ovary"
+        },
+        "C57": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C57",
+            "display": "malignant neoplasm of other and unspecified female genital organs"
+        },
+        "C58": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C58",
+            "display": "malignant neoplasm of placenta"
+        },
+        "C60": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C60",
+            "display": "malignant neoplasm of penis"
+        },
+        "C61": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C61",
+            "display": "malignant neoplasm of prostate"
+        },
+        "C62": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C62",
+            "display": "malignant neoplasm of testis"
+        },
+        "C63": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C63",
+            "display": "malignant neoplasm of other and unspecified male genital organs"
+        },
+        "C64": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C64",
+            "display": "malignant neoplasm of kidney, except renal pelvis"
+        },
+        "C65": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C65",
+            "display": "malignant neoplasm of renal pelvis"
+        },
+        "C66": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C66",
+            "display": "malignant neoplasm of ureter"
+        },
+        "C67": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C67",
+            "display": "malignant neoplasm of bladder"
+        },
+        "C68": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C68",
+            "display": "malignant neoplasm of other and unspecified urinary organs"
+        },
+        "C69": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C69",
+            "display": "malignant neoplasm of eye and adnexa"
+        },
+        "C70": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C70",
+            "display": "malignant neoplasm of meninges"
+        },
+        "C71": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C71",
+            "display": "malignant neoplasm of brain"
+        },
+        "C72": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C72",
+            "display": "malignant neoplasm of spinal cord, cranial nerves and other parts of central nervous system"
+        },
+        "C73": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C73",
+            "display": "malignant neoplasm of thyroid gland"
+        },
+        "C74": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C74",
+            "display": "malignant neoplasm of adrenal gland"
+        },
+        "C75": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C75",
+            "display": "malignant neoplasm of other endocrine glands and related structures"
+        },
+        "C76": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C76",
+            "display": "malignant neoplasm of other and ill-defined sites"
+        },
+        "C77": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C77",
+            "display": "secondary and unspecified malignant neoplasm of lymph nodes"
+        },
+        "C78": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C78",
+            "display": "secondary malignant neoplasm of respiratory and digestive organs"
+        },
+        "C79": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C79",
+            "display": "secondary malignant neoplasm of other and unspecified sites"
+        },
+        "C7A": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C7A",
+            "display": "malignant neuroendocrine tumors"
+        },
+        "C7B": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C7B",
+            "display": "secondary neuroendocrine tumors"
+        },
+        "C80": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C80",
+            "display": "malignant neoplasm without specification of site"
+        },
+        "C81": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C81",
+            "display": "hodgkin lymphoma"
+        },
+        "C82": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C82",
+            "display": "follicular lymphoma"
+        },
+        "C83": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C83",
+            "display": "non-follicular lymphoma"
+        },
+        "C84": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C84",
+            "display": "mature t/nk-cell lymphomas"
+        },
+        "C85": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C85",
+            "display": "other specified and unspecified types of non-hodgkin lymphoma"
+        },
+        "C86": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C86",
+            "display": "other specified types of t/nk-cell lymphoma"
+        },
+        "C88": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C88",
+            "display": "malignant immunoproliferative diseases and certain other b-cell lymphomas"
+        },
+        "C90": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C90",
+            "display": "multiple myeloma and malignant plasma cell neoplasms"
+        },
+        "C91": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C91",
+            "display": "lymphoid leukemia"
+        },
+        "C92": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C92",
+            "display": "myeloid leukemia"
+        },
+        "C93": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C93",
+            "display": "monocytic leukemia"
+        },
+        "C94": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C94",
+            "display": "other leukemias of specified cell type"
+        },
+        "C95": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C95",
+            "display": "leukemia of unspecified cell type"
+        },
+        "C96": {
+            "system": "http://hl7.org/fhir/sid/icd-10",
+            "code": "C96",
+            "display": "other and unspecified malignant neoplasms of lymphoid, hematopoietic and related tissue"
+        }
+    }
+
+    for icd10_code in record['icd10']:
+        condition_resource = create_condition_resource(icd10_code,
+                                patient_reference,
+                                None,
+                                icd10_codes[icd10_code]
+                            )
+
+        condition_entries.append(create_resource_entry(
+            resource = condition_resource,
+            full_url = generate_full_url_uuid()
+        ))
+
+    return condition_entries
+
 
 def test_coding(site_name: str) -> str:
     """
@@ -323,6 +1094,7 @@ def site_identifier(site_name: str) -> str:
         "SCH": "RetrospectiveChildrensHospitalSeattle",
         "KP": "KaiserPermanente",
         "PHSKC": "RetrospectivePHSKC",
+        "KP2023": "KaiserPermanente2023"
     }
     if site_name not in site_map:
         raise UnknownSiteError(f"Unknown site name «{site_name}»")
@@ -973,3 +1745,10 @@ def mark_processed(db, clinical_id: int, entry: Mapping) -> None:
                set processing_log = processing_log || %(log_entry)s
              where clinical_id = %(clinical_id)s
             """, data)
+
+class UnknownVaccine(ValueError):
+    """
+    Raised by :function: `create_immunization` if it finds a vaccine
+    name that is not among a set of mapped values
+    """
+    pass
