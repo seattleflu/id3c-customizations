@@ -3,5 +3,6 @@
 begin;
 
 drop role cascadia;
+drop role "reporter-cascadia";
 
 commit;

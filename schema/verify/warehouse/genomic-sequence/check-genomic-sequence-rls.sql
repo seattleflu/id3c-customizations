@@ -59,7 +59,7 @@ begin
             (access_role::text = 'cascadia' and consensus_genome_id = other_consensus_genome_id)
     );
 
-    set local role cascadia;
+    set local role 'reporter-cascadia';
 
     assert 2 = (
         select count(*)

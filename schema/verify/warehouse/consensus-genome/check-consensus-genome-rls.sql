@@ -61,7 +61,7 @@ begin
             (access_role is null and sample_id = other_sample_id)
     );
 
-    set local role cascadia;
+    set local role 'reporter-cascadia';
 
     assert 2 = (
         select count(*)

@@ -51,7 +51,7 @@ begin
             (access_role::text = 'cascadia' and sample_id = other_sample_id)
     );
 
-    set local role cascadia;
+    set local role 'reporter-cascadia';
 
     assert 2 = (
         select count(*)
