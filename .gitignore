@@ -11,7 +11,7 @@
 !/mypy.ini
 !/pytest.ini
 !/setup.py
-!/sqitch.conf
+!/sqitch.template.conf
 
 # and these directories
 !/clinical/

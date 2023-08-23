@@ -3694,6 +3694,112 @@ grant select
   on shipping.uw_reopening_encounters_v1
   to "incidence-modeler";
 
+
+create or replace view shipping.uw_reopening_results_hct_data_pulls as
+(
+  with encounters as
+      (
+      select encounter_id
+      , encountered
+      , age
+      , individual_id
+      from warehouse.encounter
+      where
+          encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%' or
+          encounter.identifier like 'https://hct.redcap.rit.uw.edu/148/%/encounter_arm_1/%'
+      )
+
+  select
+      encounters.individual_id as individual_id,
+      sample.identifier as sfs_sample_identifier,
+      target.identifier as target_identifier,
+      presence_absence.present
+  from
+      warehouse.sample join
+      warehouse.presence_absence using (sample_id) join
+      warehouse.target using (target_id) join
+      encounters using (encounter_id)
+  where
+      encounter_id in (
+          select encounter_id from encounters
+      )
+)
+
+;
+
+comment on view shipping.uw_reopening_results_hct_data_pulls is
+  'For the UW reopening project, a view providing relevant results data for chu lab data pulls';
+
+revoke all
+on shipping.uw_reopening_results_hct_data_pulls
+from "incidence-modeler";
+
+grant select
+  on shipping.uw_reopening_results_hct_data_pulls
+  to "incidence-modeler";
+
+create or replace view shipping.uw_reopening_encounters_hct_data_pulls as
+(
+  with enrollments as
+  (
+    select encounter_id as enrollment_encounter_id
+    , individual_id as enrollment_individual_id
+    , identifier as enrollment_identifier
+    from warehouse.encounter
+    where
+        encounter.identifier like 'https://hct.redcap.rit.uw.edu/148/%/enrollment_arm_1/'
+  ),
+
+  encounters as
+  (
+    select encounter_id
+    , encountered
+    , age
+    , individual_id
+    from warehouse.encounter
+    where
+        encounter.identifier like 'https://hct.redcap.rit.uw.edu/45/%/encounter_arm_1/%' or
+        encounter.identifier like 'https://hct.redcap.rit.uw.edu/148/%/encounter_arm_1/%'
+  )
+
+  select
+  distinct on (encounter.individual_id) encounter.individual_id
+  , enroll.enrollment_identifier
+  , encounter.age
+  , encounter.encountered
+
+  , individual.sex
+
+  , enroll_details.affiliation
+  , enroll_details.student_level
+  , enroll_details.athlete
+  , enroll_details.core_race
+  , enroll_details.core_latinx
+  , enroll_details.campus_location
+  , enroll_details.core_house_members
+
+  from encounters encounter
+  join enrollments enroll on encounter.individual_id = enroll.enrollment_individual_id
+  join warehouse.individual individual on individual.individual_id = encounter.individual_id
+  join shipping.uw_reopening_enrollment_fhir_encounter_details_v1 enroll_details on enroll_details.encounter_id = enroll.enrollment_encounter_id
+
+  order by individual_id, encounter.encountered DESC
+)
+
+;
+
+comment on view shipping.uw_reopening_encounters_hct_data_pulls is
+  'For the UW reopening project, a view providing relevant encounter data for chu lab data pulls';
+
+revoke all
+on shipping.uw_reopening_encounters_hct_data_pulls
+from "incidence-modeler";
+
+grant select
+  on shipping.uw_reopening_encounters_hct_data_pulls
+  to "incidence-modeler";
+
+
 create or replace view shipping.uw_reopening_ehs_reporting_v1 as
 (
   with encounters as
