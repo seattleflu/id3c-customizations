@@ -499,3 +499,5 @@ warehouse/consensus-genome/check-consensus-genome-rls 2023-08-16T22:15:21Z Dave 
 warehouse/sequence-read-set/check-sequence-read-set-rls 2023-08-16T23:13:21Z Dave Reinhart <davidrr@uw.edu> # Add trigger to ensure row-level security is set on sequence read set records.
 warehouse/genomic-sequence/check-genomic-sequence-rls 2023-08-16T23:18:42Z Dave Reinhart <davidrr@uw.edu> # Add trigger to ensure row-level security is set on genomic sequence records.
 @2023-08-18 2023-08-18T15:38:15Z Dave Reinhart <davidrr@uw.edu> # Schema as of 18 August 2023
+warehouse/sample/cascadia-rls-constraint [warehouse/sample/cascadia-rls-constraint@2023-08-18] 2023-09-08T18:56:42Z Dave Reinhart <davidrr@uw.edu> # Modify constraint for row-level security to handle nulls
+@2023-09-08 2023-09-08T19:26:10Z Dave Reinhart <davidrr@uw.edu> # Schema as of 08 Sept 2023

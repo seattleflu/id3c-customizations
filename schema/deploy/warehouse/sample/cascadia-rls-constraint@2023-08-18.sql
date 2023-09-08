@@ -4,9 +4,6 @@
 begin;
 
 alter table warehouse.sample
-    drop constraint if exists cascadia_rls;
-
-alter table warehouse.sample
     add constraint cascadia_rls check(
         not (details ? 'sample_origin') or
         (
