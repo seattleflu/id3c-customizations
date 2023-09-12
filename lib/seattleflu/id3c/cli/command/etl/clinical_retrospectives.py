@@ -226,7 +226,7 @@ def create_resident_locations(record: dict, db: DatabaseSession = None, cache: T
     location_type = create_codeable_concept(location_type_system, 'PTRES')
     location_entries: List[dict] = []
     location_references: List[dict] = []
-    address_partOf: Dict = None
+    address_partOf: dict = None
 
     # we can assume we have the census tract in the record if we are not geocoding,
     # otherwise we can look it up on the fly

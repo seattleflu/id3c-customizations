@@ -492,7 +492,7 @@ def filter_fields(field: str, field_value: str, regex: str, empty_value: str) ->
     return False
 
 
-def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suffix: str = "") -> Optional[List]:
+def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suffix: str = "") -> Optional[list]:
         """
         Handles the combining of multiple fields asking the same question such
         as country and state traveled.
@@ -507,7 +507,7 @@ def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suf
         return list(map(lambda x: record[x], answered_fields))
 
 
-def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[List]:
+def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[list]:
     """
     Handles the combining "select all that apply"-type checkbox
     responses into one list.
@@ -624,7 +624,7 @@ def questionnaire_item(record: REDCapRecord, question_id: str, response_type: st
         return None
 
 
-    def build_response_answers(response: Union[str, List]) -> List:
+    def build_response_answers(response: Union[str, list]) -> list:
         answers = []
         if not isinstance(response, list):
             response = [response]

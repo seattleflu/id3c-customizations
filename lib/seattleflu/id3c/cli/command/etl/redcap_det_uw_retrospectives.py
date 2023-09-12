@@ -172,7 +172,7 @@ def create_encounter(db: DatabaseSession,
     return create_entry_and_reference(encounter_resource, "Encounter")
 
 
-def create_encounter_hospitalization(redcap_record: dict) -> Optional[Dict[str, Dict]]:
+def create_encounter_hospitalization(redcap_record: dict) -> Optional[Dict[str, dict]]:
     """
     Returns an Encounter.hospitalization entry created from a given *redcap_record*.
     (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.hospitalization)
