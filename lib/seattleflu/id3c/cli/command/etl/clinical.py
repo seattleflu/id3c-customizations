@@ -109,7 +109,7 @@ def etl_clinical(*, db: DatabaseSession):
                 details    = {"type": "retrospective"})
 
 
-            # PHSKC and KP2023 will be handled differently that other clinical records, converted
+            # PHSKC and KP2023 will be handled differently than other clinical records, converted
             # to FHIR format and inserted into receiving.fhir table to be processed
             # by the FHIR ETL. When time allows, SCH and KP should follow suit.
             if site.identifier in ('RetrospectivePHSKC', 'KaiserPermanente2023'):
