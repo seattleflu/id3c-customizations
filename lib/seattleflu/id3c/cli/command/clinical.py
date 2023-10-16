@@ -895,15 +895,21 @@ def parse_kp2023(kp2023_filename: str) -> None:
 
     clinical_records = clinical_records.rename(columns=column_map)
 
-    # check for missing or duplicated barcodes
+    # check for missing or duplicated barcodes?
     #barcode_quality_control(clinical_records)
+
+    # in the lims, the marshfield_lab_id / collection_id has an aliquot number appended to the end of the id.
+    # for example, KPWC100000-1
+    # as of Oct 2023, the collection ids from Kaiser in the metadata excel files do not have this aliquot number appended to them
+    # so we want to check if the aliquot id is present, and if not, append it
+    clinical_records['collection_id'] = clinical_records['collection_id'].apply(lambda x: x if re.search(r'-\d+$', x) else x+'-1')
 
     # map high risk codes to ICD-10 codes, and collapse into one column 'icd10'
     clinical_records = map_icd10_codes(clinical_records)
 
     # collapse race and symptom columns
-    clinical_records = collapse_columns(clinical_records, 'symptom_', 'individual')
-    clinical_records = collapse_columns(clinical_records, 'race_', 'individual')
+    clinical_records = collapse_columns(clinical_records, 'symptom_', 'collection_id')
+    clinical_records = collapse_columns(clinical_records, 'race_', 'collection_id')
 
     # rename collapsed race and symptom columns
     clinical_records = clinical_records.rename(columns={'symptom_': 'symptom', 'race_': 'race'})
