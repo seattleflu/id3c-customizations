@@ -29,7 +29,7 @@ import click
 import logging
 import requests
 from os.path import basename
-from typing import Any, Mapping, List
+from typing import Any, Mapping
 from textwrap import dedent
 from datetime import datetime, timezone
 from id3c.cli import cli

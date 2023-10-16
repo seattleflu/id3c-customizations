@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from math import isfinite
 import re
-from typing import Dict, List, Mapping, Match, Optional, Tuple, Union
+from typing import Dict, List, Mapping, Match, Optional, Tuple, Union, Any
 
 from cachetools import TTLCache
 
@@ -345,17 +345,13 @@ def build_contained_and_diagnosis(patient_reference: dict, record: REDCapRecord,
 
 
     def build_condition(patient_reference: dict, symptom_name: str, onset_date: str,
-        system_identifier: str) -> Optional[dict]:
+        system_identifier: str) -> Optional[Condition]:
         """ Returns a FHIR Condition resource. """
         mapped_symptom_name = map_symptom(symptom_name)
         if not mapped_symptom_name:
             return None
 
-        # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
-        # 3.8.  Until then, there's no reasonable way to type this data structure
-        # better than Any.
-        #   -trs, 24 Oct 2019
-        condition: Any = {
+        condition: Condition = {
             "resourceType": "Condition",
             "id": f'{mapped_symptom_name}',
             "code": {
@@ -496,7 +492,7 @@ def filter_fields(field: str, field_value: str, regex: str, empty_value: str) ->
     return False
 
 
-def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suffix: str = "") -> Optional[List]:
+def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suffix: str = "") -> Optional[list]:
         """
         Handles the combining of multiple fields asking the same question such
         as country and state traveled.
@@ -511,7 +507,7 @@ def combine_multiple_fields(record: Dict[Any, Any], field_prefix: str, field_suf
         return list(map(lambda x: record[x], answered_fields))
 
 
-def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[List]:
+def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[list]:
     """
     Handles the combining "select all that apply"-type checkbox
     responses into one list.
@@ -628,7 +624,7 @@ def questionnaire_item(record: REDCapRecord, question_id: str, response_type: st
         return None
 
 
-    def build_response_answers(response: Union[str, List]) -> List:
+    def build_response_answers(response: Union[str, list]) -> list:
         answers = []
         if not isinstance(response, list):
             response = [response]

@@ -4,7 +4,7 @@ into FHIR bundles
 """
 import logging
 import re
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Any
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.command.location import location_lookup
@@ -226,7 +226,7 @@ def create_resident_locations(record: dict, db: DatabaseSession = None, cache: T
     location_type = create_codeable_concept(location_type_system, 'PTRES')
     location_entries: List[dict] = []
     location_references: List[dict] = []
-    address_partOf: Dict = None
+    address_partOf: dict = None
 
     # we can assume we have the census tract in the record if we are not geocoding,
     # otherwise we can look it up on the fly
@@ -279,7 +279,7 @@ def create_questionnaire_response(record: dict,
     )
 
 
-def create_clinical_result_observation_resource(record: dict) -> Optional[List[dict]]:
+def create_clinical_result_observation_resource(record: dict) -> Optional[List[Observation]]:
     """
     Determine the clinical results based on responses in *record* and
     create observation resources for each result following the FHIR format
