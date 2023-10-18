@@ -92,6 +92,7 @@ def race(races: Optional[Any]) -> list:
         "indian": "americanIndianOrAlaskaNative",
         "native": "americanIndianOrAlaskaNative",
         "alaska native": "americanIndianOrAlaskaNative",
+        "ai_an": "americanIndianOrAlaskaNative",
 
         "asian": "asian",
 
@@ -99,6 +100,7 @@ def race(races: Optional[Any]) -> list:
         "black or african american": "blackOrAfricanAmerican",
         "black": "blackOrAfricanAmerican",
         "black or african-american": "blackOrAfricanAmerican",
+        "black_aa": "blackOrAfricanAmerican",
 
         "nativehawaiian": "nativeHawaiian",
         "native hawaiian": "nativeHawaiian",
@@ -111,6 +113,7 @@ def race(races: Optional[Any]) -> list:
         "nativehi": "nativeHawaiian",
         "native_hawaiian": "nativeHawaiian",
         "ha_pi": "nativeHawaiian",
+        "nh_opi": "nativeHawaiian",
 
         "white": "white",
         "white or caucasian": "white",

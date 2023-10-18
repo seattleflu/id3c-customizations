@@ -177,6 +177,9 @@ def create_patient(record: dict) -> Optional[tuple]:
     # uw retro samples
     elif record.get("personid", None):
         patient_id = generate_hash(record["personid"].lower())
+    # kp2023 samples
+    elif record.get("collection_id", None):
+        patient_id = record["collection_id"] # has already been hashed in clinical match-kp2023 function
     else:
         return None, None
 

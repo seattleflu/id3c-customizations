@@ -47,6 +47,9 @@ PHSKC_IDENTIFIERS = {
     'all_cids': 'phskcCid',
     'phskc_barcode': 'phskcCid',
 }
+KP2023_IDENTIFIERS = {
+    'collection_id': 'kaiserPermanenteSpecimenId'
+}
 
 @cli.group("clinical", help = __doc__)
 def clinical():
@@ -122,7 +125,7 @@ def parse_uw(uw_filename, output):
     clinical_records["age"] = clinical_records["age"].astype(pd.Int64Dtype())
 
     # Subset df to drop missing barcodes
-    drop_missing_rows(clinical_records, 'barcode')
+    clinical_records = drop_missing_rows(clinical_records, 'barcode')
 
     # Drop columns we're not tracking
     clinical_records = clinical_records[column_map.values()]
@@ -161,7 +164,7 @@ def create_unique_identifier(df: pd.DataFrame):
                         ).str.lower()
     return df.drop_duplicates(subset="identifier")
 
-def remove_pii(df: pd.DataFrame) -> pd.DataFrame:
+def remove_pii(df: pd.DataFrame) -> None:
     """
     Remove personally identifiable information from a given *df*.
     Return the new DataFrame.
@@ -177,6 +180,7 @@ def drop_missing_rows(df: pd.DataFrame, column: str) -> pd.DataFrame:
     for the given *column*.
     """
     df = df.loc[df[column].notnull()]
+    return df
 
 @clinical.command("parse-sch")
 @click.argument("sch_filename", metavar = "<SCH Clinical Data filename>")
@@ -264,7 +268,7 @@ def parse_sch(sch_filename, manifest_format, output):
     barcode_quality_control(clinical_records, output)
 
     # Subset df to drop missing encountered date
-    drop_missing_rows(clinical_records, 'encountered')
+    clinical_records = drop_missing_rows(clinical_records, 'encountered')
 
     # Drop unnecessary columns
     columns_to_keep = list(column_map.values()) + [
@@ -842,6 +846,433 @@ def encode_addresses(db: DatabaseSession, row: pd.Series) -> pd.Series:
         row['address_hash'] = None
 
     return row
+
+
+@clinical.command("parse-kp2023")
+@click.argument("kp2023_filename", metavar = "<Path to kp2023 clinical data file>",
+            type = click.Path(exists=True, dir_okay=False))
+
+def parse_kp2023(kp2023_filename: str) -> None:
+    """
+    Process clinical data from kp2023.
+
+    Given a path to a kp2023 clinical file and a geocoding cache filename, selects specific
+    columns of interest and parses them into a clinical manifest data file. If data
+    has been previously parsed, compare the last modified timestamps of the clinical file
+    with the last parsed timestamps of the manifest to decide if we need to parse clinical file again.
+    (Note that if a manifest already exists, it must have the same root name as the clinical data file
+    in order to be recognized as previously parsed data.)
+
+    Clinical records are parsed and transformed into suitable data for downstream
+    CID matching. PII is not removed in this function because parsed data will later be joined
+    with barcode data present in the LIMS.
+
+    All clinical records (both newly and previously parsed data) are output to stdout
+    as newline-delimited JSON records. You will likely want to redirect stdout to a file.
+    """
+
+    clinical_records = pd.read_csv(kp2023_filename)
+    clinical_records.columns = clinical_records.columns.str.lower()
+    clinical_records = trim_whitespace(clinical_records)
+    clinical_records = add_provenance(clinical_records, os.path.basename(kp2023_filename)) # any case in which we wouldn't want just the basename?
+
+    # KP provides a column 'individual' and a column 'marshfield_lab_id'
+    # currently we are assuming that KP's column 'individual' is the individual identifier (note: assume this is PII to be safe)
+    # and assuming that KP's column 'marshfield_lab_id' is the specimen identifier/barcode
+    # but we are waiting to hear from KP to confirm this
+    # and waiting to hear from the lab to see which identifier they are using as the specimen id
+
+    # rename columns
+    column_map = {
+        'marshfield_lab_id':    'collection_id', # will be mapped to lims barcode during id3c clinical match-kp2023
+        'hispaniclatino':       'ethnicity',
+        'assigned_sex':          'sex',
+        'symptom__throat':      'symptom_throat', # fix extra underscore in column name
+        'censustract':          'census_tract',
+        'type_of_visit':        'patient_class',
+        'sympton_sob':          'symptom_sob'
+    }
+
+    clinical_records = clinical_records.rename(columns=column_map)
+
+    # check for missing or duplicated barcodes?
+    #barcode_quality_control(clinical_records)
+
+    # in the lims, the marshfield_lab_id / collection_id has an aliquot number appended to the end of the id.
+    # for example, KPWC100000-1
+    # as of Oct 2023, the collection ids from Kaiser in the metadata excel files do not have this aliquot number appended to them
+    # so we want to check if the aliquot id is present, and if not, append it
+    clinical_records['collection_id'] = clinical_records['collection_id'].apply(lambda x: x if re.search(r'-\d+$', x) else x+'-1')
+
+    # map high risk codes to ICD-10 codes, and collapse into one column 'icd10'
+    clinical_records = map_icd10_codes(clinical_records)
+
+    # collapse race and symptom columns
+    clinical_records = collapse_columns(clinical_records, 'symptom_', 'collection_id')
+    clinical_records = collapse_columns(clinical_records, 'race_', 'collection_id')
+
+    # rename collapsed race and symptom columns
+    clinical_records = clinical_records.rename(columns={'symptom_': 'symptom', 'race_': 'race'})
+
+    # map flu vaccines
+    map_flu_vaccine_kp2023(clinical_records, 'flu_type_1')
+    map_flu_vaccine_kp2023(clinical_records, 'flu_type_2')
+
+    # map ethnicity
+    map_ethnicity_kp2023(clinical_records, 'ethnicity')
+
+    # map sex
+    clinical_records['sex'] = clinical_records['sex'].map({0: 'female', 1: 'male'})
+
+    # insert site
+    # ideally site would be 'KP', but currently KP2023's ETL is set up to be processed with FHIR
+    # during id3c etl clinical, while the KP ETL is not processed with FHIR.
+    # therefore, the site needs to be different so that it can be used by id3c etl clinical to decide whether to use FHIR or not
+    # could maybe use provenance instead of site to make that distinction, but keeping this for now
+    clinical_records['site'] = 'KP2023'
+
+    # map patient class, expect all to be 1 (outpatient)
+    # records with a value other than 1 will be carried forward with a warning and value will be changed to NaN
+    unexpected_patient_class = clinical_records[clinical_records['patient_class'] != 1]
+    if not unexpected_patient_class.empty:
+        for record in unexpected_patient_class:
+            LOG.warning(f"Record {record['individual']} has value {record['patient_class']} in type_of_visit column, expected 1. Proceeding with record anyway.")
+    clinical_records['patient_class'] = clinical_records['patient_class'].map({1: 'outpatient'})
+
+    # apply age ceiling, hash individual id
+    clinical_records['age'] = clinical_records['age'].apply(age_ceiling)
+
+    # create hashed encounter id
+    # although KP provides an 'individual' column, we ignore it because there is exactly 1 individual value per collection id (Marshfield lab ID)
+    # so we ignore the individual column and instead treat collection id as an individual id
+    # therefore, we use the collection id and the encounter date to create a hashed encounter id
+    clinical_records['identifier'] = clinical_records.apply(
+        lambda row: generate_hash(
+            f"{row['collection_id']}{row['encountered']}".lower()
+        ), axis=1
+    )
+
+    # drop records with missing values: barcode/collectionid (not sure which variable this maps to yet), encounter date
+    # also require sex, which is necessary for creating patient resource
+    clinical_records = drop_missing_rows(clinical_records, 'encountered')
+    clinical_records = drop_missing_rows(clinical_records, 'collection_id')
+    clinical_records = drop_missing_rows(clinical_records, 'sex')
+
+    # Incoming `encountered` value is typically just date but is cast to datetime with timezone in postgres. Timezone is
+    # being specified here to ensure values are set to midnight local time instead of UTC.
+    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"]).dt.tz_localize('America/Los_Angeles')
+
+    # convert other dates to datetime format; no need to localize because id3c will not insert time component for these dates
+    # get list of date columns besides encountered
+    date_cols = [col for col in clinical_records.columns if col.startswith('date')]
+    for col in date_cols:
+        clinical_records[col] = pd.to_datetime(clinical_records[col]).dt.strftime('%Y-%m-%d')
+
+    # ensure there are no unintended columns being kept
+    columns_to_keep = [
+        '_provenance',
+        'identifier',
+        'site',
+        'sex',
+        'age',
+        'race',
+        'ethnicity',
+        'encountered',
+        'census_tract',
+        'collection_id',
+        'symptom',
+        'icd10',
+        'date_flu_1',
+        'date_flu_2',
+        'flu_type_1',
+        'flu_type_2',
+        'date_covid_1',
+        'date_covid_2',
+        'date_covid_3',
+        'date_covid_4',
+        'date_covid_5',
+        'date_covid_6',
+        'date_symptom_onset',
+        'patient_class'
+    ]
+
+    clinical_records = clinical_records[columns_to_keep]
+
+    # dump ndjson to stdout
+    LOG.info(f"Dumping {len(clinical_records)} parsed KP2023 records to stdout")
+    dump_ndjson(clinical_records)
+
+
+def map_icd10_codes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Given a DataFrame *df* of clinical records, returns a DataFrame
+    with high risk code columns renamed to 'diag_cd' + ICD-10 code.
+    """
+    icd10_mapper = {
+        "chronic ischemic heart disease":                                                                       "I25",
+        "heart failure":                                                                                        "I50",
+        "simple and mucopurulent chronic bronchitis":                                                           "J41",
+        "unspecified chronic bronchitis":                                                                       "J42",
+        "other chronic obstructive pulmonary disease":                                                          "J44",
+        "asthma":                                                                                               "J45",
+        "bronchiectasis":                                                                                       "J47",
+        "acute respiratory distress syndrome":                                                                  "J80",
+        "type 2 diabetes mellitus":                                                                             "E11",
+        "encounter for antineoplastic chemotherapy and immunotherapy":                                          "Z51.1",
+        "transplanted organ and tissue status":                                                                 "Z94",
+        "chronic viral hepatitis":                                                                              "B18",
+        "alcoholic liver disease":                                                                              "K70",
+        "malignant neoplasm of lip":                                                                            "C00",
+        "malignant neoplasm of base of tongue":                                                                 "C01",
+        "malignant neoplasm of other and unspecified parts of tongue":                                          "C02",
+        "malignant neoplasm of gum":                                                                            "C03",
+        "malignant neoplasm of floor of mouth":                                                                 "C04",
+        "malignant neoplasm of palate":                                                                         "C05",
+        "malignant neoplasm of other and unspecified parts of mouth":                                           "C06",
+        "malignant neoplasm of parotid gland":                                                                  "C07",
+        "malignant neoplasm of other and unspecified major salivary glands":                                    "C08",
+        "malignant neoplasm of tonsil":                                                                         "C09",
+        "malignant neoplasm of oropharynx":                                                                     "C10",
+        "malignant neoplasm of nasopharynx":                                                                    "C11",
+        "malignant neoplasm of pyriform sinus":                                                                 "C12",
+        "malignant neoplasm of hypopharynx":                                                                    "C13",
+        "malignant neoplasm of other and ill-defined sites in the lip, oral cavity and pharynx":                "C14",
+        "malignant neoplasm of esophagus":                                                                      "C15",
+        "malignant neoplasm of stomach":                                                                        "C16",
+        "malignant neoplasm of small intestine":                                                                "C17",
+        "malignant neoplasm of colon":                                                                          "C18",
+        "malignant neoplasm of rectosigmoid junction":                                                          "C19",
+        "malignant neoplasm of rectum":                                                                         "C20",
+        "malignant neoplasm of anus and anal canal":                                                            "C21",
+        "malignant neoplasm of liver and intrahepatic bile ducts":                                              "C22",
+        "malignant neoplasm of gallbladder":                                                                    "C23",
+        "malignant neoplasm of other and unspecified parts of biliary tract":                                   "C24",
+        "malignant neoplasm of pancreas":                                                                       "C25",
+        "malignant neoplasm of other and ill-defined digestive organs":                                         "C26",
+        "malignant neoplasm of nasal cavity and middle ear":                                                    "C30",
+        "malignant neoplasm of accessory sinuses":                                                              "C31",
+        "malignant neoplasm of larynx":                                                                         "C32",
+        "malignant neoplasm of trachea":                                                                        "C33",
+        "malignant neoplasm of bronchus and lung":                                                              "C34",
+        "malignant neoplasm of thymus":                                                                         "C37",
+        "malignant neoplasm of heart, mediastinum and pleura":                                                  "C38",
+        "malignant neoplasm of other and ill-defined sites in the respiratory system and intrathoracic organs": "C39",
+        "malignant neoplasm of bone and articular cartilage of limbs":                                          "C40",
+        "malignant neoplasm of bone and articular cartilage of other and unspecified sites":                    "C41",
+        "malignant melanoma of skin":                                                                           "C43",
+        "other and unspecified malignant neoplasm of skin":                                                     "C44",
+        "mesothelioma":                                                                                         "C45",
+        "kaposi's sarcoma":                                                                                     "C46",
+        "malignant neoplasm of peripheral nerves and autonomic nervous system":                                 "C47",
+        "malignant neoplasm of retroperitoneum and peritoneum":                                                 "C48",
+        "malignant neoplasm of other connective and soft tissue":                                               "C49",
+        "merkel cell carcinoma":                                                                                "C4A",
+        "malignant neoplasms of breast":                                                                        "C50",
+        "malignant neoplasm of vulva":                                                                          "C51",
+        "malignant neoplasm of vagina":                                                                         "C52",
+        "malignant neoplasm of cervix uteri":                                                                   "C53",
+        "malignant neoplasm of corpus uteri":                                                                   "C54",
+        "malignant neoplasm of uterus, part unspecified":                                                       "C55",
+        "malignant neoplasm of ovary":                                                                          "C56",
+        "malignant neoplasm of other and unspecified female genital organs":                                    "C57",
+        "malignant neoplasm of placenta":                                                                       "C58",
+        "malignant neoplasm of penis":                                                                          "C60",
+        "malignant neoplasm of prostate":                                                                       "C61",
+        "malignant neoplasm of testis":                                                                         "C62",
+        "malignant neoplasm of other and unspecified male genital organs":                                      "C63",
+        "malignant neoplasm of kidney, except renal pelvis":                                                    "C64",
+        "malignant neoplasm of renal pelvis":                                                                   "C65",
+        "malignant neoplasm of ureter":                                                                         "C66",
+        "malignant neoplasm of bladder":                                                                        "C67",
+        "malignant neoplasm of other and unspecified urinary organs":                                           "C68",
+        "malignant neoplasm of eye and adnexa":                                                                 "C69",
+        "malignant neoplasm of meninges":                                                                       "C70",
+        "malignant neoplasm of brain":                                                                          "C71",
+        "malignant neoplasm of spinal cord, cranial nerves and other parts of central nervous system":          "C72",
+        "malignant neoplasm of thyroid gland":                                                                  "C73",
+        "malignant neoplasm of adrenal gland":                                                                  "C74",
+        "malignant neoplasm of other endocrine glands and related structures":                                  "C75",
+        "malignant neoplasm of other and ill-defined sites":                                                    "C76",
+        "secondary and unspecified malignant neoplasm of lymph nodes":                                          "C77",
+        "secondary malignant neoplasm of respiratory and digestive organs":                                     "C78",
+        "secondary malignant neoplasm of other and unspecified sites":                                          "C79",
+        "malignant neuroendocrine tumors":                                                                      "C7A",
+        "secondary neuroendocrine tumors":                                                                      "C7B",
+        "malignant neoplasm without specification of site":                                                     "C80",
+        "hodgkin lymphoma":                                                                                     "C81",
+        "follicular lymphoma":                                                                                  "C82",
+        "non-follicular lymphoma":                                                                              "C83",
+        "mature t/nk-cell lymphomas":                                                                           "C84",
+        "other specified and unspecified types of non-hodgkin lymphoma":                                        "C85",
+        "other specified types of t/nk-cell lymphoma":                                                          "C86",
+        "malignant immunoproliferative diseases and certain other b-cell lymphomas":                            "C88",
+        "multiple myeloma and malignant plasma cell neoplasms":                                                 "C90",
+        "lymphoid leukemia":                                                                                    "C91",
+        "myeloid leukemia":                                                                                     "C92",
+        "monocytic leukemia":                                                                                   "C93",
+        "other leukemias of specified cell type":                                                               "C94",
+        "leukemia of unspecified cell type":                                                                    "C95",
+        "other and unspecified malignant neoplasms of lymphoid, hematopoietic and related tissue":              "C96"
+    }
+
+    # rename columns
+    df = df.rename(columns=icd10_mapper)
+
+    # get list of icd10 columns, which are the columns included the icd10_mapper
+    icd10_cols = pd.Index(list(icd10_mapper.values()))
+
+    # collapse binary columns into list of true icd10 categories
+    df['icd10'] = df[icd10_cols].astype('bool').apply(lambda row: icd10_cols[row], axis=1)
+    
+    # remove binary icd10 columns
+    df = df.drop(list(icd10_mapper.values()), axis='columns')
+
+    return df
+
+
+def map_flu_vaccine_kp2023(df: pd.DataFrame, column: str) -> None:
+    """
+    Given a DataFrame *df* and an existing numeric *column* in the df,
+    replaces the numeric codes in the column with strings that describe
+    the flu vaccine received, according to the 2023 KP Data Dictionary
+    """
+    kp2023_flu_mapper = {
+        0:  "Afluria Quadrivalent",
+        1:  "Fluad Quadrivalent",
+        2:  "Fluarix Quadrivalent",
+        3:  "Flublok Quadrivalent",
+        4:  "Flucelvax Quadrivalent",
+        5:  "Flulaval Quadrivalent",
+        6:  "Flumist Quadrivalent",
+        7:  "Fluzone High-Dose Quadrivalent",
+        8:  "Fluzone Quadrivalent",
+        9:  "Unknown"
+    }
+
+    # todo: log warning if not NaN or 0-9
+
+    # map numeric values to strings based on dict
+    # note that this is exhaustive mapping, so any value not 0-9 will be changed to NaN
+    df[column] = df[column].map(kp2023_flu_mapper)
+
+
+def map_ethnicity_kp2023(df: pd.DataFrame, column: str) -> None:
+    """
+    Given a DataFrame *df* and an existing numeric *column* in the df,
+    replaces the numeric codes in the column with strings that describe
+    ethnicity, according to the 2023 KP Data Dictionary
+    """
+    kp2023_ethnicity_mapper = {
+        0:  "Not Hispanic or Latino",
+        1:  "Hispanic or Latino",
+        8:  "Don't know",
+        9: "Prefer not to answer"
+    }
+
+    # todo: log warning if not NaN, 0-1, or 8-9
+    df[column] = df[column].map(kp2023_ethnicity_mapper)  
+
+
+@clinical.command("match-kp2023")
+@click.argument("kp2023_manifest_filename", metavar = "<KP2023 Clinical Manifest filename>",
+                type = click.Path(exists= True, dir_okay=False))
+@click.argument("kp2023_manifest_matched_filename", metavar = "<KP2023 Clinical Manifest Matched Data filename>",
+                type = click.Path(dir_okay=False))
+@click.argument("kp2023_manifest_unmatched_output_filename", metavar = "<KP2023 Clinical Manifest Unmatched Data output filename>",
+                type = click.Path(dir_okay=False))
+
+
+def match_kp2023(kp2023_manifest_filename: str, kp2023_manifest_matched_filename: str, kp2023_manifest_unmatched_output_filename: str) -> None:
+    """
+    Match clinical data from KP2023 with identifiers from the LIMS.
+
+    Given a <KP2023 Clinical Manifest filename> which has records to be matched,
+    and, a <KP2023 Clinical Manifest Matched Data filename> which has records that have
+    already been matched to LIMS identifiers, attempts to match the records in
+    <KP2023 Clinical Manifest filename> to LIMS data and adds any newly matched
+    records to the matched file. Removes any matches from <KP2023 Clinical Manifest name>
+    before writing it to <KP2023 Clinical Manifest Unmatched Data output filename>.
+
+    <KP2023 Clinical Manifest Matched Date filename> does not have to be an existing file,
+    but a filename must be provided. If the file does not exist, the newly matched records
+    will be output to stdout without consolidating with previously matched records.
+
+    <KP2023 Clinical Manifest Unmatched Data output filename> does not have to exist, and
+    if a file with this path exists, it will be overwritten.
+
+    PII is removed by this function.
+
+    <KP2023 Clinical Manifest filename> can include records that have been previously matched,
+    or it can consist of only unmatched records. All matched clinical records (both previously
+    and newly matched records) are output to stdout as newline-delimited JSON records.
+    You will likely want to redirect stdout to a file.
+    """
+    clinical_records = pd.read_json(kp2023_manifest_filename, orient='records', dtype={'census_tract': 'string', 'age': 'int64'}, lines=True)
+    # if the <KP2023 Clinical Manifest Matched Data filename> file exists, read the file into a df; otherwise, create an empty df
+    if os.path.exists(kp2023_manifest_matched_filename):
+        matched_clinical_records = pd.read_json(kp2023_manifest_matched_filename, orient='records', dtype={'census_tract': 'string', 'age': 'int64'}, lines=True)
+    else:
+        LOG.debug("No previously matched data was provided.")
+        matched_clinical_records = pd.DataFrame()
+
+    LOG.info(f"Attempting to match {len(clinical_records)} identifiers to LIMS data")
+    # identifier_pairs is a dict where keys are clinical identifiers and values are corresponding matrixIds from LIMS
+    identifier_pairs = match_lims_identifiers(clinical_records, KP2023_IDENTIFIERS)
+
+    # add 'barcode' column, which contains lims matrixIds
+    clinical_records['barcode'] = pd.NA
+    for identifier in KP2023_IDENTIFIERS.keys():
+        clinical_records['barcode'] = clinical_records.apply(
+            lambda row: identifier_pairs.get(row[identifier], pd.NA) if pd.isna(row['barcode']) else row['barcode'],
+            axis=1
+        )
+
+    newly_matched_clinical_records = clinical_records.loc[~clinical_records['barcode'].isna()]
+    unmatched_clinical_records = clinical_records[clinical_records['barcode'].isna()]
+
+    # keep clinical identifier (collection_id) to use as individual id for FHIR bundle
+    # in this case, the clinical identifier is probably a 'safe' external ID, but we treat it as PII out of an abundance of caution
+    # therefore, hash the clinical identifier in newly_matched_clinical_records
+    for clinical_identifier in KP2023_IDENTIFIERS.keys():
+        newly_matched_clinical_records[clinical_identifier] = newly_matched_clinical_records[clinical_identifier].apply(generate_hash)
+
+    # newly matched barcodes shouldn't be in our previously matched data.
+    # any barcodes that show up in a previous parse might contain refreshed data,
+    # so we should keep the newly matched data and drop the old match. If there is
+    # no difference, our diff won't pull this into ID3C.
+    #
+    # it is necessary to combine the newly matched records with the old matched records
+    # because if the input <KP2023 Clinical Manifest filename> is the unmatched manifest,
+    # then it will not contain any old matched records, so we want to store all old matched records
+    # and add to that manifest each time this command is run.
+    if newly_matched_clinical_records.empty:
+        LOG.debug("No new records were matched to LIMS data")
+    elif matched_clinical_records.empty:
+        LOG.debug(f"{len(newly_matched_clinical_records)} were matched. No previously matched data to consolidate")
+    else:
+        LOG.debug(f"{len(newly_matched_clinical_records)} were matched. Refreshing all previously matched data")
+
+        # old versions of matched records whose barcode is in both the old matched and new matched records:
+        refreshed_old_records = matched_clinical_records.barcode.isin(newly_matched_clinical_records.barcode)
+        # new versions of those matched records:
+        refreshed_new_records = newly_matched_clinical_records.barcode.isin(matched_clinical_records.barcode)
+        # take the old versions out
+        matched_clinical_records = matched_clinical_records.loc[~refreshed_old_records, :]
+        LOG.debug(f"{len(matched_clinical_records)} previously matched records remain after dropping potentially refreshed records")
+
+        # and put the new versions in
+        newly_refreshed_clinical_records = newly_matched_clinical_records.loc[refreshed_new_records, :]
+        newly_paired_clinical_records = newly_matched_clinical_records.loc[~refreshed_new_records, :]
+        LOG.debug(f"{len(newly_paired_clinical_records)} had not been previously matched. {len(newly_refreshed_clinical_records)} had been previously matched and were refreshed")
+
+        newly_matched_clinical_records = pd.concat([newly_paired_clinical_records, newly_refreshed_clinical_records]).reset_index(drop=True)
+
+    matched_clinical_records = pd.concat([matched_clinical_records, newly_matched_clinical_records]).reset_index(drop=True)
+    LOG.info(f"A total of {len(matched_clinical_records)} records are matched to LIMS data with {len(unmatched_clinical_records)} still unmatched.")
+
+    unmatched_clinical_records.to_json(kp2023_manifest_unmatched_output_filename, orient='records', lines=True)
+    if not matched_clinical_records.empty:
+        dump_ndjson(matched_clinical_records)
 
 
 def convert_numeric_columns_to_binary(df: pd.DataFrame) -> pd.DataFrame:

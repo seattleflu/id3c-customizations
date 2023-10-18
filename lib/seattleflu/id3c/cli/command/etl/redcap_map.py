@@ -81,11 +81,14 @@ def map_symptom(symptom_name: str) -> Optional[str]:
         'rash':                                 'rash',
         'breathe':                              'increasedTroubleBreathing',
         'increased trouble with breathing':     'increasedTroubleBreathing',
+        'sob':                                  'increasedTroubleBreathing',
         'eye':                                  'eyePain',
         'smell_taste':                          'lossOfSmellOrTaste',
         'other':                                'other',
         'none':                                 'none',
         'none of the above':                    'none',
+        'unk':                                  'none',
+        'no_answer':                            'none'
     }
 
     if symptom_name.lower() not in symptom_map:
