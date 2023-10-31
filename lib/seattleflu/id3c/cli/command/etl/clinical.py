@@ -425,11 +425,11 @@ def create_immunization_kp2023(record: dict, patient_reference: dict) -> list:
         "fluad quadrivalent":               205,
         "fluarix quadrivalent":             150,
         "flublok quadrivalent":             185,
-        # "flucelvax quadrivalent" - not known whether with or without preservative
-        # "flulaval quadrivalent" - not known whether with or without preservative
+        "flucelvax quadrivalent":           88, # mark as unspecified because not known whether with or without preservative
+        "flulaval quadrivalent":            88, # mark as unspecified not known whether with or without preservative
         "flumist quadrivalent":             149,
-        "fluzone high-dose quadrivlanet":   197, #assuming not the southern hemisphere?
-        # "fluzone quadrivalent" - not known whether with or without preservative, or whether pediatric
+        "fluzone high-dose quadrivalent":   88, # probably 197, but marking as unspecified because don't want to assume not southern hemisphere version
+        "fluzone quadrivalent":             88 # mark as unspecified because not known whether with or without preservative, or whether pediatric
     }
 
     for column_map in immunization_columns:
@@ -455,7 +455,7 @@ def create_immunization_kp2023(record: dict, patient_reference: dict) -> list:
             if vaccine_name in flu_vaccine_mapper:
                 vaccine_code = cvx_codes[flu_vaccine_mapper[vaccine_name]] if flu_vaccine_mapper[vaccine_name] else None
             else:
-                raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».") # we already standardize vaccine names in parse-kp2023, so this is just for extra safety
+                raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».") 
 
         # assign name and code for covid vaccines
         elif 'covid' in column_map['date']:
@@ -514,7 +514,6 @@ def create_icd10_conditions_kp2023(record:dict, patient_reference: dict) -> list
     Create a condition resource for each ICD-10 code, following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/condition.html)
     """
-    # todo: raise unknown icd10 error if icd10 code not in mapper
 
     condition_entries = []
 
