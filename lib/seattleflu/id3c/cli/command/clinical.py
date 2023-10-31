@@ -874,23 +874,65 @@ def parse_kp2023(kp2023_filename: str) -> None:
     clinical_records = pd.read_csv(kp2023_filename)
     clinical_records.columns = clinical_records.columns.str.lower()
     clinical_records = trim_whitespace(clinical_records)
-    clinical_records = add_provenance(clinical_records, os.path.basename(kp2023_filename)) # any case in which we wouldn't want just the basename?
+    clinical_records = add_provenance(clinical_records, os.path.basename(kp2023_filename)) 
 
-    # KP provides a column 'individual' and a column 'marshfield_lab_id'
-    # currently we are assuming that KP's column 'individual' is the individual identifier (note: assume this is PII to be safe)
-    # and assuming that KP's column 'marshfield_lab_id' is the specimen identifier/barcode
-    # but we are waiting to hear from KP to confirm this
-    # and waiting to hear from the lab to see which identifier they are using as the specimen id
+    # check that all expected columns are present (even if empty)
+    # do this check before standardizing names, but allow fixes for known typos through
+    expected_columns = [
+        'marshfield_lab_id',
+        'hispaniclatino',
+        'assigned_sex',
+        'censustract',
+        'type_of_visit',
+        'age',
+        'encountered',
+        'race_ai_an',
+        'race_asian',
+        'race_black_aa',
+        'race_nh_opi',
+        'race_white',
+        'race_unknown',
+        'symptom_cough',
+        'symptom_fever',
+        'symptom_chills',
+        'symptom__throat', # this typo has been in all KP2023 sheets so far, so expect it; however, if the typo is fixed, it will be let through below
+        'sympton_sob', # this typo has been in all KP2023 sheets so far, so expect it; however, if the typo is fixed, it will be let through below
+        'symptom_nose',
+        'symptom_smell_taste',
+        'symptom_unk',
+        'symptom_no_answer',
+        'date_flu_1',
+        'date_flu_2',
+        'flu_type_1',
+        'flu_type_2',
+        'date_covid_1',
+        'date_covid_2',
+        'date_covid_3',
+        'date_covid_4',
+        'date_covid_5',
+        'date_covid_6',
+        'date_symptom_onset',
+    ]
+
+    # check for missing expected columns
+    missing_cols = list(set(expected_columns).difference(clinical_records.columns))
+    # If KP fixes known typos on their end, allow those through. (if typo name is missing but fixed name is present)
+    if 'sympton_sob' in missing_cols and 'symptom_sob' in clinical_records.columns:
+        missing_cols.remove('sympton_sob')
+    if 'symptom__throat' in missing_cols and 'symptom_throat' in clinical_records.columns:
+        missing_cols.remove('symptom__throat')
+    if len(missing_cols) > 0:
+        raise MissingColumn(f'One or more expected columns are missing from the input spreadsheet: {*missing_cols,}')
 
     # rename columns
     column_map = {
-        'marshfield_lab_id':    'collection_id', # will be mapped to lims barcode during id3c clinical match-kp2023
+        'marshfield_lab_id':    'collection_id', # will be mapped to lims barcode with id3c clinical match-kp2023
         'hispaniclatino':       'ethnicity',
-        'assigned_sex':          'sex',
-        'symptom__throat':      'symptom_throat', # fix extra underscore in column name
+        'assigned_sex':         'sex',
+        'symptom__throat':      'symptom_throat', # fix extra underscore
         'censustract':          'census_tract',
         'type_of_visit':        'patient_class',
-        'sympton_sob':          'symptom_sob'
+        'sympton_sob':          'symptom_sob' # fix typo
     }
 
     clinical_records = clinical_records.rename(columns=column_map)
@@ -898,12 +940,20 @@ def parse_kp2023(kp2023_filename: str) -> None:
     # check for missing or duplicated barcodes?
     #barcode_quality_control(clinical_records)
 
-    # in the lims, the marshfield_lab_id / collection_id has an aliquot number appended to the end of the id.
-    # for example, KPWC100000-1
-    # as of Oct 2023, the collection ids from Kaiser in the metadata excel files do not have this aliquot number appended to them
-    # so we want to check if the aliquot id is present, and if not, append it
-    clinical_records['collection_id'] = clinical_records['collection_id'].apply(lambda x: x if re.search(r'-\d+$', x) else x+'-1')
-
+    # The collection ids on the tubes from KP have aliquot numbers appended to them (ex: KPWB100001C-1)
+    # but the collection ids in the metadata spreadsheet do not have these aliquot numbers at the end (ex: KPWB100001C)
+    # therefore, we will check that there is no aliquot number at the end of the collection id in the metadata spreadsheet,
+    # and strip the aliquot number if it is there, with a warning since we don't expect it
+    # in the LIMS, this id is called KaiserPermanenteSpecimenId and will also have its aliquot number stripped
+    collection_ids_with_aliquot = clinical_records['collection_id'].apply(lambda x: True if re.search(r'-\d+$', x) else False)
+    # if there are any collection ids with aliquot (not expected), give a warning and strip the aliquot number
+    if any(collection_ids_with_aliquot):
+        LOG.warning('Warning: One or more Marshfield lab IDs contain aliquot id, which is unexpected. Stripping aliquot id ' +
+            f'from these samples: {*clinical_records.loc[collection_ids_with_aliquot]["collection_id"].values,}')
+        clinical_records.loc[collection_ids_with_aliquot, 'collection_id'] = clinical_records.loc[
+            collection_ids_with_aliquot, 'collection_id'
+        ].apply(lambda cid: re.sub(r'-\d+$','', cid))
+    
     # map high risk codes to ICD-10 codes, and collapse into one column 'icd10'
     clinical_records = map_icd10_codes(clinical_records)
 
@@ -996,6 +1046,15 @@ def parse_kp2023(kp2023_filename: str) -> None:
         'patient_class'
     ]
 
+    # throw a warning if there are any columns not in columns_to_keep
+    # except for known extra columns, like 'individual' which might not be included anymore but has been included in the past
+    extra_cols = list(set(clinical_records.columns).difference(columns_to_keep))
+    if 'individual' in extra_cols:
+        extra_cols.remove('individual')
+    if len(extra_cols) > 0:
+        LOG.warning(f'Warning: One or more unexpected columns present after parsing: {*extra_cols,}.\n\
+        Removing these columns before dumping records to stdout.')
+
     clinical_records = clinical_records[columns_to_keep]
 
     # dump ndjson to stdout
@@ -1006,7 +1065,7 @@ def parse_kp2023(kp2023_filename: str) -> None:
 def map_icd10_codes(df: pd.DataFrame) -> pd.DataFrame:
     """
     Given a DataFrame *df* of clinical records, returns a DataFrame
-    with high risk code columns renamed to 'diag_cd' + ICD-10 code.
+    with an icd10 column containing a list of all positive icd10 codes for each record
     """
     icd10_mapper = {
         "chronic ischemic heart disease":                                                                       "I25",
@@ -1149,8 +1208,11 @@ def map_flu_vaccine_kp2023(df: pd.DataFrame, column: str) -> None:
         9:  "Unknown"
     }
 
-    # todo: log warning if not NaN or 0-9
-
+    # for any records whose flu_type value is not either in mapper or null, return the collection id
+    invalid_flu_values = df.loc[df[column].apply(lambda x: False if (x in kp2023_flu_mapper or pd.isna(x)) else True)]['collection_id'].values
+    if len(invalid_flu_values) > 0:
+        raise ValueError(f'One or more invalid KP2023 flu vaccine values. Valid values are 0-9 or null. These Marshfield lab IDs have invalid flu vaccine values: {*invalid_flu_values,}')
+    
     # map numeric values to strings based on dict
     # note that this is exhaustive mapping, so any value not 0-9 will be changed to NaN
     df[column] = df[column].map(kp2023_flu_mapper)
@@ -1169,7 +1231,11 @@ def map_ethnicity_kp2023(df: pd.DataFrame, column: str) -> None:
         9: "Prefer not to answer"
     }
 
-    # todo: log warning if not NaN, 0-1, or 8-9
+    # for any records whose ethnicity value is not either in mapper or null, return the collection id
+    invalid_ethnicity_values = df.loc[df[column].apply(lambda x: False if (x in kp2023_ethnicity_mapper or pd.isna(x)) else True)]['collection_id'].values
+    if len(invalid_ethnicity_values) > 0:
+        raise ValueError(f'One or more invalid KP2023 ethnicity ("HispanicLatino") values. Valid values are 0,1,8,9 or null. These Marshfield lab IDs have invalid ethnicity values: {*invalid_ethnicity_values,}')
+    
     df[column] = df[column].map(kp2023_ethnicity_mapper)  
 
 
@@ -1482,3 +1548,10 @@ def match_lims_identifiers(clinical_records: pd.DataFrame, lims_identifiers: Dic
 
     LOG.debug(f"Found an identifier match for {len(matched_identifiers)} identifiers")
     return matched_identifiers
+
+class MissingColumn(KeyError):
+    """
+    Raised by :function: `parse-kp2023` if any expected columns
+    are not found in the input spreadsheet after standardizing column names
+    """
+    pass
