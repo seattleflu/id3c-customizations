@@ -875,6 +875,10 @@ def parse_kp2023(kp2023_filename: str) -> None:
     clinical_records.columns = clinical_records.columns.str.lower()
     clinical_records = trim_whitespace(clinical_records)
     clinical_records = add_provenance(clinical_records, os.path.basename(kp2023_filename)) 
+    # since kp may provide updates as new files, and to avoid processing outdated records in id3c, add spreadsheet timestamp column
+    last_modified_time = os.path.getmtime(kp2023_filename)
+    clinical_records['spreadsheet_timestamp'] = last_modified_time
+    clinical_records['spreadsheet_timestamp'] = pd.to_datetime(clinical_records['spreadsheet_timestamp'], unit='s')
 
     # check that all expected columns are present (even if empty)
     # do this check before standardizing names, but allow fixes for known typos through
@@ -1043,7 +1047,8 @@ def parse_kp2023(kp2023_filename: str) -> None:
         'date_covid_5',
         'date_covid_6',
         'date_symptom_onset',
-        'patient_class'
+        'patient_class',
+        'spreadsheet_timestamp'
     ]
 
     # throw a warning if there are any columns not in columns_to_keep
@@ -1339,6 +1344,51 @@ def match_kp2023(kp2023_manifest_filename: str, kp2023_manifest_matched_filename
     unmatched_clinical_records.to_json(kp2023_manifest_unmatched_output_filename, orient='records', lines=True)
     if not matched_clinical_records.empty:
         dump_ndjson(matched_clinical_records)
+
+
+@clinical.command("deduplicate-kp2023")
+@click.argument("kp2023_master_manifest_filename", metavar = "<KP2023 Clinical Master Manifest filename>",
+                type = click.Path(exists= True, dir_okay=False))
+
+
+def deduplicate_kp2023(kp2023_master_manifest_filename: str) -> None:
+    """
+    Remove duplicate records, keeping only those from the most recently updated spreadsheet.
+
+    Given a *KP2023 Clinical Master Manifest filename*, which contains parsed KP2023 records and whose provenance
+    includes a timestamp field indicating the last updated time of the provenance spreadsheet, outputs a 
+    deduplicated version. When duplicates are encountered, the record with the most recent provenance timestamp
+    is output.
+
+    Writes deduplicated records in ndjson format to stdout.
+    """
+
+    # read in ndjson as pandas df
+    clinical_records = pd.read_json(kp2023_master_manifest_filename, orient='records', dtype={'census_tract': 'string', 'age': 'int64'}, lines=True)
+
+    # sort by timestamp
+    clinical_records = clinical_records.sort_values(by='spreadsheet_timestamp', ascending=True)
+
+    # use encounter identifier to identify duplicates
+    # keep only the duplicate with the latest timestamp
+    duplicates = clinical_records.duplicated(subset='identifier', keep='last')
+    duplicated_records = clinical_records.loc[duplicates, :]
+    clinical_records = clinical_records.loc[~duplicates, :]
+
+    # report on removed duplicates
+    # get unique list of provenance filenames from removed duplicated records
+    # to parse _provenance column: convert _provenance to str, then convert single to double quotes and parse as json
+    duplicated_records['provenance_filename'] = duplicated_records['_provenance'].apply(lambda x: (json.loads(str(x).replace("\'", "\"")))['filename'])
+    duplicated_provenance_filenames = duplicated_records['provenance_filename'].unique()
+    if len(duplicated_records) > 0:
+        LOG.warning(f"Warning: Removed {len(duplicated_records)} duplicated KP2023 records. \n" +
+                    f"Duplicated records came from the following provenance(s): {*duplicated_provenance_filenames,}")
+
+    # drop spreadsheet_timestamp column
+    clinical_records = clinical_records.drop(columns=['spreadsheet_timestamp'])
+
+    LOG.info(f"Dumping {len(clinical_records)} deduplicated KP2023 records to stdout")
+    dump_ndjson(clinical_records)
 
 
 def convert_numeric_columns_to_binary(df: pd.DataFrame) -> pd.DataFrame:
