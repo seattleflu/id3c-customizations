@@ -112,7 +112,9 @@ def etl_clinical(*, db: DatabaseSession):
             # PHSKC and KP2023 will be handled differently than other clinical records, converted
             # to FHIR format and inserted into receiving.fhir table to be processed
             # by the FHIR ETL. When time allows, SCH and KP should follow suit.
-            if site.identifier in ('RetrospectivePHSKC', 'KaiserPermanente2023'):
+            # Since KP2023 and KP samples both have KaiserPermanente as their site in id3c,
+            # use the ndjson document's site to distinguish KP vs KP2023 samples
+            if site.identifier == 'RetrospectivePHSKC' or record.document["site"].upper() == 'KP2023':
                 fhir_bundle = generate_fhir_bundle(db, record.document, site.identifier)
                 insert_fhir_bundle(db, fhir_bundle)
 
@@ -248,7 +250,7 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict, site_id: str) -> Opt
     # ideally would not require site id for this, since it makes it more difficult to incorporate future projects
     if site_id == 'RetrospectivePHSKC':
         location_entries, location_references = create_resident_locations(record)
-    elif site_id == 'KaiserPermanente2023':
+    elif record["site"].upper() == 'KP2023':
         location_entries, location_references = create_location_tract_only(record)
     else:
         LOG.warning(f'Function generate_fhir_bundle does not currently create location resource entries for site {site_id}')
@@ -298,7 +300,7 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict, site_id: str) -> Opt
     if diagnostic_report_resource_entry:
         resource_entries.append(diagnostic_report_resource_entry)
 
-    if site_id == 'KaiserPermanente2023':
+    if record["site"].upper() == 'KP2023':
         # KP2023 includes some types of metadata that PHSKC does not
         icd10_condition_entries = create_icd10_conditions_kp2023(record, patient_reference)
         symptom_condition_entries = create_symptom_conditions(record, patient_reference, encounter_reference)
@@ -425,11 +427,11 @@ def create_immunization_kp2023(record: dict, patient_reference: dict) -> list:
         "fluad quadrivalent":               205,
         "fluarix quadrivalent":             150,
         "flublok quadrivalent":             185,
-        # "flucelvax quadrivalent" - not known whether with or without preservative
-        # "flulaval quadrivalent" - not known whether with or without preservative
+        "flucelvax quadrivalent":           88, # mark as unspecified because not known whether with or without preservative
+        "flulaval quadrivalent":            88, # mark as unspecified not known whether with or without preservative
         "flumist quadrivalent":             149,
-        "fluzone high-dose quadrivlanet":   197, #assuming not the southern hemisphere?
-        # "fluzone quadrivalent" - not known whether with or without preservative, or whether pediatric
+        "fluzone high-dose quadrivalent":   88, # probably 197, but marking as unspecified because don't want to assume not southern hemisphere version
+        "fluzone quadrivalent":             88 # mark as unspecified because not known whether with or without preservative, or whether pediatric
     }
 
     for column_map in immunization_columns:
@@ -455,7 +457,7 @@ def create_immunization_kp2023(record: dict, patient_reference: dict) -> list:
             if vaccine_name in flu_vaccine_mapper:
                 vaccine_code = cvx_codes[flu_vaccine_mapper[vaccine_name]] if flu_vaccine_mapper[vaccine_name] else None
             else:
-                raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».") # we already standardize vaccine names in parse-kp2023, so this is just for extra safety
+                raise UnknownVaccine (f"Unknown vaccine «{vaccine_name}».") 
 
         # assign name and code for covid vaccines
         elif 'covid' in column_map['date']:
@@ -514,7 +516,6 @@ def create_icd10_conditions_kp2023(record:dict, patient_reference: dict) -> list
     Create a condition resource for each ICD-10 code, following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/condition.html)
     """
-    # todo: raise unknown icd10 error if icd10 code not in mapper
 
     condition_entries = []
 
@@ -1094,7 +1095,7 @@ def site_identifier(site_name: str) -> str:
         "SCH": "RetrospectiveChildrensHospitalSeattle",
         "KP": "KaiserPermanente",
         "PHSKC": "RetrospectivePHSKC",
-        "KP2023": "KaiserPermanente2023"
+        "KP2023": "KaiserPermanente" # kp2023 samples should be mapped to kp site in id3c; they are marked as kp2023 in manifest document because they will be processed into fhir bundles, unlike earlier kp samples
     }
     if site_name not in site_map:
         raise UnknownSiteError(f"Unknown site name «{site_name}»")
