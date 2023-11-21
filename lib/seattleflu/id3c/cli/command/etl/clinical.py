@@ -464,7 +464,8 @@ def create_immunization_kp2023(record: dict, patient_reference: dict) -> list:
             vaccine_code = cvx_codes[213] # covid vaccines are not specified in this study, so assign code for unspecified covid-19 vaccine
 
         if vaccine_code:
-            immunization_identifier_hash = generate_hash(f"{record['mrn']}{vaccine_code['code']}{immunization_date}".lower())
+            # create hash from collection_id, which is hashed individual id, plus vaccine code and date administered
+            immunization_identifier_hash = generate_hash(f"{record['collection_id']}{vaccine_code['code']}{immunization_date}".lower())
             immunization_identifier = create_identifier(f"{SFS}/immunization", immunization_identifier_hash)
 
             immunization_resource = create_immunization_resource(
