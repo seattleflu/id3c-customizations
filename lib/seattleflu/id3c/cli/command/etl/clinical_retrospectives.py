@@ -138,7 +138,7 @@ def create_encounter_status(record: dict) -> str:
     This attribute is required by FHIR for an Encounter resource.
     (https://www.hl7.org/fhir/encounter-definitions.html#Encounter.status)
     """
-    status = record['encounter_status']
+    status = record.get('encounter_status', None)
     if not status:
         return 'finished'
 
