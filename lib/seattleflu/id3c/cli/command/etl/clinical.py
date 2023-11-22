@@ -492,10 +492,11 @@ def create_symptom_conditions(record: dict, patient_reference: dict, encounter_r
     for symptom in record['symptom']:
         mapped_symptom_name = map_symptom(symptom)
         onset_date = record['date_symptom_onset']
-        symptom_code = {
-            "system": f"{SFS}/symptom",
-            "code": mapped_symptom_name
-        }
+        symptom_code = create_codeable_concept(
+            system = f"{SFS}/symptom",
+            code = mapped_symptom_name
+        )
+        
 
         condition_resource = create_condition_resource(mapped_symptom_name,
                                 patient_reference,
@@ -1047,7 +1048,10 @@ def create_icd10_conditions_kp2023(record:dict, patient_reference: dict) -> list
         condition_resource = create_condition_resource(icd10_code,
                                 patient_reference,
                                 None,
-                                icd10_codes[icd10_code]
+                                create_codeable_concept(
+                                    system = icd10_codes[icd10_code]["system"], 
+                                    code = icd10_codes[icd10_code]["code"], 
+                                    display = icd10_codes[icd10_code]["display"])
                             )
 
         condition_entries.append(create_resource_entry(
