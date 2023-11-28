@@ -1022,6 +1022,10 @@ def parse_kp2023(kp2023_filename: str) -> None:
     for col in date_cols:
         clinical_records[col] = pd.to_datetime(clinical_records[col]).dt.strftime('%Y-%m-%d')
 
+    # convert census_tract to string
+    # do this here rather than upon import with dtype, because the latter would require assuming capitalization of column name from KP
+    clinical_records['census_tract'] = clinical_records['census_tract'].astype('Int64').astype('str')
+
     # ensure there are no unintended columns being kept
     columns_to_keep = [
         '_provenance',
