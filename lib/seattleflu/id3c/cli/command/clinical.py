@@ -1268,7 +1268,7 @@ def match_kp2023(kp2023_manifest_filename: str, kp2023_manifest_matched_filename
     records to the matched file. Removes any matches from <KP2023 Clinical Manifest name>
     before writing it to <KP2023 Clinical Manifest Unmatched Data output filename>.
 
-    <KP2023 Clinical Manifest Matched Date filename> does not have to be an existing file,
+    <KP2023 Clinical Manifest Matched Data filename> does not have to be an existing file,
     but a filename must be provided. If the file does not exist, the newly matched records
     will be output to stdout without consolidating with previously matched records.
 
@@ -1345,7 +1345,8 @@ def match_kp2023(kp2023_manifest_filename: str, kp2023_manifest_matched_filename
     matched_clinical_records = pd.concat([matched_clinical_records, newly_matched_clinical_records]).reset_index(drop=True)
     LOG.info(f"A total of {len(matched_clinical_records)} records are matched to LIMS data with {len(unmatched_clinical_records)} still unmatched.")
 
-    unmatched_clinical_records.to_json(kp2023_manifest_unmatched_output_filename, orient='records', lines=True)
+    if not unmatched_clinical_records.empty:
+        unmatched_clinical_records.to_json(kp2023_manifest_unmatched_output_filename, orient='records', lines=True)
     if not matched_clinical_records.empty:
         dump_ndjson(matched_clinical_records)
 
@@ -1369,6 +1370,10 @@ def deduplicate_kp2023(kp2023_master_manifest_filename: str) -> None:
 
     # read in ndjson as pandas df
     clinical_records = pd.read_json(kp2023_master_manifest_filename, orient='records', dtype={'census_tract': 'string', 'age': 'int64'}, lines=True)
+
+    if clinical_records.empty:
+        LOG.info("No clinical records provided, nothing to deduplicate.")
+        return
 
     # sort by timestamp
     clinical_records = clinical_records.sort_values(by='spreadsheet_timestamp', ascending=True)
