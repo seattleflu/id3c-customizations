@@ -196,6 +196,8 @@ def ethnicity(ethnicity: Optional[str]) -> Optional[bool]:
         "null":                               None,
         "declined to answer":                 None,
         "unable to collect":                  None,
+        "prefer not to answer":               None,
+        "don't know":                         None,
     }
 
     if ethnicity not in mapper:
