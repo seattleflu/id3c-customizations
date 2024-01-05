@@ -386,6 +386,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "309",
             "display": "COVID-19, mRNA, LNP-S, PF, tris-sucrose, 30 mcg/0.3 mL"            
         },
+        312: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "312",
+            "display": "COVID-19, mRNA, LNP-S, PF, 50 mcg/0.5 mL"
+        },
         511: {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "511",
@@ -427,6 +432,7 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "covid-19 pfizer mrna bivalent booster 5-11 yrs old":               301,
         "covid-19 pfizer mrna bivalent 5-11 yrs old":                       301,
         "covid-19 pfizer mrna 2023-24 12 yrs and older (comirnaty)":        309,
+        "covid-19 moderna mrna 2023-24 12 yrs and older (spikevax)":        312,
         "covid-19 sinovac inactivated, non-us (coronavac)":                 511,
         "": None
     }
