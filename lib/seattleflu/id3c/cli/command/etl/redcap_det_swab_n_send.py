@@ -443,7 +443,9 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     # Do some pre-processing
     # Combine checkbox answers into one list
     checkbox_fields = [
-        'insurance'
+        'insurance',
+        'smoke_9a005a',
+        'chronic_illness'
     ]
 
     question_categories = {
