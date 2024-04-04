@@ -19,6 +19,7 @@ from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
 from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
+from .redcap import combine_legacy_checkbox_answers
 from .fhir import *
 from . import race, first_record_instance, required_instruments
 
@@ -460,6 +461,10 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'acute_symptom_onset',
         'doctor_1week',
         'antiviral_1',
+        'income_levels',
+        'insurance',
+        'smoke_9a005a',
+        'chronic_illness'
     ]
 
     question_categories = {
@@ -469,10 +474,22 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'valueString': string_questions,
     }
 
+    
+    # Do some pre-processing
+    # Combine checkbox answers into one list
+    checkbox_fields = [
+        'insurance',
+        'smoke_9a005a',
+        'chronic_illness'
+    ]
+    
     # Do some pre-processing
     record['race'] = create_custom_coding_key('race', record)
     record['age'] = age_ceiling(int(record['age']))
     record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
+
+    for field in checkbox_fields:
+        record[field] = combine_legacy_checkbox_answers(record, field)
 
     items: List[dict] = []
     for category in question_categories:
