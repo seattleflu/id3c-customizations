@@ -528,6 +528,19 @@ def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[list
 
     return answers
 
+def combine_legacy_checkbox_answers(record: dict, coded_question: str) -> Optional[list]:
+    """
+    Handles the combining "select all that apply"-type checkbox responses into one list for legacy projects:
+    - swab-n-send
+    """
+    regex = rf'{re.escape(coded_question)}___[\w]*$'
+    empty_value = ''
+    answered_checkboxes = list(filter(lambda f: filter_fields(f, record[f], regex, empty_value), record))
+    
+    # REDCap checkbox fields have format of {question}___{#}
+    answers = list(map(lambda k: record[k], answered_checkboxes))
+
+    return answers
 
 def map_vaccine(vaccine_response: str) -> Optional[bool]:
     """

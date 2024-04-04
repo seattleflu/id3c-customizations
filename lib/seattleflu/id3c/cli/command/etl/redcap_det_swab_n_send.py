@@ -437,7 +437,10 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'acute_symptom_onset',
         'doctor_1week',
         'antiviral_1',
-        'income_levels'
+        'income_levels',
+        'insurance',
+        'smoke_9a005a',
+        'chronic_illness'
     ]
 
     # Do some pre-processing
@@ -456,7 +459,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     }
 
     for field in checkbox_fields:
-        record[field] = combine_checkbox_answers(record, field)
+        record[field] = combine_legacy_checkbox_answers(record, field)
 
     # Do some pre-processing
     record['race'] = create_custom_coding_key('race', record)
