@@ -11,7 +11,7 @@ from cachetools import TTLCache
 
 from . import race
 from .fhir import *
-from .redcap_map import map_sex, map_symptom, UnknownVaccineResponseError
+from .redcap_map import map_sex, map_symptom, map_chronic_illness, UnknownVaccineResponseError
 from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
@@ -525,6 +525,9 @@ def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[list
 
     if re.match(r'fu_[1-4]_symptoms$', coded_question):
         return list(map(lambda a: map_symptom(a), answers))
+
+    if coded_question == 'chronic_illness':
+        return list(map(lambda a: map_chronic_illness(a), answers))
 
     return answers
 
