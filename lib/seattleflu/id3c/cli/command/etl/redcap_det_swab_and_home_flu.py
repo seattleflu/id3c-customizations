@@ -464,7 +464,8 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'income_levels',
         'insurance',
         'smoke_9a005a',
-        'chronic_illness'
+        'chronic_illness',
+        'housing_type'
     ]
 
     question_categories = {
