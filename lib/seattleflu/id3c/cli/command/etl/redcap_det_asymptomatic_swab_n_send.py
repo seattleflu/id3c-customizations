@@ -359,7 +359,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'income_levels',
         'insurance',
         'smoke',
-        'chronic_illness'
+        'chronic_illness',
     ]
 
     question_categories = {
@@ -432,7 +432,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
     def cast_to_boolean(string: str) -> Optional[bool]:
         if string == 'Yes':
             return True
-        elif re.match(r'^No($|,[\w\s\'\.]*)$', string):  # Starts with "No", has optional comma and text
+        elif re.match(r'^No($|(,|\s-)[\w\s\'\.]*)$', string):  # Starts with "No", has optional comma or space+dash followed by text
             return False
         return None
 
