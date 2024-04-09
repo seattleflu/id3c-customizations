@@ -96,6 +96,26 @@ def map_symptom(symptom_name: str) -> Optional[str]:
 
     return symptom_map[symptom_name.lower()]
 
+def map_chronic_illness(illness_name: str):
+    """
+    Maps a *chronic_illness* to current values in ID3C warehouse.
+    """
+    illness_map = {
+        'asthma or reactive airway disease':                'asthma',
+        'copd/emphysema':                                   'copd',
+        'chronic bronchitis':                               'bronchitis',
+        'cancer':                                           'cancer',
+        'diabetes':                                         'diabetes',
+        'heart disease (heart failure or heart attack)':    'cvd',
+        'none of the above':                                'none',
+        'do not know':                                      'dont_know',
+        'prefer not to say':                                'don_say'
+    }
+
+    if illness_name.lower() not in illness_map:
+        raise UnknownIllnessNameError(f"Unknown illness name «{illness_name}»")
+
+    return illness_map[illness_name.lower()]
 
 class UnknownSexError(ValueError):
     """
@@ -117,5 +137,12 @@ class UnknownSymptomNameError(ValueError):
     """
     Raised by :function: `map_symptom` if a provided
     *symptom_name* is not among a set of expected values
+    """
+    pass
+
+class UnknownIllnessNameError(ValueError):
+    """
+    Raised by :function: `map_chronic_illness` if a provided
+    *illness_name* is not among a set of expected values
     """
     pass
