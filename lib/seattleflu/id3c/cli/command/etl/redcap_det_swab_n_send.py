@@ -232,7 +232,7 @@ def create_encounter(record: REDCapRecord, patient_reference: dict, locations: l
         else:
             return None
 
-    def build_conditions_list(symptom_key: str) -> dict:
+    def build_conditions_list(symptom_key: str) -> Optional[Condition]:
         return create_resource_condition(record, record[symptom_key], patient_reference)
 
     def build_diagnosis_list(symptom_key: str) -> Optional[dict]:
@@ -297,7 +297,7 @@ def create_encounter(record: REDCapRecord, patient_reference: dict, locations: l
     return create_entry_and_reference(encounter_resource, "Encounter")
 
 
-def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[dict]:
+def create_resource_condition(record: dict, symptom_name: str, patient_reference: dict) -> Optional[Condition]:
     """ Returns a FHIR Condition resource. """
     def severity(symptom_name: Optional[str]) -> Optional[str]:
         if symptom_name:
@@ -311,11 +311,7 @@ def create_resource_condition(record: dict, symptom_name: str, patient_reference
     if not mapped_symptom_name:
         return None
 
-    # XXX TODO: Define this as a TypedDict when we upgrade from Python 3.6 to
-    # 3.8.  Until then, there's no reasonable way to type this data structure
-    # better than Any.
-    #   -trs, 24 Oct 2019
-    condition: Any = {
+    condition: Condition = {
         "resourceType": "Condition",
         "id": mapped_symptom_name,
         "code": {
