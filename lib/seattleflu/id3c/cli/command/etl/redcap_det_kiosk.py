@@ -40,7 +40,7 @@ REQUIRED_INSTRUMENTS = [
 # REDCap DET records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all REDCap DET records,
 # this revision number should be incremented.
-REVISION = 5
+REVISION = 6
 
 
 @redcap_det.command_for_project(
