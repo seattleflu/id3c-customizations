@@ -343,7 +343,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     ]
 
     boolean_questions = [
-        'hispanic',
+        'ethnicity',
         'travel_states',
         'travel_countries',
     ]
@@ -381,7 +381,8 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     record['race'] = create_custom_coding_key('race', record)
     record['age'] = age_ceiling(int(record['age']))
     record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
-
+    record['ethnicity'] = record['hispanic']
+    
     for field in checkbox_fields:
         record[field] = combine_legacy_checkbox_answers(record, field)
 
