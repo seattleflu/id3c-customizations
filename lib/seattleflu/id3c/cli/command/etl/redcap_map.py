@@ -108,6 +108,7 @@ def map_chronic_illness(illness_name: str):
         'diabetes':                                         'diabetes',
         'heart disease (heart failure or heart attack)':    'cvd',
         'none of the above':                                'none',
+        'none of these conditions':                         'none',
         'do not know':                                      'dont_know',
         'prefer not to say':                                'don_say'
     }
