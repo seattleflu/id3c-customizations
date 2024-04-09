@@ -250,7 +250,7 @@ def get_sfs_barcode(redcap_record: dict) -> str:
     return barcode
 
 
-def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict]:
+def create_cepheid_result_observation_resource(redcap_record: dict) -> List[Observation]:
     """
     Determine the cepheid results based on responses in *redcap_record* and
     create observation resources for each result following the FHIR format
@@ -282,7 +282,7 @@ def create_cepheid_result_observation_resource(redcap_record: dict) -> List[dict
     cepheid_results = find_selected_options('cepheid_results___', redcap_record)
 
     # Create observation resources for all potential results in Cepheid test
-    diagnostic_results = {}
+    diagnostic_results: dict[str, Observation] = {}
     for index, result in enumerate(code_map):
         new_observation = observation_resource('Cepheid')
         new_observation['id'] = 'result-' + str(index+1)
@@ -695,7 +695,7 @@ def determine_symptoms_codes(redcap_record: dict) -> Optional[dict]:
 def create_encounter(redcap_record: REDCapRecord,
                      patient_reference: dict,
                      location_references: List[dict],
-                     symptom_resources: Optional[List[dict]],
+                     symptom_resources: Optional[List[Condition]],
                      symptom_references: Optional[List[dict]]) -> tuple:
     """
     Create FHIR encounter resource and encounter reference from given
