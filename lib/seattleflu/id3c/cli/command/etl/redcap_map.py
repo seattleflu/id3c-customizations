@@ -109,7 +109,7 @@ def map_chronic_illness(illness_name: str):
         'heart disease (heart failure or heart attack)':    'cvd',
         'none of the above':                                'none',
         'do not know':                                      'dont_know',
-        'prefer not to say':                                'don_say'
+        'prefer not to say':                                'dont_say'
     }
 
     if illness_name.lower() not in illness_map:
