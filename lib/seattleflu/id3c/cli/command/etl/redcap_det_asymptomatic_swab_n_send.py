@@ -21,12 +21,12 @@ from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
 from . import race, first_record_instance, required_instruments
-
+from .redcap import combine_legacy_checkbox_answers
 
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 2
+REVISION = 3
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -178,7 +178,7 @@ def create_encounter(record: REDCapRecord, patient_reference: dict, locations: l
         else:
             return None
 
-    def build_conditions_list(symptom_key: str) -> dict:
+    def build_conditions_list(symptom_key: str) -> Optional[Condition]:
         return create_resource_condition(record[symptom_key], patient_reference)
 
     def build_diagnosis_list(symptom_key: str) -> Optional[dict]:
@@ -241,7 +241,7 @@ def create_encounter(record: REDCapRecord, patient_reference: dict, locations: l
     return create_entry_and_reference(encounter_resource, "Encounter")
 
 
-def create_resource_condition(symptom_name: str, patient_reference: dict) -> Optional[dict]:
+def create_resource_condition(symptom_name: str, patient_reference: dict) -> Optional[Condition]:
     """ Returns a FHIR Condition resource. """
     mapped_symptom_name = map_symptom(symptom_name)
     if not mapped_symptom_name:
@@ -251,7 +251,7 @@ def create_resource_condition(symptom_name: str, patient_reference: dict) -> Opt
     # 3.8.  Until then, there's no reasonable way to type this data structure
     # better than Any.
     #   -trs, 24 Oct 2019
-    condition: Any = {
+    condition: Condition = {
         "resourceType": "Condition",
         "id": mapped_symptom_name,
         "code": {
@@ -356,6 +356,10 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     string_questions = [
         'education',
         'samp_process_date',
+        'income_levels',
+        'insurance',
+        'smoke',
+        'chronic_illness'
     ]
 
     question_categories = {
@@ -366,9 +370,20 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
     }
 
     # Do some pre-processing
+    # Combine checkbox answers into one list
+    checkbox_fields = [
+        'insurance',
+        'smoke',
+        'chronic_illness',
+    ]
+
+    # Do some pre-processing
     record['race'] = create_custom_coding_key('race', record)
     record['age'] = age_ceiling(int(record['age']))
     record['age_months'] = age_ceiling(int(record['age_months']) / 12) * 12
+
+    for field in checkbox_fields:
+        record[field] = combine_legacy_checkbox_answers(record, field)
 
     items: List[dict] = []
     for category in question_categories:
