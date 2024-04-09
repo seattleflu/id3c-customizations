@@ -23,12 +23,12 @@ from seattleflu.id3c.cli.command import age_ceiling
 from .redcap_map import *
 from .fhir import *
 from . import race, first_record_instance, required_instruments
-
+from .redcap import combine_legacy_checkbox_answers
 
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 4
+REVISION = 5
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
@@ -437,6 +437,19 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'acute_symptom_onset',
         'doctor_1week',
         'antiviral_1',
+        'income_levels',
+        'insurance',
+        'smoke_9a005a',
+        'chronic_illness',
+        'housing_type',
+    ]
+
+    # Do some pre-processing
+    # Combine checkbox answers into one list
+    checkbox_fields = [
+        'insurance',
+        'smoke_9a005a',
+        'chronic_illness',
     ]
 
     question_categories = {
@@ -445,6 +458,9 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'valueInteger': integer_questions,
         'valueString': string_questions,
     }
+
+    for field in checkbox_fields:
+        record[field] = combine_legacy_checkbox_answers(record, field)
 
     # Do some pre-processing
     record['race'] = create_custom_coding_key('race', record)
