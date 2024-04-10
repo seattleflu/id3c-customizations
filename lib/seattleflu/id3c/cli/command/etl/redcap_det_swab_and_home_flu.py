@@ -438,6 +438,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'barcode_confirm',
         'travel_states',
         'travel_countries',
+        'child_daycare',
     ]
 
     integer_questions = [
@@ -461,6 +462,15 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'smoke_9a005a',
         'chronic_illness',
         'housing_type',
+        'agegroups',
+        'regular_activities_0',
+        'school_interference_0',
+        'activities_impacted_0v2',
+        'regular_activities_1',
+        'activities_impacted_2',
+        'school_interference_1',
+        'work_impact_0',
+        'work_impact',
     ]
 
     question_categories = {
@@ -474,6 +484,13 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'insurance',
         'smoke_9a005a',
         'chronic_illness',
+        'agegroups',
+        'school_interference_0',
+        'activities_impacted_0v2',
+        'activities_impacted_2',
+        'school_interference_1',
+        'work_impact_0',
+        'work_impact',
     ]
 
     # Do some pre-processing
