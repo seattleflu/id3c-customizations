@@ -11,6 +11,7 @@ from typing import Any, List, Optional, Tuple, Dict
 from cachetools import TTLCache
 from id3c.db.session import DatabaseSession
 from id3c.cli.redcap import Record as REDCapRecord
+from id3c.cli.redcap import Project as REDCapProject
 from id3c.cli.command.de_identify import generate_hash
 from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
@@ -53,10 +54,13 @@ REVISION = 6
 @first_record_instance
 @required_instruments(REQUIRED_INSTRUMENTS)
 def redcap_det_kiosk(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_record: REDCapRecord) -> Optional[dict]:
-    # XXX TODO: INCLUDE SPANISH RESPONSES
-    if redcap_record['language_questions'] == 'Spanish':
-        LOG.warning("Skipping enrollment because the Spanish questionnaire is not yet supported")
+    if redcap_record['staff_name_uw'] == 'DEMO MODE' or redcap_record['staff_name_sch'] == 'DEMO MODE':
+        LOG.warning("Skipping enrollment with staff name equal to `DEMO MODE`.")
         return None
+
+    if redcap_record['language_questions'] == 'Spanish':
+        LOG.info("Processing Spanish enrollment")
+        redcap_record = overwrite_english_questionnaire_responses(redcap_record)
 
     patient_entry, patient_reference = create_patient(redcap_record)
 
@@ -142,6 +146,16 @@ def redcap_det_kiosk(*, db: DatabaseSession, cache: TTLCache, det: dict, redcap_
 
 
 # FUNCTIONS SPECIFIC TO SFS KIOSK ENROLLMENT PROJECT
+def overwrite_english_questionnaire_responses(redcap_record: Dict[str, Any]):
+    overwritten_data = {k: v for k, v in redcap_record.items()}
+
+    for key in redcap_record.keys():
+        if key.startswith("s_"):
+            overwritten_data[key.lstrip("s_")] = redcap_record[key]
+
+    return REDCapRecord(project=REDCapProject(url=REDCAP_URL, project_id=PROJECT_ID), data=overwritten_data)
+
+
 def create_patient(record: dict) -> tuple:
     """ Returns a FHIR Patient resource entry and reference. """
     gender = map_sex(record["sex_new"] or record["sex"])
@@ -744,65 +758,79 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
         items['age'] = [{ 'valueInteger': age_ceiling(int(redcap_record['age'])) }]
         items['age_months'] = [{ 'valueInteger': int(age_ceiling(float(redcap_record['age_months']) / 12) * 12) }]
 
+    # Spanish language answers may exist anywhere below here.
+
+    items['travel_countries'] = [{'valueBoolean': (redcap_record['travel_countries'] == 'Yes' or redcap_record['travel_countries'] == 'Sí')}]
+    items['travel_states'] = [{'valueBoolean': (redcap_record['travel_states'] == 'Yes' or redcap_record['travel_states'] == 'Sí')}]
+
     if redcap_record['acute_symptom_onset']:
-        items['acute_symptom_onset'] = [{ 'valueString': redcap_record['acute_symptom_onset']}]
+        items['acute_symptom_onset'] = [{ 'valueString': spanish_to_english_mapper(redcap_record['acute_symptom_onset'], 'acute_symptom_onset')}]
 
     # Participant can select multiple insurance types, so create
     # a separate answer for each selection
     insurance_responses = find_selected_options('insurance___', redcap_record)
-    insurances = determine_insurance_type(insurance_responses)
-    if insurances:
-        items['insurance'] = [{'valueString': insurance} for insurance in insurances]
+    if insurance_responses:
+        items['insurance'] = [{'valueString': spanish_to_english_mapper(insurance, 'insurance')} for insurance in insurance_responses]
 
     # Participant can select multiple races, so create
     # a separate answer for each selection
     race_responses = find_selected_options('race___', redcap_record)
     if 'Prefer not to say' not in race_responses:
+        race_responses = [spanish_to_english_mapper(race, 'race') for race in race_responses]
         races = race(race_responses)
         items['race'] = [{'valueString': race} for race in races]
 
     if redcap_record['hispanic'] != 'Prefer not to say':
-        items['ethnicity'] = [{'valueBoolean': redcap_record['hispanic'] == 'Yes'}]
-
-    items['travel_countries'] = [{'valueBoolean': redcap_record['travel_countries'] == 'Yes'}]
-    items['travel_states'] = [{'valueBoolean': redcap_record['travel_states'] == 'Yes'}]
+        items['ethnicity'] = [{'valueBoolean': (redcap_record['hispanic'] == 'Yes' or redcap_record['hispanic'] == "Sí")}]
 
     if redcap_record['education']:
-        items['education'] = [{'valueString': redcap_record['education']}]
+        items['education'] = [{'valueString': spanish_to_english_mapper(redcap_record['education'], 'education')}]
 
     if redcap_record['income_levels']:
-        items['income'] = [{'valueString': redcap_record['income_levels']}]
+        items['income'] = [{'valueString': spanish_to_english_mapper(redcap_record['income_levels'], 'income_levels')}]
 
     if redcap_record['housing_type']:
-        items['housing_type'] = [{'valueString': redcap_record['housing_type']}]
+        items['housing_type'] = [{'valueString': spanish_to_english_mapper(redcap_record['housing_type'], 'housing_type')}]
 
     if redcap_record['house_members']:
-        items['house_members'] = [{'valueString': redcap_record['house_members']}]
+        items['house_members'] = [{'valueString': spanish_to_english_mapper(redcap_record['house_members'], 'house_members')}]
 
     if redcap_record['antiviral_1']:
-        items['antiviral_1'] = [{'valueString': redcap_record['antiviral_1']}]
+        items['antiviral_1'] = [{'valueString': spanish_to_english_mapper(redcap_record['antiviral_1'], 'antiviral_1')}]
+
+    child_age_responses = find_selected_options("age_children___", redcap_record)
+    if child_age_responses:
+        items['age_children'] = [{'valueString': spanish_to_english_mapper(age_response, 'age_children')} for age_response in child_age_responses]
+
+    if redcap_record['regular_activities_0']:
+        items['regular_activities_0'] = [{'valueString': spanish_to_english_mapper(redcap_record['regular_activities_0'], 'regular_activities_0')}]
+
+    school_interference_responses = find_selected_options("school_interference_0___", redcap_record)
+    if school_interference_responses:
+        items['school_interference_0'] = [{'valueString': spanish_to_english_mapper(interference, 'school_interference_0')} for interference in school_interference_responses]
+
+    items['child_dayvare'] = [{'valueBoolean': (redcap_record['child_daycare'] == 'Yes' or redcap_record['child_daycare'] == 'Sí')}]
 
     # Participant can select multiple smoking types, so create
     # a separate answer for each selection
     smoke_responses = find_selected_options('smoke___', redcap_record)
     if smoke_responses:
-        items['smoke'] = [{'valueString': smoke} for smoke in smoke_responses]
+        items['smoke'] = [{'valueString': spanish_to_english_mapper(smoke, 'smoke')} for smoke in smoke_responses]
 
     # Participant can select multiple chronic illnesses, so create
     # a separate answer for each selection
     chronic_illness = find_selected_options('chronic_illness___', redcap_record)
     if smoke_responses:
-        items['chronic_illness'] = [{'valueString': map_chronic_illness(illness)} for illness in chronic_illness]
-
+        items['chronic_illness'] = [{'valueString': map_chronic_illness(spanish_to_english_mapper(illness, 'illness'))} for illness in chronic_illness]
 
     # Only include vaccine status if known
-    vaccine_status = map_vaccine(redcap_record['vaccine'])
+    vaccine_status = map_vaccine(spanish_to_english_mapper(redcap_record['vaccine'], 'vaccine'))
     # Only include vaccine status if known
     if vaccine_status is not None:
         items['vaccine'] = [{ 'valueBoolean': vaccine_status }]
         immunization_date = determine_vaccine_date(
-            vaccine_year = redcap_record['vaccine_year'],
-            vaccine_month = redcap_record['vaccine_month']
+            vaccine_year = spanish_to_english_mapper(redcap_record['vaccine_year'], 'vaccine_year'),
+            vaccine_month = spanish_to_english_mapper(redcap_record['vaccine_month'], 'vaccine_month')
         )
         if vaccine_status and immunization_date:
             items['vaccine'].append({ 'valueDate': immunization_date })
@@ -814,16 +842,25 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
             answers = items[item]
         ))
 
+    # fu
+    if redcap_record['doctor_1week']:
+        items['doctor_1week'] = [{'valueString': spanish_to_english_mapper(redcap_record['doctor_1week'], 'doctor_1week')}]
+
+    activity_responses = find_selected_options("activities_impacted_poc___", redcap_record)
+    if activity_responses:
+        items['activities_impacted_poc'] = [{'valueString': spanish_to_english_mapper(activity, 'activities_impacted_poc')} for activity in activity_responses]
+
+    work_impact_responses = find_selected_options('work_impact_2poc___', redcap_record)
+    if work_impact_responses:
+        items['work_impact_2poc'] = [{'valueString': spanish_to_english_mapper(impact, 'work_impact_2poc')} for impact in work_impact_responses]
+
     return response_items
 
 
-def determine_insurance_type(insurance_reseponses: list) -> Optional[list]:
+def determine_insurance_type(insurance_reseponse: str) -> str:
     """
     Determine the insurance type based on a given *insurance_response*
     """
-    if len(insurance_reseponses) == 0:
-        return None
-
     insurance_map = {
         'Private (provided by employer and/or purchased)': 'privateInsurance',
         'Government (Medicare/Medicaid)': 'government',
@@ -838,7 +875,7 @@ def determine_insurance_type(insurance_reseponses: list) -> Optional[list]:
         except KeyError:
             raise UnknownInsuranceError(f'Unknown insurance response «{insurance}»') from None
 
-    return list(map(standardize_insurance, insurance_reseponses))
+    return standardize_insurance(insurance_reseponse)
 
 
 def create_questionnaire_response_entry(redcap_record: dict,
@@ -880,6 +917,652 @@ def find_selected_options(option_prefix: str, redcap_record:dict) -> list:
     ]
 
 
+# XXX A quick and dirty mapping set to handle potentially spanish language values in variables.
+def spanish_to_english_mapper(value: str, field: str):
+
+    if field == 'acute_symptom_onset':
+        return map_spanish_symptom_onset_to_english(value)
+    elif field == 'insurance':
+        return map_spanish_insurance_to_english(value)
+    elif field == 'race':
+        return map_spanish_race_to_english(value)
+    elif field == 'education':
+        return map_spanish_education_to_english(value)
+    elif field == 'income_levels':
+        return map_spanish_income_levels_to_english(value)
+    elif field == 'housing_type':
+        return map_spanish_housing_type_to_english(value)
+    elif field == 'house_members':
+        return map_spanish_house_members_to_english(value)
+    elif field == 'antiviral_1':
+        return map_spanish_antiviral_1_to_english(value)
+    elif field == 'smoke':
+        return map_spanish_smoke_to_english(value)
+    elif field == 'illness':
+        return map_spanish_illness_to_english(value)
+    elif field == 'vaccine':
+        return map_spanish_vaccine_to_english(value)
+    elif field == 'vaccine_year':
+        return map_spanish_vaccine_year_to_english(value)
+    elif field == 'vaccine_month':
+        return map_spanish_vaccine_month_to_english(value)
+    elif field == 'age_children':
+        return map_spanish_age_children_to_english(value)
+    elif field == 'regular_activities_0':
+        return map_spanish_regular_activity_to_english(value)
+    elif field == 'school_interference_0':
+        return map_spanish_school_interference_to_english(value)
+
+    # fu
+    elif field == 'activities_impacted_poc':
+        return map_spanish_impacted_activity_to_english(value)
+    elif field == 'work_impact_2poc':
+        return map_spanish_work_impact_to_english(value)
+    elif field == 'doctor_1week':
+        return map_spanish_doctor_follow_up_to_english(value)
+    else:
+        raise UnknownMappedField(f"Unknown Spanish to English mapped field name «{field}»")
+
+
+def map_spanish_symptom_onset_to_english(to_map):
+    mapper = {
+        'Medio día': 'Half a day',
+        'Medio día a 1 día': 'Half a day - 1 day',
+        '1 a 1.5 días': '1 - 1.5 days',
+        '1.5 a 2 días': '1.5 - 2 days',
+        '3 días': '3 days',
+        '4 días': '4 days',
+        '5 o más días': '5 or more days',
+    }
+
+    def standardize_symptom_onset(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownSymptomOnsetError(f'Unknown acute symptom onset response «{to_map}»') from None
+
+    return standardize_symptom_onset(to_map)
+
+
+def map_spanish_insurance_to_english(to_map):
+    mapper = {
+        'Privado (proporcionado por el empleador y/o comprado)': 'Private (provided by employer and/or purchased)',
+        'Gubernamental (Medicare/Medicaid)': 'Government (Medicare/Medicaid)',
+        'Otra': 'Other',
+        'Ninguno': 'None',
+        'Prefiero no decir': 'Prefer not to say',
+    }
+
+    def standardize_insurance(to_map):
+        if to_map in mapper.values():
+            return determine_insurance_type(to_map)
+
+        try:
+            return determine_insurance_type(mapper[to_map])
+        except KeyError:
+            raise UnknownInsuranceValueError(f'Unknown insurance response «{to_map}»') from None
+
+    return standardize_insurance(to_map)
+
+
+def map_spanish_race_to_english(to_map):
+    mapper = {
+        'Indio americano o nativo de Alaska': 'American Indian or Alaska Native',
+        'Asiático': 'Asian',
+        'Nativo de Hawái o de otra isla del Pacífico': 'Native Hawaiian or other Pacific Islander',
+        'Negro o afroamericano': 'Black or African American',
+        'Blanco': 'White',
+        'Otra': 'Other',
+        'Prefiero no decir': 'Prefer not to say',
+    }
+
+    def standardize_race(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownRaceError(f'Unknown race response «{to_map}»') from None
+
+    return standardize_race(to_map)
+
+
+def map_spanish_education_to_english(to_map):
+    mapper = {
+        "No acabé la preparatoria (high school)": "Less than high school graduate",
+        "Terminé la preparatoria (high school) / Obtuve mi GED": "Graduated high school/obtained GED",
+        "Algunos estudios universitarios (incluida la formación vocacional, título de dos años)": "Some college (including vocational training, associate's degree)",
+        "Licenciatura": "Bachelor's degree",
+        "Título avanzado": "Advanced degree",
+        "Prefiero no decir": "Prefer not to say",
+    }
+
+    def standardize_education(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownEducationError(f'Unknown education response «{to_map}»') from None
+
+    return standardize_education(to_map)
+
+
+def map_spanish_income_levels_to_english(to_map):
+    mapper = {
+        'Menos que o igual a $25,000': 'Less than or equal to $25,000',
+        'Entre veinticinco y cincuenta mil dolares ($25,001 a $50,000)': 'Between $25 and 50 thousand ($25,001 to $50,000)',
+        'Entre cincuenta y setenta y cinco mil dolares ($50,001 a $75,000)': 'Between $50 and 75 thousand ($50,001 to $75,000)',
+        'Entre setenta y cinco y cien mil dolares ($75,001 a $100,000)': 'Between $75 and 100 thousand ($75,001 to $100,000)',
+        'Entre cien mil y cien y veinticinco mil dolares ($100,001 a $125,000)': 'Between $100 and 125 thousand ($100,001 to $125,000)',
+        'Entre cien y veinticinco mil y cien y cincuenta mil dolares ($125,001 a $150,000)': 'Between $125 and 150 thousand ($125,001 to $150,000)',
+        'Más que $150,000': 'Over $150,000',
+        'No lo sé': "Don't know",
+        'Prefiero no decir': 'Prefer not to say',
+    }
+
+    def standardize_income_level(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownIncomeError(f'Unknown income levels response «{to_map}»') from None
+
+    return standardize_income_level(to_map)
+
+
+def map_spanish_housing_type_to_english(to_map):
+    mapper = {
+        'Casa/condominio/casa adosada': 'House/condo/townhouse',
+        'Refugio': 'Shelter',
+        'Apartamento': 'Apartment',
+        'Dormitorio': 'Dormitory',
+        'Centro de vivienda asistida': 'Assisted living facility',
+        'Centro de enfermería especializada': 'Skilled nursing center',
+        'Sin residencia principal regular': 'No consistent primary residence',
+        'Otra': 'Other',
+    }
+
+    def standardize_housing_type(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownHousingTypeError(f'Unknown housing type response «{to_map}»') from None
+
+    return standardize_housing_type(to_map)
+
+
+def map_spanish_house_members_to_english(to_map):
+    mapper = {
+        'Vivo solo': 'I live by myself',
+        '2 personas': '2 people',
+        '3 personas': '3 people',
+        '4 personas': '4 people',
+        '5 personas': '5 people',
+        '6 o más personas': '6 or more people',
+    }
+
+    def standardize_house_members(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownHousingMembersError(f'Unknown house members response «{to_map}»') from None
+
+    return standardize_house_members(to_map)
+
+
+def map_spanish_antiviral_1_to_english(to_map):
+    mapper = {
+        'No': 'No',
+        'Sí; Oseltamivir (Tamiflu)': 'Yes; Oseltamivir (Tamiflu)',
+        'Sí; Zanamivir (Relenza)': 'Yes; Zanamivir (Relenza)',
+        'Sí; Peramivir (Rapivab)': 'Yes; Peramivir (Rapivab)',
+        'Sí; Baloxavir (Xofluza)': 'Yes; Baloxavir (Xofluza)',
+        'Sí, pero no sé qué medicamento': "Yes, but I don't know which medication",
+        'No lo sé': 'Do not know',
+    }
+
+    def standardize_antiviral(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownAntiviralError(f'Unknown antiviral response «{to_map}»') from None
+
+    return standardize_antiviral(to_map)
+
+
+def map_spanish_smoke_to_english(to_map):
+    mapper = {
+        'Productos de tabaco (p. ej. cigarrillos, puros, pipas)': 'Tobacco products (e.g. cigarettes, cigars, pipes)',
+        'Cigarrillos electrónicos/bolígrafos de vapor': 'Electronic cigarettes/vapor pens',
+        'Ninguna de las anteriores respuestas': 'None of the above',
+        'Prefiero no decir': 'Prefer not to say',
+    }
+
+    def standardize_smoke(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownSmokeError(f'Unknown smoke response «{to_map}»') from None
+
+    return standardize_smoke(to_map)
+
+
+def map_spanish_illness_to_english(to_map):
+    mapper = {
+        "Asma o enfermedad reactiva de las vías respiratorias": "Asthma or reactive airway disease",
+        "COPD/enfisema": "COPD/emphysema",
+        "Bronquitis crónica": "Chronic bronchitis",
+        "Cáncer": "Cancer",
+        "Diabetes": "Diabetes",
+        "Enfermedad cardíaca (insuficiencia cardíaca o ataque cardíaco)": "Heart disease (heart failure or heart attack)",
+        "Ninguna de estas afecciones": "None of these conditions",
+        "No lo sé": "Do not know",
+        "Prefiero no decir": "Prefer not to say",
+    }
+
+    def standardize_illness(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownIllnessError(f'Unknown illness response «{to_map}»') from None
+
+    return standardize_illness(to_map)
+
+
+def map_spanish_vaccine_to_english(to_map):
+    mapper = {
+        'Sí': 'Yes',
+        'No': 'No',
+        'No lo sé': 'Do not know',
+    }
+
+    def standardize_vaccine(to_map):
+        if not to_map:
+            return ''
+
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownVaccineError(f'Unknown vaccine response «{to_map}»') from None
+
+    return standardize_vaccine(to_map)
+
+
+def map_spanish_vaccine_year_to_english(to_map):
+    mapper = {
+        '2019': '2019',
+        '2020': '2020',
+        'No lo sé': 'Do not know',
+    }
+
+    def standardize_vaccine_year(to_map):
+        if not to_map:
+            return ''
+
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownVaccineYearError(f'Unknown vaccine year response «{to_map}»') from None
+
+    return standardize_vaccine_year(to_map)
+
+
+def map_spanish_vaccine_month_to_english(to_map):
+    mapper = {
+        'Enero': 'January',
+        'Febrero': 'February',
+        'Marzo': 'March',
+        'Abril': 'April',
+        'Mayo': 'May',
+        'Junio': 'June',
+        'Julio': 'July',
+        'Agosto': 'August',
+        'Septiembre': 'September',
+        'Octubre': 'October',
+        'Noviembre': 'November',
+        'Diciembre': 'December',
+        'No lo sé': 'Do not know',
+    }
+
+    def standardize_vaccine_month(to_map):
+        if not to_map:
+            return ''
+
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownVaccineMonthError(f'Unknown vaccine month response «{to_map}»') from None
+
+    return standardize_vaccine_month(to_map)
+
+
+def map_spanish_age_children_to_english(to_map):
+    mapper = {
+        'No hay niños': 'No children',
+        '0-5 años': 'Age 0-5 years',
+        '6-12 años': 'Age 6-12 years',
+        '13-18 años': 'Age 13-18 years',
+    }
+
+    def standardize_age_children(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownChildAgeError(f'Unknown child age response «{to_map}»') from None
+
+    return standardize_age_children(to_map)
+
+
+def map_spanish_doctor_follow_up_to_english(to_map):
+    mapper = {
+        "Sí - Consultorio médico o atención de urgencia": "Yes - Doctor's office or Urgent Care",
+        "Sí - Farmacia": "Yes - Pharmacy (drugstore)",
+        "Sí - Hospital o departamento de emergencias": "Yes - Hospital or Emergency Department",
+        "Si - Otro": "Yes - Other", # sic
+        "No": "No",
+    }
+
+    def standardize_doctor_follow_up(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownDoctorFollowUpError(f'Unknown doctor follow up response «{to_map}»') from None
+
+    return standardize_doctor_follow_up(to_map)
+
+
+def map_spanish_regular_activity_to_english(to_map):
+    mapper = {
+        "Nada": "Not at all",
+        "Un poco": "A little bit",
+        "Algo": "Somewhat",
+        "Bastante": "Quite a bit",
+        "Mucho": "Very much",
+    }
+
+    def standardize_regular_activity(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownRegularActivityError(f'Unknown regular activity response «{to_map}»') from None
+
+    return standardize_regular_activity(to_map)
+
+
+def map_spanish_impacted_activity_to_english(to_map):
+    mapper = {
+        "Escuela": "School",
+        "Trabajo": "Work",
+        "Hacer mandados": "Running errands",
+        "Hacer ejercicio": "Exercising",
+        "Socializar": "Socializing",
+        "Trabajar como voluntario": "Volunteering",
+        "Capacidad para cuidarme o cuidar a mi familia": "Ability to take care of myself and/or family",
+        "Ninguna de las anteriores/ mis actividades no se han visto afectadas": "None of the above / my activities have not been impacted",
+    }
+
+    def standardize_impacted_activity(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownImpactedActivityError(f'Unknown impacted activity response «{to_map}»') from None
+
+    return standardize_impacted_activity(to_map)
+
+
+def map_spanish_school_interference_to_english(to_map):
+    mapper = {
+        "Asistir a clases": "Attending class",
+        "Ir a trabajar": "Going to work",
+        "Estudiar": "Studying",
+        "Sacar buenas calificaciones en un examen o tarea de redacción": "Performing well on an exam or written assignment",
+        "Ninguna de las anteriores/ mis actividades no se han visto afectadas": "None of the above/ my activities have not been impacted",
+    }
+
+    def standardize_school_interference(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownSchoolInterferenceError(f'Unknown school interference response «{to_map}»') from None
+
+    return standardize_school_interference(to_map)
+
+
+def map_spanish_work_impact_to_english(to_map):
+    mapper = {
+        "Falté al trabajo": "I missed work",
+        "Trabajé desde casa": "I worked from home",
+        "Trabajé menos horas de lo habitual": "I worked fewer hours than usual",
+        "Ninguna de las anteriores respuestas": "None of the above",
+    }
+
+    def standardize_work_impact(to_map):
+        if to_map in mapper.values():
+            return to_map
+
+        try:
+            return mapper[to_map]
+        except KeyError:
+            raise UnknownWorkImpactError(f'Unknown work impact response «{to_map}»') from None
+
+    return standardize_work_impact(to_map)
+
+
+class UnknownMappedField(ValueError):
+    """
+    Raised by :function: `spanish_to_english_mapper` if a provided
+    *field* is not among a set of expected values
+    """
+    pass
+
+
+class UnknownSymptomOnsetError(ValueError):
+    """
+    Raised by :function: `map_spanish_symptom_onset_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownInsuranceValueError(ValueError):
+    """
+    Raised by :function: `map_spanish_insurance_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownRaceError(ValueError):
+    """
+    Raised by :function: `map_spanish_race_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownEducationError(ValueError):
+    """
+    Raised by :function: `map_spanish_education_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownIncomeError(ValueError):
+    """
+    Raised by :function: `map_spanish_income_levels_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownHousingTypeError(ValueError):
+    """
+    Raised by :function: `map_spanish_housing_type_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownHousingMembersError(ValueError):
+    """
+    Raised by :function: `map_spanish_house_members_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownAntiviralError(ValueError):
+    """
+    Raised by :function: `map_spanish_antiviral_1_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownSmokeError(ValueError):
+    """
+    Raised by :function: `map_spanish_smoke_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownIllnessError(ValueError):
+    """
+    Raised by :function: `map_spanish_illness_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownVaccineError(ValueError):
+    """
+    Raised by :function: `map_spanish_vaccine_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownVaccineYearError(ValueError):
+    """
+    Raised by :function: `map_spanish_vaccine_year_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownVaccineMonthError(ValueError):
+    """
+    Raised by :function: `map_spanish_vaccine_month_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownChildAgeError(ValueError):
+    """
+    Raised by :function: `map_spanish_age_children_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownDoctorFollowUpError(ValueError):
+    """
+    Raised by :function: `map_spanish_doctor_follow_up_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownRegularActivityError(ValueError):
+    """
+    Raised by :function: `map_spanish_regular_activity_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownImpactedActivityError(ValueError):
+    """
+    Raised by :function: `map_spanish_impacted_activity_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownSchoolInterferenceError(ValueError):
+    """
+    Raised by :function: `map_spanish_school_interference_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownWorkImpactError(ValueError):
+    """
+    Raised by :function: `map_spanish_work_impact_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
+class UnknownChildDaycareError(ValueError):
+    """
+    Raised by :function: `map_spanish_child_daycare_to_english` if a provided
+    *to_map* field is not among a set of expected values
+    """
+    pass
+
+
 class UnknownInsuranceError(ValueError):
     """
     Raised by :function: `determine_insurance_type` if a provided
@@ -902,6 +1585,7 @@ class UnknownShelterError(ValueError):
     is not among a set of expected values
     """
     pass
+
 
 class UnknownDormError(ValueError):
     """
