@@ -415,6 +415,7 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'barcode_confirm',
         'travel_states',
         'travel_countries',
+        'child_daycare',
     ]
 
     integer_questions = [
@@ -438,6 +439,14 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'smoke_9a005a',
         'chronic_illness',
         'housing_type',
+        'agegroups',
+        'regular_activities_0',
+        'school_interference_0',
+        'activities_impacted_0',
+        'regular_activities_1',
+        'activities_impacted_2',
+        'school_interference_1',
+        'work_impact',
     ]
 
     # Do some pre-processing
@@ -446,6 +455,12 @@ def create_questionnaire_response(record: dict, patient_reference: dict,
         'insurance',
         'smoke_9a005a',
         'chronic_illness',
+        'agegroups',
+        'school_interference_0',
+        'activities_impacted_0',
+        'activities_impacted_2',
+        'school_interference_1',
+        'work_impact',
     ]
 
     question_categories = {
@@ -510,7 +525,7 @@ def questionnaire_item(record: dict, question_id: str, response_type: str) -> Op
     def cast_to_boolean(string: str) -> Optional[bool]:
         if string == 'Yes':
             return True
-        elif re.match(r'^No($|,[\w\s\'\.]*)$', string):  # Starts with "No", has optional comma and text
+        elif re.match(r'^No($|(,|\s-)[\w\s\'\.]*)$', string):  # Starts with "No", has optional comma or space+dash followed by text
             return False
         return None
 

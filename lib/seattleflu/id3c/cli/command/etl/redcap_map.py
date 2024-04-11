@@ -102,15 +102,19 @@ def map_chronic_illness(illness_name: str):
     """
     illness_map = {
         'asthma or reactive airway disease':                'asthma',
+        'blood disorders (e.g. sickle cell)':               'blood',
         'copd/emphysema':                                   'copd',
+        'copd/ emphysema':                                  'copd',
         'chronic bronchitis':                               'bronchitis',
         'cancer':                                           'cancer',
         'diabetes':                                         'diabetes',
         'heart disease (heart failure or heart attack)':    'cvd',
+        'immunosuppression (by medication or disease)':     'immunosupression',
+        'liver disease':                                    'liver',
         'none of the above':                                'none',
         'none of these conditions':                         'none',
         'do not know':                                      'dont_know',
-        'prefer not to say':                                'don_say'
+        'prefer not to say':                                'dont_say'
     }
 
     if illness_name.lower() not in illness_map:

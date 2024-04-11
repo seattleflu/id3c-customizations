@@ -26,7 +26,7 @@ from .redcap import combine_legacy_checkbox_answers
 LOG = logging.getLogger(__name__)
 
 
-REVISION = 2
+REVISION = 3
 
 REDCAP_URL = 'https://redcap.iths.org/'
 INTERNAL_SYSTEM = "https://seattleflu.org"
