@@ -11,7 +11,7 @@ from cachetools import TTLCache
 
 from . import race
 from .fhir import *
-from .redcap_map import map_sex, map_symptom, UnknownVaccineResponseError
+from .redcap_map import map_sex, map_symptom, map_chronic_illness, UnknownVaccineResponseError
 from id3c.cli.command.geocode import get_geocoded_address
 from id3c.cli.command.location import location_lookup
 from id3c.cli.redcap import is_complete, Record as REDCapRecord
@@ -528,6 +528,22 @@ def combine_checkbox_answers(record: dict, coded_question: str) -> Optional[list
 
     return answers
 
+def combine_legacy_checkbox_answers(record: dict, coded_question: str) -> Optional[list]:
+    """
+    Handles the combining "select all that apply"-type checkbox responses into one list for legacy projects:
+    - swab-n-send
+    """
+    regex = rf'{re.escape(coded_question)}___[\w]*$'
+    empty_value = ''
+    answered_checkboxes = list(filter(lambda f: filter_fields(f, record[f], regex, empty_value), record))
+
+    # REDCap checkbox fields have format of {question}___{#}
+    answers = list(map(lambda k: record[k], answered_checkboxes))
+
+    if coded_question == 'chronic_illness':
+        return list(map(lambda a: map_chronic_illness(a), answers))
+    
+    return answers
 
 def map_vaccine(vaccine_response: str) -> Optional[bool]:
     """
