@@ -41,7 +41,7 @@ REQUIRED_INSTRUMENTS = [
 # REDCap DET records lacking this revision number in their log.  If a
 # change to the ETL routine necessitates re-processing all REDCap DET records,
 # this revision number should be incremented.
-REVISION = 6
+REVISION = 7
 
 
 @redcap_det.command_for_project(
@@ -809,7 +809,7 @@ def determine_all_questionnaire_items(redcap_record: dict) -> List[dict]:
     if school_interference_responses:
         items['school_interference_0'] = [{'valueString': spanish_to_english_mapper(interference, 'school_interference_0')} for interference in school_interference_responses]
 
-    items['child_dayvare'] = [{'valueBoolean': (redcap_record['child_daycare'] == 'Yes' or redcap_record['child_daycare'] == 'Sí')}]
+    items['child_daycare'] = [{'valueBoolean': (redcap_record['child_daycare'] == 'Yes' or redcap_record['child_daycare'] == 'Sí')}]
 
     # Participant can select multiple smoking types, so create
     # a separate answer for each selection
