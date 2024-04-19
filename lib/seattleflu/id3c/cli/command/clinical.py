@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import pandas as pd
+import numpy as np
 import id3c.db as db
 import time
 import requests
@@ -899,12 +900,12 @@ def parse_kp2023(kp2023_filename: str) -> None:
         'symptom_cough',
         'symptom_fever',
         'symptom_chills',
-        'symptom__throat', # this typo has been in all KP2023 sheets so far, so expect it; however, if the typo is fixed, it will be let through below
-        'sympton_sob', # this typo has been in all KP2023 sheets so far, so expect it; however, if the typo is fixed, it will be let through below
+        'symptom_throat', # typo that appeared in early KP2023 metadata will be let through below
+        'symptom_sob', # typo that appeared in early KP2023 metadata will be let through below
         'symptom_nose',
         'symptom_smell_taste',
-        'symptom_unk',
-        'symptom_no_answer',
+        #'symptom_unk', # no longer in data dictionary as of January 2024
+        #'symptom_no_answer', # no longer in data dictionary as of January 2024
         'date_flu_1',
         'date_flu_2',
         'flu_type_1',
@@ -920,11 +921,11 @@ def parse_kp2023(kp2023_filename: str) -> None:
 
     # check for missing expected columns
     missing_cols = list(set(expected_columns).difference(clinical_records.columns))
-    # If KP fixes known typos on their end, allow those through. (if typo name is missing but fixed name is present)
-    if 'sympton_sob' in missing_cols and 'symptom_sob' in clinical_records.columns:
-        missing_cols.remove('sympton_sob')
-    if 'symptom__throat' in missing_cols and 'symptom_throat' in clinical_records.columns:
-        missing_cols.remove('symptom__throat')
+    # Allow typos from early KP2023 metadata sheets through
+    if 'symptom_sob' in missing_cols and 'sympton_sob' in clinical_records.columns:
+        missing_cols.remove('symptom_sob')
+    if 'symptom_throat' in missing_cols and 'symptom__throat' in clinical_records.columns:
+        missing_cols.remove('symptom_throat')
     if len(missing_cols) > 0:
         raise MissingColumn(f'One or more expected columns are missing from the input spreadsheet: {*missing_cols,}')
 
@@ -933,16 +934,13 @@ def parse_kp2023(kp2023_filename: str) -> None:
         'marshfield_lab_id':    'collection_id', # will be mapped to lims barcode with id3c clinical match-kp2023
         'hispaniclatino':       'ethnicity',
         'assigned_sex':         'sex',
-        'symptom__throat':      'symptom_throat', # fix extra underscore
+        'symptom__throat':      'symptom_throat', # fix typo if present
         'censustract':          'census_tract',
         'type_of_visit':        'patient_class',
-        'sympton_sob':          'symptom_sob' # fix typo
+        'sympton_sob':          'symptom_sob' # fix typo if present
     }
 
     clinical_records = clinical_records.rename(columns=column_map)
-
-    # check for missing or duplicated barcodes?
-    #barcode_quality_control(clinical_records)
 
     # The collection ids on the tubes from KP have aliquot numbers appended to them (ex: KPWB100001C-1)
     # but the collection ids in the metadata spreadsheet do not have these aliquot numbers at the end (ex: KPWB100001C)
@@ -957,6 +955,19 @@ def parse_kp2023(kp2023_filename: str) -> None:
         clinical_records.loc[collection_ids_with_aliquot, 'collection_id'] = clinical_records.loc[
             collection_ids_with_aliquot, 'collection_id'
         ].apply(lambda cid: re.sub(r'-\d+$','', cid))
+
+    # convert symptom columns from numeric to binary (0/1)
+    clinical_records = convert_column_set_to_binary(clinical_records, 'symptom_')
+        
+    # check that expected binary columns only contain 0/1/None values
+    # race
+    if not column_set_is_binary(clinical_records, 'race_'):
+        raise UnexpectedNumeric(f'One or more columns with prefix "race_" have values other than 0/1/None.\
+                                  These columns are expected to be binary.')
+    # sex column is binary, but the map function that we use below
+    # will automatically convert non-0/1 values to None,
+    # so don't need to check that here
+    # likewise with patient_class
     
     # map high risk codes to ICD-10 codes, and collapse into one column 'icd10'
     clinical_records = map_icd10_codes(clinical_records)
@@ -1069,6 +1080,36 @@ def parse_kp2023(kp2023_filename: str) -> None:
     # dump ndjson to stdout
     LOG.info(f"Dumping {len(clinical_records)} parsed KP2023 records to stdout")
     dump_ndjson(clinical_records)
+
+
+def convert_column_set_to_binary(df: pd.DataFrame, prefix: str) -> pd.DataFrame:
+    """
+    Given a DataFrame *df* of clinical records and a string *prefix* with
+    a prefix denoting which columns to convert, returns a DataFrame where
+    columns whose names begin with *prefix* contain only values 0, 1, or None.
+    Any value other than 1 in the input column is converted to None.
+    See KP2023 data dictionary for details.
+    """
+    cols = [c for c in df.columns if c.startswith(prefix)]
+    for c in cols:
+        df.loc[df[c] > 1, c] = None
+
+    return df
+
+
+def column_set_is_binary(df: pd.DataFrame, prefix:str) -> bool:
+    """
+    Given a DataFrame *df* of clinical records and a string *prefix* with
+    a prefix denoting columns of interest, returns True if all columns
+    beginning with the provided prefix contain only 0/1/None values,
+    otherwise returns False.
+    """
+    cols = [c for c in df.columns if c.startswith(prefix)]
+    for c in cols:
+        if not np.isin(df[c].dropna().unique(), [0, 1]).all():
+            return False
+    
+    return True
 
 
 def map_icd10_codes(df: pd.DataFrame) -> pd.DataFrame:
@@ -1612,5 +1653,12 @@ class MissingColumn(KeyError):
     """
     Raised by :function: `parse-kp2023` if any expected columns
     are not found in the input spreadsheet after standardizing column names
+    """
+    pass
+
+class UnexpectedNumeric(KeyError):
+    """
+    Raised by function parse-kp2023 if any columns that are expected to be binary
+    have values other than 0/1/None
     """
     pass
