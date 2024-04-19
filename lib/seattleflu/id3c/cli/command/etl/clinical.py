@@ -302,7 +302,7 @@ def generate_fhir_bundle(db: DatabaseSession, record: dict, site_id: str) -> Opt
 
     if record["site"].upper() == 'KP2023':
         # KP2023 includes some types of metadata that PHSKC does not
-        icd10_condition_entries = create_icd10_conditions_kp2023(record, patient_reference)
+        icd10_condition_entries = create_icd10_conditions_kp2023(record, patient_reference, encounter_reference)
         symptom_condition_entries = create_symptom_conditions(record, patient_reference, encounter_reference)
         immunization_entries = create_immunization_kp2023(record, patient_reference)
         resource_entries.extend(icd10_condition_entries + symptom_condition_entries + immunization_entries)
@@ -513,7 +513,7 @@ def create_symptom_conditions(record: dict, patient_reference: dict, encounter_r
     return condition_entries
 
 
-def create_icd10_conditions_kp2023(record:dict, patient_reference: dict) -> list:
+def create_icd10_conditions_kp2023(record:dict, patient_reference: dict, encounter_reference: dict) -> list:
     """
     Create a condition resource for each ICD-10 code, following the FHIR format
     (http://www.hl7.org/implement/standards/fhir/condition.html)
@@ -1051,7 +1051,8 @@ def create_icd10_conditions_kp2023(record:dict, patient_reference: dict) -> list
                                 create_codeable_concept(
                                     system = icd10_codes[icd10_code]["system"], 
                                     code = icd10_codes[icd10_code]["code"], 
-                                    display = icd10_codes[icd10_code]["display"])
+                                    display = icd10_codes[icd10_code]["display"]),
+                                encounter_reference
                             )
 
         condition_entries.append(create_resource_entry(
