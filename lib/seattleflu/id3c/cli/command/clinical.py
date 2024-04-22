@@ -424,7 +424,14 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
     clinical_records = clinical_records[column_map.values()]
 
     # Convert dtypes
-    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"]).dt.tz_localize('America/Los_Angeles')
+    #clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"]).dt.tz_localize('America/Los_Angeles')
+    # unlike other clinical parse functions, do not convert from UTC to local timezone
+    # this is because of a reingestion of kp 2018-2021 encounter metadata in 2024, in order to include ICD-10 codes
+    # timestamp conversion from UTC to local timezone only was added after kp 2018-2021 encounters were processed into id3c
+    # encounter identifiers are based on encounter date, so need to keep encounter date consistent with old
+    # records in order to avoid re-uploading the same encounter to id3c with a different encounter identifier than before
+    
+    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
 
     # Insert static value columns
     clinical_records["site"] = "KP"
