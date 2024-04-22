@@ -1107,11 +1107,7 @@ def column_set_is_binary(df: pd.DataFrame, prefix:str) -> bool:
     otherwise returns False.
     """
     cols = [c for c in df.columns if c.startswith(prefix)]
-    for c in cols:
-        if not np.isin(df[c].dropna().unique(), [0, 1]).all():
-            return False
-    
-    return True
+    return all([np.isin(df[c].dropna().unique(), [0, 1]).all() for c in cols])
 
 
 def map_icd10_codes(df: pd.DataFrame, sample_stream: str) -> pd.DataFrame:
