@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import pandas as pd
+import numpy as np
 import id3c.db as db
 import time
 import requests
@@ -393,6 +394,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
     clinical_records = rename_symptoms_columns(clinical_records)
     clinical_records = collapse_columns(clinical_records, 'symptom')
     clinical_records = collapse_columns(clinical_records, 'race')
+    clinical_records = map_icd10_codes(clinical_records, 'kp')
 
     clinical_records['FluShot'] = clinical_records['fluvaxdt'].notna()
 
@@ -408,6 +410,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
         "FluShot": "FluShot",
         "censustract": "census_tract",
         "_provenance": "_provenance",
+        "icd10": "ICD10"
     }
 
     if manifest_format=="year1":
@@ -421,7 +424,14 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
     clinical_records = clinical_records[column_map.values()]
 
     # Convert dtypes
-    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"]).dt.tz_localize('America/Los_Angeles')
+    #clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"]).dt.tz_localize('America/Los_Angeles')
+    # unlike other clinical parse functions, do not convert from UTC to local timezone
+    # this is because of a reingestion of kp 2018-2021 encounter metadata in 2024, in order to include ICD-10 codes
+    # timestamp conversion from UTC to local timezone only was added after kp 2018-2021 encounters were processed into id3c
+    # encounter identifiers are based on encounter date, so need to keep encounter date consistent with old
+    # records in order to avoid re-uploading the same encounter to id3c with a different encounter identifier than before
+
+    clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
 
     # Insert static value columns
     clinical_records["site"] = "KP"
@@ -899,12 +909,12 @@ def parse_kp2023(kp2023_filename: str) -> None:
         'symptom_cough',
         'symptom_fever',
         'symptom_chills',
-        'symptom__throat', # this typo has been in all KP2023 sheets so far, so expect it; however, if the typo is fixed, it will be let through below
-        'sympton_sob', # this typo has been in all KP2023 sheets so far, so expect it; however, if the typo is fixed, it will be let through below
+        'symptom_throat', # typo that appeared in early KP2023 metadata will be let through below
+        'symptom_sob', # typo that appeared in early KP2023 metadata will be let through below
         'symptom_nose',
         'symptom_smell_taste',
-        'symptom_unk',
-        'symptom_no_answer',
+        #'symptom_unk', # no longer in data dictionary as of January 2024
+        #'symptom_no_answer', # no longer in data dictionary as of January 2024
         'date_flu_1',
         'date_flu_2',
         'flu_type_1',
@@ -920,11 +930,11 @@ def parse_kp2023(kp2023_filename: str) -> None:
 
     # check for missing expected columns
     missing_cols = list(set(expected_columns).difference(clinical_records.columns))
-    # If KP fixes known typos on their end, allow those through. (if typo name is missing but fixed name is present)
-    if 'sympton_sob' in missing_cols and 'symptom_sob' in clinical_records.columns:
-        missing_cols.remove('sympton_sob')
-    if 'symptom__throat' in missing_cols and 'symptom_throat' in clinical_records.columns:
-        missing_cols.remove('symptom__throat')
+    # Allow typos from early KP2023 metadata sheets through
+    if 'symptom_sob' in missing_cols and 'sympton_sob' in clinical_records.columns:
+        missing_cols.remove('symptom_sob')
+    if 'symptom_throat' in missing_cols and 'symptom__throat' in clinical_records.columns:
+        missing_cols.remove('symptom_throat')
     if len(missing_cols) > 0:
         raise MissingColumn(f'One or more expected columns are missing from the input spreadsheet: {*missing_cols,}')
 
@@ -933,16 +943,13 @@ def parse_kp2023(kp2023_filename: str) -> None:
         'marshfield_lab_id':    'collection_id', # will be mapped to lims barcode with id3c clinical match-kp2023
         'hispaniclatino':       'ethnicity',
         'assigned_sex':         'sex',
-        'symptom__throat':      'symptom_throat', # fix extra underscore
+        'symptom__throat':      'symptom_throat', # fix typo if present
         'censustract':          'census_tract',
         'type_of_visit':        'patient_class',
-        'sympton_sob':          'symptom_sob' # fix typo
+        'sympton_sob':          'symptom_sob' # fix typo if present
     }
 
     clinical_records = clinical_records.rename(columns=column_map)
-
-    # check for missing or duplicated barcodes?
-    #barcode_quality_control(clinical_records)
 
     # The collection ids on the tubes from KP have aliquot numbers appended to them (ex: KPWB100001C-1)
     # but the collection ids in the metadata spreadsheet do not have these aliquot numbers at the end (ex: KPWB100001C)
@@ -957,9 +964,30 @@ def parse_kp2023(kp2023_filename: str) -> None:
         clinical_records.loc[collection_ids_with_aliquot, 'collection_id'] = clinical_records.loc[
             collection_ids_with_aliquot, 'collection_id'
         ].apply(lambda cid: re.sub(r'-\d+$','', cid))
+
+    # convert symptom columns from numeric to binary (0/1)
+    clinical_records = convert_column_set_to_binary(clinical_records, 'symptom_')
+        
+    # check that expected binary columns only contain 0/1/None values
+    # race
+    if not column_set_is_binary(clinical_records, 'race_'):
+        raise UnexpectedNumeric(f'One or more columns with prefix "race_" have values other than 0/1/None.\
+                                  These columns are expected to be binary.')
+    # since symptoms column could still contain numeric values after call to convert_column_set_to_binary
+    # if there were any negative values present,
+    # check that symptoms column only contains binary or None values
+    if not column_set_is_binary(clinical_records, 'symptom_'):
+        raise UnexpectedNumeric(f'One or more columns with prefix "symptom_" have values other than 0/1/None\
+                                  after attempted conversion from numeric to binary. \
+                                  Check for negative values present in input symptom columns.')
+
+    # sex column is binary, but the map function that we use below
+    # will automatically convert non-0/1 values to None,
+    # so don't need to check that here
+    # likewise with patient_class
     
     # map high risk codes to ICD-10 codes, and collapse into one column 'icd10'
-    clinical_records = map_icd10_codes(clinical_records)
+    clinical_records = map_icd10_codes(clinical_records, 'kp2023')
 
     # collapse race and symptom columns
     clinical_records = collapse_columns(clinical_records, 'symptom_', 'collection_id')
@@ -1071,117 +1099,165 @@ def parse_kp2023(kp2023_filename: str) -> None:
     dump_ndjson(clinical_records)
 
 
-def map_icd10_codes(df: pd.DataFrame) -> pd.DataFrame:
+def convert_column_set_to_binary(df: pd.DataFrame, prefix: str) -> pd.DataFrame:
+    """
+    Given a DataFrame *df* of clinical records and a string *prefix* with
+    a prefix denoting which columns to convert, returns a DataFrame where
+    columns whose names begin with *prefix* contain only values 0, 1, or None.
+    Any positive value other than 0 or 1 in the input column is converted to None.
+    Assumes no negative values as input.
+    See KP2023 data dictionary for details.
+    """
+    cols = [c for c in df.columns if c.startswith(prefix)]
+    for c in cols:
+        df.loc[df[c] > 1, c] = None
+
+    return df
+
+
+def column_set_is_binary(df: pd.DataFrame, prefix:str) -> bool:
+    """
+    Given a DataFrame *df* of clinical records and a string *prefix* with
+    a prefix denoting columns of interest, returns True if all columns
+    beginning with the provided prefix contain only 0/1/None values,
+    otherwise returns False.
+    """
+    cols = [c for c in df.columns if c.startswith(prefix)]
+    return all([np.isin(df[c].dropna().unique(), [0, 1]).all() for c in cols])
+
+
+def map_icd10_codes(df: pd.DataFrame, sample_stream: str) -> pd.DataFrame:
     """
     Given a DataFrame *df* of clinical records, returns a DataFrame
     with an icd10 column containing a list of all positive icd10 codes for each record
     """
-    icd10_mapper = {
-        "chronic ischemic heart disease":                                                                       "I25",
-        "heart failure":                                                                                        "I50",
-        "simple and mucopurulent chronic bronchitis":                                                           "J41",
-        "unspecified chronic bronchitis":                                                                       "J42",
-        "other chronic obstructive pulmonary disease":                                                          "J44",
-        "asthma":                                                                                               "J45",
-        "bronchiectasis":                                                                                       "J47",
-        "acute respiratory distress syndrome":                                                                  "J80",
-        "type 2 diabetes mellitus":                                                                             "E11",
-        "encounter for antineoplastic chemotherapy and immunotherapy":                                          "Z51.1",
-        "transplanted organ and tissue status":                                                                 "Z94",
-        "chronic viral hepatitis":                                                                              "B18",
-        "alcoholic liver disease":                                                                              "K70",
-        "malignant neoplasm of lip":                                                                            "C00",
-        "malignant neoplasm of base of tongue":                                                                 "C01",
-        "malignant neoplasm of other and unspecified parts of tongue":                                          "C02",
-        "malignant neoplasm of gum":                                                                            "C03",
-        "malignant neoplasm of floor of mouth":                                                                 "C04",
-        "malignant neoplasm of palate":                                                                         "C05",
-        "malignant neoplasm of other and unspecified parts of mouth":                                           "C06",
-        "malignant neoplasm of parotid gland":                                                                  "C07",
-        "malignant neoplasm of other and unspecified major salivary glands":                                    "C08",
-        "malignant neoplasm of tonsil":                                                                         "C09",
-        "malignant neoplasm of oropharynx":                                                                     "C10",
-        "malignant neoplasm of nasopharynx":                                                                    "C11",
-        "malignant neoplasm of pyriform sinus":                                                                 "C12",
-        "malignant neoplasm of hypopharynx":                                                                    "C13",
-        "malignant neoplasm of other and ill-defined sites in the lip, oral cavity and pharynx":                "C14",
-        "malignant neoplasm of esophagus":                                                                      "C15",
-        "malignant neoplasm of stomach":                                                                        "C16",
-        "malignant neoplasm of small intestine":                                                                "C17",
-        "malignant neoplasm of colon":                                                                          "C18",
-        "malignant neoplasm of rectosigmoid junction":                                                          "C19",
-        "malignant neoplasm of rectum":                                                                         "C20",
-        "malignant neoplasm of anus and anal canal":                                                            "C21",
-        "malignant neoplasm of liver and intrahepatic bile ducts":                                              "C22",
-        "malignant neoplasm of gallbladder":                                                                    "C23",
-        "malignant neoplasm of other and unspecified parts of biliary tract":                                   "C24",
-        "malignant neoplasm of pancreas":                                                                       "C25",
-        "malignant neoplasm of other and ill-defined digestive organs":                                         "C26",
-        "malignant neoplasm of nasal cavity and middle ear":                                                    "C30",
-        "malignant neoplasm of accessory sinuses":                                                              "C31",
-        "malignant neoplasm of larynx":                                                                         "C32",
-        "malignant neoplasm of trachea":                                                                        "C33",
-        "malignant neoplasm of bronchus and lung":                                                              "C34",
-        "malignant neoplasm of thymus":                                                                         "C37",
-        "malignant neoplasm of heart, mediastinum and pleura":                                                  "C38",
-        "malignant neoplasm of other and ill-defined sites in the respiratory system and intrathoracic organs": "C39",
-        "malignant neoplasm of bone and articular cartilage of limbs":                                          "C40",
-        "malignant neoplasm of bone and articular cartilage of other and unspecified sites":                    "C41",
-        "malignant melanoma of skin":                                                                           "C43",
-        "other and unspecified malignant neoplasm of skin":                                                     "C44",
-        "mesothelioma":                                                                                         "C45",
-        "kaposi's sarcoma":                                                                                     "C46",
-        "malignant neoplasm of peripheral nerves and autonomic nervous system":                                 "C47",
-        "malignant neoplasm of retroperitoneum and peritoneum":                                                 "C48",
-        "malignant neoplasm of other connective and soft tissue":                                               "C49",
-        "merkel cell carcinoma":                                                                                "C4A",
-        "malignant neoplasms of breast":                                                                        "C50",
-        "malignant neoplasm of vulva":                                                                          "C51",
-        "malignant neoplasm of vagina":                                                                         "C52",
-        "malignant neoplasm of cervix uteri":                                                                   "C53",
-        "malignant neoplasm of corpus uteri":                                                                   "C54",
-        "malignant neoplasm of uterus, part unspecified":                                                       "C55",
-        "malignant neoplasm of ovary":                                                                          "C56",
-        "malignant neoplasm of other and unspecified female genital organs":                                    "C57",
-        "malignant neoplasm of placenta":                                                                       "C58",
-        "malignant neoplasm of penis":                                                                          "C60",
-        "malignant neoplasm of prostate":                                                                       "C61",
-        "malignant neoplasm of testis":                                                                         "C62",
-        "malignant neoplasm of other and unspecified male genital organs":                                      "C63",
-        "malignant neoplasm of kidney, except renal pelvis":                                                    "C64",
-        "malignant neoplasm of renal pelvis":                                                                   "C65",
-        "malignant neoplasm of ureter":                                                                         "C66",
-        "malignant neoplasm of bladder":                                                                        "C67",
-        "malignant neoplasm of other and unspecified urinary organs":                                           "C68",
-        "malignant neoplasm of eye and adnexa":                                                                 "C69",
-        "malignant neoplasm of meninges":                                                                       "C70",
-        "malignant neoplasm of brain":                                                                          "C71",
-        "malignant neoplasm of spinal cord, cranial nerves and other parts of central nervous system":          "C72",
-        "malignant neoplasm of thyroid gland":                                                                  "C73",
-        "malignant neoplasm of adrenal gland":                                                                  "C74",
-        "malignant neoplasm of other endocrine glands and related structures":                                  "C75",
-        "malignant neoplasm of other and ill-defined sites":                                                    "C76",
-        "secondary and unspecified malignant neoplasm of lymph nodes":                                          "C77",
-        "secondary malignant neoplasm of respiratory and digestive organs":                                     "C78",
-        "secondary malignant neoplasm of other and unspecified sites":                                          "C79",
-        "malignant neuroendocrine tumors":                                                                      "C7A",
-        "secondary neuroendocrine tumors":                                                                      "C7B",
-        "malignant neoplasm without specification of site":                                                     "C80",
-        "hodgkin lymphoma":                                                                                     "C81",
-        "follicular lymphoma":                                                                                  "C82",
-        "non-follicular lymphoma":                                                                              "C83",
-        "mature t/nk-cell lymphomas":                                                                           "C84",
-        "other specified and unspecified types of non-hodgkin lymphoma":                                        "C85",
-        "other specified types of t/nk-cell lymphoma":                                                          "C86",
-        "malignant immunoproliferative diseases and certain other b-cell lymphomas":                            "C88",
-        "multiple myeloma and malignant plasma cell neoplasms":                                                 "C90",
-        "lymphoid leukemia":                                                                                    "C91",
-        "myeloid leukemia":                                                                                     "C92",
-        "monocytic leukemia":                                                                                   "C93",
-        "other leukemias of specified cell type":                                                               "C94",
-        "leukemia of unspecified cell type":                                                                    "C95",
-        "other and unspecified malignant neoplasms of lymphoid, hematopoietic and related tissue":              "C96"
-    }
+    if sample_stream == 'kp':
+        icd10_mapper = {
+            "cvd":                                                                                                  "I25.10",       
+            "chf":                                                                                                  "I50.9",
+            "bronch":                                                                                               "J42", # could map to J41 or J42
+            "copd":                                                                                                 "J44.9",
+            "asthma":                                                                                               "J45",
+            "diabetes":                                                                                             "E11.9",
+            "renal":                                                                                                "E18.9",
+            "chemo":                                                                                                "Z51.1",
+            "solidorgan":                                                                                           "Z94",
+            "hsct":                                                                                                 "Z94.84",
+            "liver":                                                                                                "B18", # this could map to B18 or 70.9
+            "cancer":                                                                                               "C", # not sure what to do for original kp sample stream which is not more specific about cancer type
+            "lungmalig":                                                                                            "C34"
+        }
+
+    elif sample_stream == 'kp2023':
+        icd10_mapper = {
+            "chronic ischemic heart disease":                                                                       "I25",
+            "heart failure":                                                                                        "I50",
+            "simple and mucopurulent chronic bronchitis":                                                           "J41",
+            "unspecified chronic bronchitis":                                                                       "J42",
+            "other chronic obstructive pulmonary disease":                                                          "J44",
+            "asthma":                                                                                               "J45",
+            "bronchiectasis":                                                                                       "J47",
+            "acute respiratory distress syndrome":                                                                  "J80",
+            "type 2 diabetes mellitus":                                                                             "E11",
+            "encounter for antineoplastic chemotherapy and immunotherapy":                                          "Z51.1",
+            "transplanted organ and tissue status":                                                                 "Z94",
+            "chronic viral hepatitis":                                                                              "B18",
+            "alcoholic liver disease":                                                                              "K70",
+            "malignant neoplasm of lip":                                                                            "C00",
+            "malignant neoplasm of base of tongue":                                                                 "C01",
+            "malignant neoplasm of other and unspecified parts of tongue":                                          "C02",
+            "malignant neoplasm of gum":                                                                            "C03",
+            "malignant neoplasm of floor of mouth":                                                                 "C04",
+            "malignant neoplasm of palate":                                                                         "C05",
+            "malignant neoplasm of other and unspecified parts of mouth":                                           "C06",
+            "malignant neoplasm of parotid gland":                                                                  "C07",
+            "malignant neoplasm of other and unspecified major salivary glands":                                    "C08",
+            "malignant neoplasm of tonsil":                                                                         "C09",
+            "malignant neoplasm of oropharynx":                                                                     "C10",
+            "malignant neoplasm of nasopharynx":                                                                    "C11",
+            "malignant neoplasm of pyriform sinus":                                                                 "C12",
+            "malignant neoplasm of hypopharynx":                                                                    "C13",
+            "malignant neoplasm of other and ill-defined sites in the lip, oral cavity and pharynx":                "C14",
+            "malignant neoplasm of esophagus":                                                                      "C15",
+            "malignant neoplasm of stomach":                                                                        "C16",
+            "malignant neoplasm of small intestine":                                                                "C17",
+            "malignant neoplasm of colon":                                                                          "C18",
+            "malignant neoplasm of rectosigmoid junction":                                                          "C19",
+            "malignant neoplasm of rectum":                                                                         "C20",
+            "malignant neoplasm of anus and anal canal":                                                            "C21",
+            "malignant neoplasm of liver and intrahepatic bile ducts":                                              "C22",
+            "malignant neoplasm of gallbladder":                                                                    "C23",
+            "malignant neoplasm of other and unspecified parts of biliary tract":                                   "C24",
+            "malignant neoplasm of pancreas":                                                                       "C25",
+            "malignant neoplasm of other and ill-defined digestive organs":                                         "C26",
+            "malignant neoplasm of nasal cavity and middle ear":                                                    "C30",
+            "malignant neoplasm of accessory sinuses":                                                              "C31",
+            "malignant neoplasm of larynx":                                                                         "C32",
+            "malignant neoplasm of trachea":                                                                        "C33",
+            "malignant neoplasm of bronchus and lung":                                                              "C34",
+            "malignant neoplasm of thymus":                                                                         "C37",
+            "malignant neoplasm of heart, mediastinum and pleura":                                                  "C38",
+            "malignant neoplasm of other and ill-defined sites in the respiratory system and intrathoracic organs": "C39",
+            "malignant neoplasm of bone and articular cartilage of limbs":                                          "C40",
+            "malignant neoplasm of bone and articular cartilage of other and unspecified sites":                    "C41",
+            "malignant melanoma of skin":                                                                           "C43",
+            "other and unspecified malignant neoplasm of skin":                                                     "C44",
+            "mesothelioma":                                                                                         "C45",
+            "kaposi's sarcoma":                                                                                     "C46",
+            "malignant neoplasm of peripheral nerves and autonomic nervous system":                                 "C47",
+            "malignant neoplasm of retroperitoneum and peritoneum":                                                 "C48",
+            "malignant neoplasm of other connective and soft tissue":                                               "C49",
+            "merkel cell carcinoma":                                                                                "C4A",
+            "malignant neoplasms of breast":                                                                        "C50",
+            "malignant neoplasm of vulva":                                                                          "C51",
+            "malignant neoplasm of vagina":                                                                         "C52",
+            "malignant neoplasm of cervix uteri":                                                                   "C53",
+            "malignant neoplasm of corpus uteri":                                                                   "C54",
+            "malignant neoplasm of uterus, part unspecified":                                                       "C55",
+            "malignant neoplasm of ovary":                                                                          "C56",
+            "malignant neoplasm of other and unspecified female genital organs":                                    "C57",
+            "malignant neoplasm of placenta":                                                                       "C58",
+            "malignant neoplasm of penis":                                                                          "C60",
+            "malignant neoplasm of prostate":                                                                       "C61",
+            "malignant neoplasm of testis":                                                                         "C62",
+            "malignant neoplasm of other and unspecified male genital organs":                                      "C63",
+            "malignant neoplasm of kidney, except renal pelvis":                                                    "C64",
+            "malignant neoplasm of renal pelvis":                                                                   "C65",
+            "malignant neoplasm of ureter":                                                                         "C66",
+            "malignant neoplasm of bladder":                                                                        "C67",
+            "malignant neoplasm of other and unspecified urinary organs":                                           "C68",
+            "malignant neoplasm of eye and adnexa":                                                                 "C69",
+            "malignant neoplasm of meninges":                                                                       "C70",
+            "malignant neoplasm of brain":                                                                          "C71",
+            "malignant neoplasm of spinal cord, cranial nerves and other parts of central nervous system":          "C72",
+            "malignant neoplasm of thyroid gland":                                                                  "C73",
+            "malignant neoplasm of adrenal gland":                                                                  "C74",
+            "malignant neoplasm of other endocrine glands and related structures":                                  "C75",
+            "malignant neoplasm of other and ill-defined sites":                                                    "C76",
+            "secondary and unspecified malignant neoplasm of lymph nodes":                                          "C77",
+            "secondary malignant neoplasm of respiratory and digestive organs":                                     "C78",
+            "secondary malignant neoplasm of other and unspecified sites":                                          "C79",
+            "malignant neuroendocrine tumors":                                                                      "C7A",
+            "secondary neuroendocrine tumors":                                                                      "C7B",
+            "malignant neoplasm without specification of site":                                                     "C80",
+            "hodgkin lymphoma":                                                                                     "C81",
+            "follicular lymphoma":                                                                                  "C82",
+            "non-follicular lymphoma":                                                                              "C83",
+            "mature t/nk-cell lymphomas":                                                                           "C84",
+            "other specified and unspecified types of non-hodgkin lymphoma":                                        "C85",
+            "other specified types of t/nk-cell lymphoma":                                                          "C86",
+            "malignant immunoproliferative diseases and certain other b-cell lymphomas":                            "C88",
+            "multiple myeloma and malignant plasma cell neoplasms":                                                 "C90",
+            "lymphoid leukemia":                                                                                    "C91",
+            "myeloid leukemia":                                                                                     "C92",
+            "monocytic leukemia":                                                                                   "C93",
+            "other leukemias of specified cell type":                                                               "C94",
+            "leukemia of unspecified cell type":                                                                    "C95",
+            "other and unspecified malignant neoplasms of lymphoid, hematopoietic and related tissue":              "C96"
+        }
+
+    else:
+        raise ValueError(f'Unrecognized sample stream input to function map_icd10_codes: ' + sample_stream)
 
     # rename columns
     df = df.rename(columns=icd10_mapper)
@@ -1612,5 +1688,12 @@ class MissingColumn(KeyError):
     """
     Raised by :function: `parse-kp2023` if any expected columns
     are not found in the input spreadsheet after standardizing column names
+    """
+    pass
+
+class UnexpectedNumeric(KeyError):
+    """
+    Raised by function parse-kp2023 if any columns that are expected to be binary
+    have values other than 0/1/None
     """
     pass
