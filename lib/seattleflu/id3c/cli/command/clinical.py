@@ -430,7 +430,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
     # timestamp conversion from UTC to local timezone only was added after kp 2018-2021 encounters were processed into id3c
     # encounter identifiers are based on encounter date, so need to keep encounter date consistent with old
     # records in order to avoid re-uploading the same encounter to id3c with a different encounter identifier than before
-    
+
     clinical_records["encountered"] = pd.to_datetime(clinical_records["encountered"])
 
     # Insert static value columns
@@ -973,6 +973,14 @@ def parse_kp2023(kp2023_filename: str) -> None:
     if not column_set_is_binary(clinical_records, 'race_'):
         raise UnexpectedNumeric(f'One or more columns with prefix "race_" have values other than 0/1/None.\
                                   These columns are expected to be binary.')
+    # since symptoms column could still contain numeric values after call to convert_column_set_to_binary
+    # if there were any negative values present,
+    # check that symptoms column only contains binary or None values
+    if not column_set_is_binary(clinical_records, 'symptom_'):
+        raise UnexpectedNumeric(f'One or more columns with prefix "symptom_" have values other than 0/1/None\
+                                  after attempted conversion from numeric to binary. \
+                                  Check for negative values present in input symptom columns.')
+
     # sex column is binary, but the map function that we use below
     # will automatically convert non-0/1 values to None,
     # so don't need to check that here
@@ -1096,7 +1104,8 @@ def convert_column_set_to_binary(df: pd.DataFrame, prefix: str) -> pd.DataFrame:
     Given a DataFrame *df* of clinical records and a string *prefix* with
     a prefix denoting which columns to convert, returns a DataFrame where
     columns whose names begin with *prefix* contain only values 0, 1, or None.
-    Any value other than 1 in the input column is converted to None.
+    Any positive value other than 0 or 1 in the input column is converted to None.
+    Assumes no negative values as input.
     See KP2023 data dictionary for details.
     """
     cols = [c for c in df.columns if c.startswith(prefix)]
