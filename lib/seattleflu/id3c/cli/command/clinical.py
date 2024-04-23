@@ -383,7 +383,7 @@ def parse_kp(kp_filename, kp_specimen_manifest_filename, manifest_format, output
     All clinical records parsed are output to stdout as newline-delimited JSON
     records.  You will likely want to redirect stdout to a file.
     """
-    clinical_records = pd.read_csv(kp_filename)
+    clinical_records = pd.read_csv(kp_filename, dtype={'CensusTract': 'string'})
     clinical_records.columns = clinical_records.columns.str.lower()
 
     clinical_records = trim_whitespace(clinical_records)
