@@ -63,6 +63,7 @@ setup(
         "requests",
         "flask",
         "flask-cors",
+        "numpy ==1.24.4",
     ],
 
     extras_require = {
