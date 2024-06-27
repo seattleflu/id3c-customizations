@@ -65,10 +65,9 @@ def create_encounter_location_references(db: DatabaseSession, record: dict, resi
         "uwmc_retro": "RetrospectiveUWMedicalCenter",
         "nwh_retro": "RetrospectiveNorthwest",
         "phskc_retro":  "RetrospectivePHSKC",
-
-        # for future use
         "sch_retro":    "RetrospectiveSCH",
         "kp":           "KaiserPermanente",
+        "kp_2":          "KaiserPermanente",
     }
 
     if sample_origin not in origin_site_map:
