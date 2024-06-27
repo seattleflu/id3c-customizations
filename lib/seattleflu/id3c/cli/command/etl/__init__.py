@@ -135,6 +135,7 @@ def race(races: Optional[Any]) -> list:
         "patient not present": None,
         "unavailable or unknown": None,
         "unable to collect": None,
+        "no_response": None,
     }
 
     assert set(race_map.keys()) == set(map(str.lower, race_map.keys()))
