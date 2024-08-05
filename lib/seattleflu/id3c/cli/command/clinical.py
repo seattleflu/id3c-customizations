@@ -56,6 +56,60 @@ KP2023_IDENTIFIERS = {
 def clinical():
     pass
 
+# Parse sequencing accessions subcommand
+@clinical.command("parse-sequencing")
+@click.argument("accession_ids_filename", metavar = "<Sequencing accession IDs filename>")
+@click.option("-o", "--output", metavar="<output filename>",
+    help="The filename for the output of missing barcodes")
+
+def parse_sequencing_accessions(accession_ids_filename, output):
+    """
+    Process sequencing accession IDs file.
+
+    Given a <Sequencing accession IDs filename> of a TSV or Excel file, selects specific
+    columns of interest and reformats the queried data into a stream of JSON
+    documents suitable for the "upload" sibling command.
+
+    <output filename> is the desired filepath of the output CSV of problematic
+    barcodes encountered while parsing. If not provided, the problematic
+    barcodes print to the log.
+
+    All records parsed are output to stdout as newline-delimited JSON
+    records.  You will likely want to redirect stdout to a file.
+    """
+    if accession_ids_filename.endswith('.tsv'):
+        read = pd.read_csv
+    else:
+        read = pd.read_excel
+
+    read_accessions = partial(
+        read,
+        na_values = ['NA', '', 'Unknown', 'NULL'],
+    )
+    clinical_records = (
+        read_accessions(accession_ids_filename, sep='\t')
+            .pipe(trim_whitespace)
+            .pipe(add_provenance, accession_ids_filename))
+
+    column_map = {
+        'sfs_sample_barcode': 'barcode',
+        'strain_name': 'strain_name',
+        'nwgc_id': 'nwgc_id',
+        'gisaid_accession': 'gisaid_accession',
+        'genbank_accession': 'genbank_accession',
+        '_provenance': '_provenance'
+    }
+
+    clinical_records = clinical_records[(clinical_records['sfs_sample_barcode'].notnull())&(clinical_records.status=='submitted')].rename(columns=column_map)
+
+    barcode_quality_control(clinical_records, output)
+
+    # Drop columns we're not tracking
+    clinical_records = clinical_records[column_map.values()]
+
+    dump_ndjson(clinical_records)
+
+
 # UW Clinical subcommand
 @clinical.command("parse-uw")
 @click.argument("uw_filename", metavar = "<UW Clinical Data filename>")
