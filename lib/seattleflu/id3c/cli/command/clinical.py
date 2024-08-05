@@ -59,10 +59,11 @@ def clinical():
 # Parse sequencing accessions subcommand
 @clinical.command("parse-sequencing")
 @click.argument("accession_ids_filename", metavar = "<Sequencing accession IDs filename>")
+@click.argument("record_type", metavar="<record type>", type=click.Choice(['covid', 'rsv-a', 'rsv-b']))
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
 
-def parse_sequencing_accessions(accession_ids_filename, output):
+def parse_sequencing_accessions(accession_ids_filename, record_type, output):
     """
     Process sequencing accession IDs file.
 
@@ -99,6 +100,9 @@ def parse_sequencing_accessions(accession_ids_filename, output):
         'genbank_accession': 'genbank_accession',
         '_provenance': '_provenance'
     }
+    if record_type in ['rsv-a', 'rsv-b']:
+        clinical_records = clinical_records[clinical_records['pathogen'] == record_type]
+        column_map['pathogen'] = 'pathogen'
 
     clinical_records = clinical_records[(clinical_records['sfs_sample_barcode'].notnull())&(clinical_records.status=='submitted')].rename(columns=column_map)
 
