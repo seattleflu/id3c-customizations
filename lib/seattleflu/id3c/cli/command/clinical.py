@@ -59,7 +59,7 @@ def clinical():
 # Parse sequencing accessions subcommand
 @clinical.command("parse-sequencing")
 @click.argument("accession_ids_filename", metavar = "<Sequencing accession IDs filename>")
-@click.argument("record_type", metavar="<record type>", type=click.Choice(['covid', 'rsv-a', 'rsv-b']))
+@click.argument("record_type", metavar="<record type>", type=click.Choice(['hcov19', 'rsv-a', 'rsv-b']))
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
 
@@ -92,18 +92,28 @@ def parse_sequencing_accessions(accession_ids_filename, record_type, output):
             .pipe(trim_whitespace)
             .pipe(add_provenance, accession_ids_filename))
 
+    # only keep submitted records
+    clinical_records = clinical_records[clinical_records.status == 'submitted']
+
+    if record_type in ['rsv-a', 'rsv-b']:
+        clinical_records = clinical_records[clinical_records['pathogen'] == record_type]
+    elif record_type == 'hcov19':
+        assert 'pathogen' not in clinical_records.columns, 'Error: unexpected column `pathogen` in sequence records.'
+        clinical_records['pathogen'] = 'hcov19'
+
+    clinical_records['sequence_identifier'] = clinical_records.apply(
+        lambda row: generate_hash(row['strain_name']) + '-' + row['pathogen'].upper().replace('-', ''), axis=1
+    )
     column_map = {
+        'sequence_identifier': 'sequence_identifier',
         'sfs_sample_barcode': 'barcode',
         'strain_name': 'strain_name',
         'nwgc_id': 'nwgc_id',
         'gisaid_accession': 'gisaid_accession',
         'genbank_accession': 'genbank_accession',
+        'pathogen': 'pathogen',
         '_provenance': '_provenance'
     }
-    if record_type in ['rsv-a', 'rsv-b']:
-        clinical_records = clinical_records[clinical_records['pathogen'] == record_type]
-        column_map['pathogen'] = 'pathogen'
-
     clinical_records = clinical_records[(clinical_records['sfs_sample_barcode'].notnull())&(clinical_records.status=='submitted')].rename(columns=column_map)
 
     barcode_quality_control(clinical_records, output)
