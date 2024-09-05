@@ -403,6 +403,11 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
             "code": "312",
             "display": "COVID-19, mRNA, LNP-S, PF, 50 mcg/0.5 mL"
         },
+        313: {
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": "313",
+            "display": "COVID-19 vaccine, Subunit, rS-nanoparticle, adjuvanted, PF, 5mcg/0.5mL"
+        },
         511: {
             "system": "http://hl7.org/fhir/sid/cvx",
             "code": "511",
