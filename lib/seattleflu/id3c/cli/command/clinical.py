@@ -59,17 +59,20 @@ def clinical():
 # Parse sequencing accessions subcommand
 @clinical.command("parse-sequencing")
 @click.argument("accession_ids_filename", metavar = "<Sequencing accession IDs filename>")
-@click.argument("record_type", metavar="<record type>", type=click.Choice(['hcov19', 'rsv-a', 'rsv-b']))
+@click.argument("record_type", metavar="<record type>", type=click.Choice(['hcov19', 'rsv-a', 'rsv-b', 'flu-a', 'flu-b']))
+@click.argument("segment_accession_ids_filename", nargs=-1, metavar = "<Segment accession IDs filename>")
 @click.option("-o", "--output", metavar="<output filename>",
     help="The filename for the output of missing barcodes")
 
-def parse_sequencing_accessions(accession_ids_filename, record_type, output):
+def parse_sequencing_accessions(accession_ids_filename, record_type, segment_accession_ids_filename, output):
     """
     Process sequencing accession IDs file.
 
     Given a <Sequencing accession IDs filename> of a TSV or Excel file, selects specific
     columns of interest and reformats the queried data into a stream of JSON
     documents suitable for the "upload" sibling command.
+
+    A <Segment accession IDs filename> file is required for Flu sequences.
 
     <output filename> is the desired filepath of the output CSV of problematic
     barcodes encountered while parsing. If not provided, the problematic
@@ -85,7 +88,7 @@ def parse_sequencing_accessions(accession_ids_filename, record_type, output):
 
     read_accessions = partial(
         read,
-        na_values = ['NA', '', 'Unknown', 'NULL'],
+        na_values = ['NA', '', 'Unknown', 'NULL']
     )
     clinical_records = (
         read_accessions(accession_ids_filename, sep='\t')
@@ -95,15 +98,6 @@ def parse_sequencing_accessions(accession_ids_filename, record_type, output):
     # only keep submitted records
     clinical_records = clinical_records[clinical_records.status == 'submitted']
 
-    if record_type in ['rsv-a', 'rsv-b']:
-        clinical_records = clinical_records[clinical_records['pathogen'] == record_type]
-    elif record_type == 'hcov19':
-        assert 'pathogen' not in clinical_records.columns, 'Error: unexpected column `pathogen` in sequence records.'
-        clinical_records['pathogen'] = 'hcov19'
-
-    clinical_records['sequence_identifier'] = clinical_records.apply(
-        lambda row: generate_hash(row['strain_name']) + '-' + row['pathogen'].upper().replace('-', ''), axis=1
-    )
     column_map = {
         'sequence_identifier': 'sequence_identifier',
         'sfs_sample_barcode': 'barcode',
@@ -114,14 +108,59 @@ def parse_sequencing_accessions(accession_ids_filename, record_type, output):
         'pathogen': 'pathogen',
         '_provenance': '_provenance'
     }
-    clinical_records = clinical_records[(clinical_records['sfs_sample_barcode'].notnull())&(clinical_records.status=='submitted')].rename(columns=column_map)
+    if record_type in ['flu-a', 'flu-b']:
+        assert segment_accession_ids_filename and len(segment_accession_ids_filename)==1 , 'Error: Missing required segment accession IDs file.'
+        segment_accession_ids_filename = segment_accession_ids_filename[0]
+        
+        clinical_records = clinical_records[clinical_records['pathogen'] == record_type]
+        column_map['subtype'] = 'subtype'
+        column_map['segment'] = 'segment'
+        if segment_accession_ids_filename.endswith('.tsv'):
+            read = pd.read_csv
+        else:
+            read = pd.read_excel
 
-    barcode_quality_control(clinical_records, output)
+        # Exlcuding "NA" from n/a values because it is used as neuraminidase segment code.
+        read_segment_accessions = partial(
+            read,
+            na_values = ['', 'Unknown', 'NULL'],
+            keep_default_na = False
+        )
+        clinical_records_segments = (
+            read_segment_accessions(segment_accession_ids_filename, sep='\t')
+                .pipe(trim_whitespace)
+                .pipe(add_provenance, segment_accession_ids_filename))
 
-    # Drop columns we're not tracking
-    clinical_records = clinical_records[column_map.values()]
+        clinical_records_segments = clinical_records_segments[['strain_name', 'genbank_accession', 'sequence_id', 'segment', '_provenance']]
 
-    dump_ndjson(clinical_records)
+        # Drop overlapping columns prior to merging
+        clinical_records.drop(columns=['genbank_accession', '_provenance'], inplace=True)
+        clinical_records = clinical_records.merge(clinical_records_segments, on='strain_name')
+
+    if record_type in ['rsv-a', 'rsv-b']:
+        assert 'subtype' not in clinical_records.columns, 'Error: unexpected column `subtype` in sequence records.'
+        clinical_records = clinical_records[clinical_records['pathogen'] == record_type]
+    elif record_type == 'hcov19':
+        assert 'pathogen' not in clinical_records.columns, 'Error: unexpected column `pathogen` in sequence records.'
+        clinical_records['pathogen'] = 'hcov19'
+
+    if clinical_records.empty:
+        dump_ndjson(clinical_records)
+    else:
+        clinical_records['sequence_identifier'] = clinical_records.apply(
+            lambda row: generate_hash(row['strain_name']) + '-' + row['pathogen'].upper().replace('-', ''), axis=1
+        )
+
+        clinical_records = clinical_records[(clinical_records['sfs_sample_barcode'].notnull())&(clinical_records.status=='submitted')].rename(columns=column_map)
+
+        # Flu data is by segment, so skipping barcode uniqueness check
+        if record_type not in ['flu-a', 'flu-b']:
+            barcode_quality_control(clinical_records, output)
+
+        # Drop columns we're not tracking
+        clinical_records = clinical_records[column_map.values()]
+
+        dump_ndjson(clinical_records)
 
 
 # UW Clinical subcommand
