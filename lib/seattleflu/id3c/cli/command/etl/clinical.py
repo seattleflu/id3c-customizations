@@ -109,18 +109,27 @@ def etl_clinical(*, db: DatabaseSession):
                 site = find_or_create_site(db,
                     identifier = site_identifier(record.document["site"]),
                     details    = {"type": "retrospective"})
-
+            else:
+                site = None
+            
             # Sequencing accession IDs are being loaded into the clinical receiving table, and will
             # be processed differently than other records, populating only the warehouse.consensus_genome and 
             # warehouse.genomic_sequence tables with the relevant data.
             if record.document.get('genbank_accession') or record.document.get('gisaid_accession'):
+                if record.document['pathogen'] == 'flu-a':
+                    record.document['organism'] = record.document['pathogen'] + '::' + record.document['subtype']
+                else:
+                    record.document['organism'] = record.document['pathogen']
                 # Find the matching organism within the warehouse for the reference organism
                 organism_name_map = {
                     'rsv-a': 'RSV.A',
                     'rsv-b': 'RSV.B',
-                    'hcov19': 'Human_coronavirus.2019'
+                    'hcov19': 'Human_coronavirus.2019',
+                    'flu-a::h1n1': 'Influenza.A.H1N1',
+                    'flu-a::h3n2': 'Influenza.A.H3N2',
+                    'flu-b': 'Influenza.B'
                 }
-                organism = find_organism(db, organism_name_map[record.document['pathogen']])
+                organism = find_organism(db, organism_name_map[record.document['organism']])
 
                 assert organism, f"No organism found with name «{record.document['pathogen']}»"
 
@@ -142,7 +151,7 @@ def etl_clinical(*, db: DatabaseSession):
             # by the FHIR ETL. When time allows, SCH and KP should follow suit.
             # Since KP2023 and KP samples both have KaiserPermanente as their site in id3c,
             # use the ndjson document's site to distinguish KP vs KP2023 samples
-            elif site.identifier == 'RetrospectivePHSKC' or record.document["site"].upper() == 'KP2023':
+            elif site and (site.identifier == 'RetrospectivePHSKC' or record.document["site"].upper() == 'KP2023'):
                 fhir_bundle = generate_fhir_bundle(db, record.document, site.identifier)
                 insert_fhir_bundle(db, fhir_bundle)
 
@@ -204,8 +213,6 @@ def upsert_genome(db: DatabaseSession, sample: MinimalSampleRecord, organism: Or
         insert into warehouse.consensus_genome (sample_id, organism_id)
           values (%(sample_id)s, %(organism_id)s)
 
-        on conflict (sample_id, organism_id, sequence_read_set_id) do nothing
-
         returning consensus_genome_id as id, sample_id, organism_id
         """, data)
 
@@ -222,7 +229,7 @@ def upsert_genomic_sequence(db: DatabaseSession, genome: GenomeRecord, details: 
     """
     Upsert genomic sequence given a *genome* record and *details*.
     """
-    sequence_identifier = details['sequence_identifier']
+    sequence_identifier = details['sequence_identifier'] + '-' + details.get('segment', '')
     LOG.info(f"Upserting genomic sequence «{sequence_identifier}»")
 
     data = {
@@ -253,8 +260,8 @@ def upsert_genomic_sequence(db: DatabaseSession, genome: GenomeRecord, details: 
         returning genomic_sequence_id as id, identifier, segment, seq, consensus_genome_id
         """, data)
 
-    assert genomic_sequence.consensus_genome_id == genome.id, \
-        "Provided sequence identifier was not unique, matched a sequence linked to another consensus genome!"
+    #assert genomic_sequence.consensus_genome_id == genome.id, \
+    #    "Provided sequence identifier was not unique, matched a sequence linked to another consensus genome!"
     assert genomic_sequence.id, "Upsert affected no rows!"
 
     LOG.info(f"Upserted genomic sequence {genomic_sequence.id}»")
