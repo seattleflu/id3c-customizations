@@ -453,10 +453,13 @@ def create_immunization(record: dict, patient_reference: dict) -> Optional[list]
         "covid-19 pfizer mrna bivalent 6 mos-4 yrs old":                    308,
         "covid-19 pfizer mrna 2023-24 12 yrs and older (comirnaty)":        309,
         "covid-19 pfizer mrna 12 yrs and older (comirnaty)":                309,
+        "covid-19 pfizer mrna seasonal 12 yrs and older (comirnaty)":       309,
         "covid-19 moderna mrna 2023-24 6 mos-11 yrs old":                   311,
         "covid-19 moderna mrna 6 mos-11 yrs old":                           311,
         "covid-19 moderna mrna 2023-24 12 yrs and older (spikevax)":        312,
         "covid-19 moderna mrna 12 yrs and older (spikevax)":                312,
+        "covid-19 moderna mrna seasonal 12 yrs and older (spikevax)":       312,
+        "covid-19 novavax adjuvanted monovalent":                           313,
         "covid-19 novavax subunit adjuvanted monovalent":                   313,
         "covid-19 sinovac inactivated, non-us (coronavac)":                 511,
         "": None
