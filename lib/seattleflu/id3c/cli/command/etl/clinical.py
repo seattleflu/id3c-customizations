@@ -213,6 +213,10 @@ def upsert_genome(db: DatabaseSession, sample: MinimalSampleRecord, organism: Or
         insert into warehouse.consensus_genome (sample_id, organism_id)
           values (%(sample_id)s, %(organism_id)s)
 
+        on conflict (sample_id, organism_id) where sequence_read_set_id is null do update
+            set sample_id = excluded.sample_id,
+                organism_id = excluded.organism_id
+
         returning consensus_genome_id as id, sample_id, organism_id
         """, data)
 
