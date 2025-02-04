@@ -1505,7 +1505,7 @@ def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> lis
     if isinstance(covid_shot_manufacturer_name, str):
         covid_shot_manufacturer_name = covid_shot_manufacturer_name.lower().strip()
 
-    if covid_shot_manufacturer_name is None or covid_shot_manufacturer_name == "":
+    if covid_shot_manufacturer_name is None or covid_shot_manufacturer_name == "" or covid_shot_manufacturer_name == "unknown":
         LOG.debug("No COVID shot manufacturer name found.")
         return [None]
 
@@ -1513,6 +1513,7 @@ def covid_shot_maunufacturer(covid_shot_manufacturer_name: Optional[Any]) -> lis
         "pfizer",
         "moderna",
         "janssen",
+        "non-us",
     ]
 
     if covid_shot_manufacturer_name not in valid_covid_manufacturers:

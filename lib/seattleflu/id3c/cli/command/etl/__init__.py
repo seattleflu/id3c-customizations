@@ -127,6 +127,7 @@ def race(races: Optional[Any]) -> list:
 
         "refused": None,
         "patient refused": None,
+        "patient declined": None,
         "prefer not to say": None,
         "did not wish to indicate": None,
         "unknown": None,
